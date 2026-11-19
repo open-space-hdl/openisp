@@ -8,7 +8,7 @@ page lists the rules and the few OpenISP-specific additions.
 - The [Open Logic coding conventions](../open-logic/doc/Conventions.md) apply in full: port names
   `<Interface>_<Signal>`, generics `_g`, constants `_c`, variables `_v`, types `_t`, FSM types `<Name>Fsm_t` with
   states `_s`, functions in `lowerCamelCase`, four spaces of indentation, no tabs, no trailing whitespace.
-- Entities are named `isp_<function>` with full words (for example `isp_window`). All OpenISP sources are compiled
+- Entities are named `isp_<function>` with full words (for example `isp_crop`). All OpenISP sources are compiled
   into the VHDL library `openisp`; Open Logic is compiled into the library `olo`.
 - Language: VHDL-2008.
 - Entities with non-trivial state use the two-process pattern of Open Logic: all registers in one `TwoProcess_r`
@@ -26,9 +26,9 @@ page lists the rules and the few OpenISP-specific additions.
   signals and output ports are defined (no metavalues). Every module has one clock domain `Clk` unless its
   specification says otherwise.
 - Every data path between blocks is a valid / ready stream (AXI4-Stream handshake semantics) or a valid-only stream
-  of one-cycle events where the receiver is never slower than the source. The framing of pixel streams (start of
-  frame, end of line, end of frame) is defined in the specification of the stream interface and is the same for
-  every module.
+  of one-cycle events where the receiver is never slower than the source. The pixel stream (one pixel per beat,
+  stream packets with sequence flags, image dimensions as generics) is defined in the
+  [requirements specification](requirements.md) and is the same for every module.
 - Standard functions (FIFOs, RAMs, crossings, synchronisers, arbiters, pipeline stages) are instantiated from Open
   Logic, never rewritten. FIFOs and RAMs are the fault-tolerant `olo_ft_*` entities; every crossing, reset generator
   and input synchroniser is instantiated with `SyncTmr_g => true`.
@@ -53,8 +53,8 @@ page lists the rules and the few OpenISP-specific additions.
   the function of the core seen by its user.
 - The requirement traceability matrix (architecture section 10) assigns every core requirement to the module that
   implements it, or marks it as planned or as an obligation of the user.
-- Module requirements have IDs `<LAYER>-<GROUP>-<NN>` (for example `WIN-IF-01` for an interface requirement of the
-  window generator). The last column of a requirement table names the core requirements the requirement implements,
+- Module requirements have IDs `<LAYER>-<GROUP>-<NN>` (for example `CRP-IF-01` for an interface requirement of
+  `isp_crop`). The last column of a requirement table names the core requirements the requirement implements,
   or `none`.
 - Every module requirement is verified by at least one test case of the verification plan, every core requirement
   in scope by the test cases of its module requirements, and every test case of a plan is run by a testbench.

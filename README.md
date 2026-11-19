@@ -1,9 +1,9 @@
 # OpenISP
 
 OpenISP is a suite of open image signal processing cores for spacecraft imagers, based on the Open Logic VHDL Library.
-Every stage of a pixel pipeline (border-aware 2D neighbourhoods, defect pixel correction, flat-field correction,
-filters, demosaicing and others) is developed as a separate, generics-configured VHDL-2008 entity with valid / ready
-pixel streams, so that a processing chain is assembled from the stages it needs. All memories and buffers use the
+Every function of a processing chain (region of interest, pixel-level operations, 2D window filters, binning,
+replacement of non-operational pixels) is a separate, generics-configured VHDL-2008 entity with valid / ready
+pixel streams, so that a chain is assembled from the modules it needs, in any order. All memories and buffers use the
 fault-tolerant entities of [Open Logic](https://github.com/open-logic/open-logic) (SECDED ECC, optional scrubbing),
 every state machine recovers from any state, and the cores are vendor-independent.
 
@@ -12,8 +12,8 @@ specification; the development follows ECSS-E-ST-20-40C.
 
 ## Status
 
-**In development.** No module is verified yet. The first module is the 2D window generator, the front end of every
-later 2D stage. The [roadmap](docs/roadmap.md) lists the modules and their state.
+**In development.** No module is verified yet. The first module is the region of interest `isp_crop`; the
+[roadmap](docs/roadmap.md) lists the modules and their state.
 
 ## Documentation
 
@@ -22,6 +22,7 @@ The documents are also published as a website: [openspacehdl.org/openisp](https:
 
 | Document | Content |
 | --- | --- |
+| [docs/requirements.md](docs/requirements.md) | Requirements specification: the pixel stream and the functions of the suite |
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Technology readiness, module status and open items |
 | [docs/compliance.md](docs/compliance.md) | Compliance matrix: module requirements and test cases of every core requirement (generated) |
@@ -53,7 +54,7 @@ Prerequisites: Python 3, [GHDL](https://github.com/ghdl/ghdl) on the `PATH` and 
 git submodule update --init
 python -m pip install -r requirements.txt
 python run.py -p 4              # full regression with GHDL, 4 parallel simulations
-python run.py "*isp_window*"    # one module
+python run.py "*isp_crop*"      # one module
 python run.py --questa <test>   # QuestaSim
 ```
 
