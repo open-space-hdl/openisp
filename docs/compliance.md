@@ -29,6 +29,7 @@ requirement included).
 | `isp_filter2d` | 15 | - | In development: no verification plan yet |
 | `isp_frame_sync` | 28 | - | In development: no verification plan yet |
 | `isp_point` | 26 | - | In development: no verification plan yet |
+| `isp_replace` | 30 | - | In development: no verification plan yet |
 | `isp_window` | 26 | - | In development: no verification plan yet |
 
-Requirements: 162; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 192; without a test case: 0; test cases of the plans not run by a testbench: 0.

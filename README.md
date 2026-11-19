@@ -12,7 +12,7 @@ specification; the development follows ECSS-E-ST-20-40C.
 
 ## Status
 
-**In development.** No module is verified yet. The first module is the region of interest `isp_crop`; the
+**In development.** No module is verified yet. All eight modules have their requirements and architecture; the
 [roadmap](docs/roadmap.md) lists the modules and their state.
 
 ## Documentation
