@@ -121,7 +121,7 @@ the image; an image start is evaluated before every other condition of its pixel
 | --- | --- | --- | --- |
 | `ImageWidth_g` | none | 1 to 65536 | W: pixels per line |
 | `ImageHeight_g` | none | 1 to 65536 | H: lines per image |
-| `PixelBits_g` | none | 1 to 32 | Bits per pixel |
+| `PixelBits_g` | none | 1 to 64 | Bits per pixel |
 
 ## 5. Configuration checks
 

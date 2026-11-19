@@ -5,7 +5,8 @@
 `isp_crop` selects a rectangular region of interest (ROI) of an image: it takes the pixel stream of an image of
 `ImageWidth_g` x `ImageHeight_g` pixels and outputs the `RoiWidth_g` x `RoiHeight_g` pixels of the region whose top
 left pixel is (X0, Y0) as an image of its own. The size of the region is set by generics. Its position is set by
-generics (`RoiX_g`, `RoiY_g`) or, with `RuntimeRoi_g`, by configuration ports that are read with every image start.
+generics (`RoiX_g`, `RoiY_g`) or, with `RuntimeRoi_g`, by a register that is read with every image start. The registers
+of the module are on an AXI4-Lite slave (section 7).
 
 The input of the module is an [`isp_frame_sync`](../../isp_frame_sync/docs/specification.md), which accepts any
 division of the image into stream packets, completes or discards malformed images and delivers every pixel with its
@@ -32,7 +33,8 @@ lines of the output image. The module has no memory.
 | CRP-IF-02 | The module shall output pixels on a valid / ready stream (`Out_Valid`, `Out_Ready`, `Out_Data` of `PixelBits_g` bits) with AXI4-Stream handshake semantics, the end of a stream packet on `Out_Last` and the sequence flags of the packet on `Out_User` (2 bits). | ISP-STR-01, ISP-STR-02 |
 | CRP-IF-03 | The module shall output the status of its `isp_frame_sync`: the pulse `Err_Framing` for every error of the input stream and the level `Stat_ImageOpen` while an input image is open. | ISP-STR-08, ISP-STR-10 |
 | CRP-IF-04 | The module shall have one clock `Clk` and a synchronous, high-active reset `Rst`. | ISP-GEN-01 |
-| CRP-IF-05 | The module shall take the position of the ROI on the configuration ports `Cfg_RoiX` (unsigned, max(log2ceil(W), 1) bits) and `Cfg_RoiY` (unsigned, max(log2ceil(H), 1) bits), and shall pulse `Err_Config` for one clock cycle for every position it rejects (CRP-ER-03). With `RuntimeRoi_g` false the ports have no function and `Err_Config` stays 0. | ISP-CFG-02 |
+| CRP-IF-05 | The module shall have an AXI4-Lite slave (`S_AxiLite_*`, 32 data bits, 8 address bits, clock `Clk`) for the registers of section 7. | ISP-CFG-03 |
+| CRP-IF-06 | The module shall pulse `Err_Config` for one clock cycle for every position it rejects (CRP-ER-03). | ISP-CFG-02 |
 
 ### 2.2 Function
 
@@ -43,7 +45,7 @@ lines of the output image. The module has no memory.
 | CRP-FN-03 | The module shall output every line of the output image as one stream packet: `Out_Last` with the last pixel of the line, and on every beat of the line the sequence flags "01" for the first line, "10" for the last line, "00" for the lines between and "11" for an output image of one line. | ISP-STR-05, ISP-STR-06 |
 | CRP-FN-04 | The output shall not depend on the timing of the stream handshakes: any pattern of `In_Valid` and `Out_Ready` shall give the same output pixels and packets, without loss or duplication. | ISP-STR-07 |
 | CRP-FN-05 | An image start may follow the last pixel of an image without a gap. | ISP-STR-07 |
-| CRP-FN-06 | With `RuntimeRoi_g` false the position shall be (`RoiX_g`, `RoiY_g`). With `RuntimeRoi_g` true the module shall read (`Cfg_RoiX`, `Cfg_RoiY`) with every image start and use that position for the whole image; a change of the ports during an image shall take effect with the next image. | ISP-CRP-01, ISP-CFG-02 |
+| CRP-FN-06 | With `RuntimeRoi_g` false the position shall be (`RoiX_g`, `RoiY_g`). With `RuntimeRoi_g` true the module shall read the register `ROI_POS` with every image start and use that position for the whole image; a write to the register during an image shall take effect with the next image. | ISP-CRP-01, ISP-CFG-02 |
 
 ### 2.3 Throughput and latency
 
@@ -59,24 +61,25 @@ lines of the output image. The module has no memory.
 | --- | --- | --- |
 | CRP-ER-01 | Every output image shall be complete whatever the input: `RoiHeight_g` packets of `RoiWidth_g` pixels with the sequence flags of CRP-FN-03. The ROI pixels of an input image that `isp_frame_sync` completed are the pixels it delivered (value 0 for missing pixels). | ISP-STR-08 |
 | CRP-ER-02 | The image after an error of the input stream shall be processed as if no error had occurred. | ISP-STR-08 |
-| CRP-ER-03 | A position read from the configuration ports with `Cfg_RoiX` + `RoiWidth_g` > W or `Cfg_RoiY` + `RoiHeight_g` > H shall be rejected: the image shall be processed with the position (`RoiX_g`, `RoiY_g`) (E5). | ISP-CFG-02 |
+| CRP-ER-03 | A position read from `ROI_POS` with X + `RoiWidth_g` > W or Y + `RoiHeight_g` > H shall be rejected: the image shall be processed with the position (`RoiX_g`, `RoiY_g`) (E5). The register shall keep the value that was written. | ISP-CFG-02 |
 
 ### 2.5 Fault tolerance
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| CRP-FT-01 | The selection shall use the position that `isp_frame_sync` delivers with every pixel and keep no pixel position of its own; the position of the ROI read from the configuration ports shall be held for one image only. An upset then disturbs at most the image in progress, and the module realigns with the next image start. | ISP-FT-04 |
+| CRP-FT-01 | The selection shall use the position that `isp_frame_sync` delivers with every pixel and keep no pixel position of its own; the limits of the ROI in use shall be loaded from `ROI_POS` with every image. An upset of the datapath then disturbs at most the image in progress, and the module realigns with the next image start. | ISP-FT-04 |
 | CRP-FT-02 | After the reset, `In_Ready`, `Out_Valid`, `Err_Framing`, `Err_Config` and `Stat_ImageOpen` shall be defined, and with defined input pixels every output beat shall be free of metavalues. | ISP-FT-04 |
 
 The module has no memory, so the requirements on memories (ISP-FT-01 to ISP-FT-03) do not apply to it. Its registers
 are flip-flops; their mitigation by triple modular redundancy is a choice of the integrator in the synthesis tool
-(user guide, section "Protection scope").
+(user guide, section "Protection scope"). `ROI_POS` holds its value until it is written: an upset of this register
+moves the region until the software writes it again; it can be read back at any time.
 
 ### 2.6 Partner behaviour
 
 The partners of the input are those of `isp_frame_sync` (its specification, section 2.6). The consumer of the output
-may hold `Out_Ready` low at any beat. The configuration ports are driven by registers of the system, synchronous to
-`Clk`; they may change at any time (CRP-FN-06).
+may hold `Out_Ready` low at any beat. The AXI4-Lite master is a processor or a register bridge of the system on the
+clock `Clk`; it may access the registers at any time, also while images pass.
 
 ## 3. Error conditions
 
@@ -85,7 +88,7 @@ condition:
 
 | ID | Condition | Detection | Response | Status |
 | --- | --- | --- | --- | --- |
-| E5 | `RuntimeRoi_g` true: the position read with an image start places the ROI partly outside the image | Range check with the image start | The image is processed with the position of the generics | `Err_Config` |
+| E5 | `RuntimeRoi_g` true: the position read from `ROI_POS` with an image start places the ROI partly outside the image | Range check with the image start | The image is processed with the position of the generics | `Err_Config`, `STATUS.ERR_CONFIG` |
 
 ## 4. Configuration parameters
 
@@ -93,12 +96,12 @@ condition:
 | --- | --- | --- | --- |
 | `ImageWidth_g` | none | 1 to 65536 | W: pixels per line of the input image |
 | `ImageHeight_g` | none | 1 to 65536 | H: lines of the input image |
-| `PixelBits_g` | none | 1 to 32 | Bits per pixel |
+| `PixelBits_g` | none | 1 to 64 | Bits per pixel |
 | `RoiWidth_g` | none | 1 to `ImageWidth_g` - `RoiX_g` | Pixels per line of the ROI and of the output image |
 | `RoiHeight_g` | none | 1 to `ImageHeight_g` - `RoiY_g` | Lines of the ROI and of the output image |
-| `RoiX_g` | 0 | 0 to `ImageWidth_g` - 1 | Column of the first pixel of the ROI; with `RuntimeRoi_g` the position used when the ports give an invalid one |
+| `RoiX_g` | 0 | 0 to `ImageWidth_g` - 1 | Column of the first pixel of the ROI; with `RuntimeRoi_g` the reset value of `ROI_POS` and the position used when the register holds an invalid one |
 | `RoiY_g` | 0 | 0 to `ImageHeight_g` - 1 | Line of the first pixel of the ROI; with `RuntimeRoi_g` as `RoiX_g` |
-| `RuntimeRoi_g` | false | false, true | Position of the ROI from the generics (false) or from the configuration ports (true) |
+| `RuntimeRoi_g` | false | false, true | Position of the ROI from the generics (false: `ROI_POS` is read only) or from the register `ROI_POS` (true) |
 
 Output image: `RoiWidth_g` x `RoiHeight_g` pixels of `PixelBits_g` bits.
 
@@ -115,6 +118,34 @@ Output image: `RoiWidth_g` x `RoiHeight_g` pixels of `PixelBits_g` bits.
 - Only the position of the region is configurable at run time. Its size is the size of the output image, and the
   dimensions of an image are generics of every module that follows (ISP-STR-03): a size that changes at run time
   would change the image of the whole chain behind the module.
-- With `RuntimeRoi_g` false the comparisons of the selection are constants, which the synthesis tool reduces.
+- With `RuntimeRoi_g` false the comparisons of the selection are constants, which the synthesis tool reduces. The
+  AXI4-Lite slave is present in both cases: the identification, the characteristics and the status are always
+  readable. A system without a register bus leaves the slave unconnected.
+- Both coordinates are in one register, so that one write changes the position as a whole.
 - When `isp_frame_sync` completes a short image, the input waits for the missing pixels of the whole input image,
   not only for those of the region (its requirement FSY-PF-03).
+
+## 7. Register map
+
+Byte addresses of 32-bit registers on the AXI4-Lite slave. Access: RO read only, RW read and write, W1C sticky flag,
+write one to clear. Reads of other addresses return 0, writes to them and to read-only fields have no effect; every
+access is answered with OKAY.
+
+| Address | Register | Bits | Field | Access | Reset | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0x00 | `ID` | 31:0 | `ID` | RO | 0x43525001 | 0x435250 (CRP) and register map version 1 |
+| 0x04 | `IMAGE` | 15:0 | `WIDTH_M1` | RO | `ImageWidth_g` - 1 | Pixels per line of the input image, minus one |
+| | | 31:16 | `HEIGHT_M1` | RO | `ImageHeight_g` - 1 | Lines of the input image, minus one |
+| 0x08 | `ROI_SIZE` | 15:0 | `WIDTH_M1` | RO | `RoiWidth_g` - 1 | Pixels per line of the ROI, minus one |
+| | | 31:16 | `HEIGHT_M1` | RO | `RoiHeight_g` - 1 | Lines of the ROI, minus one |
+| 0x0C | `ROI_POS` | 15:0 | `X` | RW (RO with `RuntimeRoi_g` false) | `RoiX_g` | Column of the first pixel of the ROI |
+| | | 31:16 | `Y` | RW (RO with `RuntimeRoi_g` false) | `RoiY_g` | Line of the first pixel of the ROI |
+| 0x10 | `STATUS` | 0 | `IMAGE_OPEN` | RO | 0 | An input image is open (`Stat_ImageOpen`) |
+| | | 8 | `ERR_FRAMING` | W1C | 0 | Set by every pulse of `Err_Framing` |
+| | | 9 | `ERR_CONFIG` | W1C | 0 | Set by every pulse of `Err_Config` |
+
+| ID | Requirement | Core requirement |
+| --- | --- | --- |
+| CRP-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
+| CRP-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
+| CRP-RG-03 | A write to `ROI_POS` shall change only the bytes that the write strobes select. | ISP-CFG-03 |

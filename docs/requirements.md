@@ -50,7 +50,8 @@ binning, replacement of non-operational pixels) add their core requirements when
 | ID | Requirement |
 | --- | --- |
 | ISP-CFG-01 | The structure of a module (image dimensions, pixel widths, sizes of windows and regions) shall be set by generics with declared ranges; a value outside a range shall stop the elaboration with a message. |
-| ISP-CFG-02 | Parameters that change during a mission (the map of non-operational pixels, the coefficients of a filter, the position of a region of interest) shall be configurable at run time through configuration ports, with default values from generics, and shall take effect at an image start. |
+| ISP-CFG-02 | Parameters that change during a mission (the map of non-operational pixels, the coefficients of a filter, the position of a region of interest, the values of a pixel-level operation) shall be configurable at run time through registers, with reset values from generics, and shall take effect at an image start. |
+| ISP-CFG-03 | Every module with registers shall have an AXI4-Lite slave for them, and its register map shall also hold an identification of the module, its build-time characteristics and its status. |
 
 ### 3.3 Region of interest (CRP)
 
