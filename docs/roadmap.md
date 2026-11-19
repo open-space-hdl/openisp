@@ -34,4 +34,5 @@ order.
 | Marking of data errors | A pixel read from a line buffer with a double bit error is used as read and reported by `Stat_EccDed` (architecture, decision D12). A data-error sideband in the stream contract, which would mark the affected output pixels and images, is an option if a mission needs it |
 | Run-time image dimensions | The dimensions are generics. Ports for the dimensions, with the generics as maxima, would land in `isp_frame_sync` and in the line buffers (`olo_ft_delay_cfg`); every module of a chain would need consistent settings |
 | Defect list | The defect map of `isp_replace` has one bit per pixel. A list of the positions of the non-operational pixels needs less memory for a detector with few defects |
+| Timing on PolarFire | The timing of every module is shown by an out-of-context run on the AMD Versal device of the reference systems. Runs on Microchip PolarFire are a later option |
 | Register description | The register maps are tables in the module specifications. A description file per module with a generator of the VHDL package, the documentation and a C header follows with the RTL |

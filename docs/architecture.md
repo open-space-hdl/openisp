@@ -234,14 +234,28 @@ passes in both.
   ECC is tested through the `ErrInj` ports, with at least one data bit.
 - Every value of a generic that changes the structure is simulated, the bounds of every numeric range are simulated
   in configurations of small size, and `lint/synth_check.py` synthesises the bounds with GHDL.
+- The sink of every unit test checks the output contract of the pixel stream (sequence flags in order, one packet
+  per line, constant flags within a packet, the number of lines), so that every module shows at unit level that
+  its output is a legal input.
 - Phase G: the chain of section 2 is simulated end to end, so that every connection between modules is crossed by a
   test.
+- Phase F of every module ends with an out-of-context synthesis and timing run of its default configuration at
+  150 MHz (Vivado, Versal device of the reference systems).
 
 ## 10 Requirement traceability matrix
 
 Every core requirement has an owner module, the module whose requirements implement it first. "Also involved" lists
 the other modules with requirements that trace to it. "First verified at" names the level at which it is fully
-checked: "Unit" in the testbench of the owner, "Chain" in the integration test of section 9. The
+checked:
+
+- "Unit": in the testbench of the owner and of every involved module;
+- "Chain": in the integration test of section 9, after the unit tests of every module;
+- "Synthesis": by the GHDL synthesis of `lint/synth_check.py` at the bounds of the generics;
+- "Timing": by an out-of-context synthesis and timing run of the default configuration of every module at
+  150 MHz with Vivado on the Versal device of the reference systems, recorded in the verification report of the
+  module. A simulation does not show timing.
+
+The
 [compliance matrix](compliance.md), generated from this table, the module specifications and the verification
 plans, lists the module requirements and test cases of every core requirement.
 
@@ -277,9 +291,9 @@ plans, lists the module requirements and test cases of every core requirement.
 | ISP-FT-03 | Scrubbing of long-lived tables | `isp_replace` | | Unit |
 | ISP-FT-04 | Recovery from any state | `isp_frame_sync` | every module | Unit |
 | ISP-FT-05 | Parity of long-lived registers | `isp_crop` | `isp_point`, `isp_conv`, `isp_filter2d` | Unit |
-| ISP-GEN-01 | VHDL-2008, GHDL synthesis, Open Logic | `isp_frame_sync` | every module | Unit |
+| ISP-GEN-01 | VHDL-2008, GHDL synthesis, Open Logic | `isp_frame_sync` | every module | Synthesis |
 | ISP-GEN-02 | Specific functions as configurations | `isp_filter2d` | `isp_bin`, `isp_replace` | Unit |
-| ISP-GEN-03 | 150 MHz | `isp_frame_sync` | every module | Unit |
+| ISP-GEN-03 | 150 MHz | `isp_frame_sync` | every module | Timing |
 
 ## 11 Development plan
 
@@ -294,6 +308,6 @@ the order of their dependencies:
 | 3 | `isp_window`, `isp_conv`, `isp_filter2d` | Line buffers, borders, kernels |
 | 4 | `isp_bin`, `isp_replace` | Configurations of the filter, defect map |
 | 5 | Chain | Integration test of section 2 |
-| 6 | Release 0.1.0 | QuestaSim regression with code coverage; the suite at TRL 3 (fully verified by simulation) |
+| 6 | Release 0.1.0 | QuestaSim regression with code coverage; the suite at TRL 3 (fully verified by simulation; the 150 MHz target shown by the timing runs, not by the simulation) |
 
 The [roadmap](roadmap.md) tracks the state of every module.

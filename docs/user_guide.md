@@ -193,7 +193,9 @@ requirements of a mission is shown by a radiation test with the modules in opera
 ## 8. Resources and performance
 
 Every module accepts one pixel per clock cycle within a line; the default configurations are designed for 150 MHz.
-The architecture document of every module estimates its resources; the verification reports record the synthesis
+The timing is shown by an out-of-context synthesis and timing run of the default configuration of every module on
+the AMD Versal device of the reference systems, not by the simulation; runs on Microchip PolarFire are a later
+option. The architecture document of every module estimates its resources; the verification reports record the synthesis
 results.
 
 ## 9. Conformance
@@ -213,7 +215,7 @@ its status.
 | Binning | ISP-BIN-01, ISP-BIN-02 | `isp_bin` |
 | Replacement of non-operational pixels | ISP-RPL-01 to ISP-RPL-03 | `isp_replace` |
 | Fault tolerance | ISP-FT-01 to ISP-FT-05 | Modules with memories and parameter registers; every module for ISP-FT-04 |
-| Implementation | ISP-GEN-01 to ISP-GEN-03 | Every module |
+| Implementation | ISP-GEN-01 to ISP-GEN-03 | Every module; ISP-GEN-01 is shown by the GHDL synthesis check, ISP-GEN-03 by the timing runs of section 8, not by simulation |
 
 The status column of the compliance matrix shows which of them are verified; a module is complete when its
 verification report is written and every requirement has a passing test case.
