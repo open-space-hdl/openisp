@@ -47,7 +47,42 @@ CONFIGS = {
                                   "GainBits_g": 16, "MaxShift_g": 32, "MultStages_g": 2, "Runtime_g": True}, False),
     "pnt_wide": ("isp_point", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "InBits_g": 64, "OutBits_g": 32,
                                "GainBits_g": 18, "MaxShift_g": 83, "MultStages_g": 4, "Runtime_g": True}, False),
+    # isp_conv TC-CNV-12: the MTF filters 3 x 3 and 5 x 5 (12-bit pixels, 16-bit run-time coefficients), the largest
+    # window at run time, and the sum of four ones of the binning
+    "cnv_mtf3": ("isp_conv", {"PixelBits_g": 12, "WinX_g": 3, "WinY_g": 3, "CoefBits_g": 16,
+                              "Coef_g": [-1, -2, -1, -2, 28, -2, -1, -2, -1], "RuntimeCoef_g": True}, False),
+    "cnv_mtf5": ("isp_conv", {"PixelBits_g": 12, "WinX_g": 5, "WinY_g": 5, "CoefBits_g": 16,
+                              "Coef_g": [0, -1, -1, -1, 0, -1, -2, -4, -2, -1, -1, -4, 44, -4, -1, -1, -2, -4, -2, -1,
+                                         0, -1, -1, -1, 0], "RuntimeCoef_g": True}, False),
+    "cnv_max": ("isp_conv", {"PixelBits_g": 12, "WinX_g": 16, "WinY_g": 16, "CoefBits_g": 16,
+                             "Coef_g": [1] * 256, "RuntimeCoef_g": True}, False),
+    "cnv_bin4": ("isp_conv", {"PixelBits_g": 12, "WinX_g": 1, "WinY_g": 4, "CoefBits_g": 2, "Coef_g": [1] * 4,
+                              "RuntimeCoef_g": False}, False),
 }
+
+
+def vhdl_value(value):
+    """A generic value as VHDL: booleans in lower case, lists as named aggregates (also of one element)."""
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, (list, tuple)):
+        return "(" + ", ".join("{} => {}".format(i, v) for i, v in enumerate(value)) + ")"
+    return str(value)
+
+
+def declarations(text):
+    """The declarations of a generic or port list, one per entry: comments dropped, a declaration continued over
+    several lines joined."""
+    out = []
+    for line in text.splitlines():
+        code = line.split("--")[0].rstrip()
+        if not code.strip():
+            continue
+        if out and out[-1].count("(") > out[-1].count(")"):
+            out[-1] += " " + code.strip()
+        else:
+            out.append(code)
+    return out
 
 
 def entity_parts(module):
@@ -68,19 +103,18 @@ def ooc_top(module, values):
     clock input ClkIn through a global clock buffer."""
     gen_text, port_text = entity_parts(module)
     generics = []
-    for line in gen_text.splitlines():
+    for line in declarations(gen_text):
         m = re.match(r"^\s+(\w+_g)\s*:\s*([^;]*?)(\s*:=\s*[^;]*)?;?\s*(--.*)?$", line)
         if not m:
             continue
         name, typ, default = m.group(1), m.group(2).strip(), m.group(3)
         if name in values:
-            default = " := " + str(values[name]).lower() if isinstance(values[name], bool) else \
-                " := " + str(values[name])
+            default = " := " + vhdl_value(values[name])
         elif not default:
             raise SystemExit("generic {} of {} has no default and no value".format(name, module))
         generics.append((name, typ, default.strip()))
     ports = []
-    for line in port_text.splitlines():
+    for line in declarations(port_text):
         m = re.match(r"^\s+(\w+)\s*:\s*(in|out)\s+(.*?);?\s*(--.*)?$", line)
         if m:
             ports.append((m.group(1), m.group(2), m.group(3).rstrip(";").strip()))

@@ -15,6 +15,7 @@ output dimensions of a window generator) to it when they need them; each additio
 | PKG-01 | The package shall define the four sequence flags of the pixel stream as constants of 2 bits: `SeqCont_c` "00" (continuation packet), `SeqFirst_c` "01" (first packet), `SeqLast_c` "10" (last packet), `SeqOnly_c` "11" (only packet of an image). | ISP-STR-02 |
 | PKG-02 | The function `ispPosWidth(n)` shall return the number of bits of an unsigned number from 0 to n - 1, at least 1: max(log2ceil(n), 1), for n from 1 to 65536. | ISP-STR-03 |
 | PKG-03 | The function `ispIsImageStart(first, user)` shall return true when `first` is '1' (the first beat of a stream packet) and the flags `user` are "01" or "11", and false otherwise, also for metavalues. | ISP-STR-04 |
+| PKG-05 | The function `ispConvFullBits(p, c, t)` shall return the full precision of a linear kernel, p + c - 1 + log2ceil(t), and `ispConvOutBits(p, c, t, o)` the output width: the full precision for o = 0, o otherwise; for p from 1 to 32, c from 2 to 18 and t from 1 to 256. | ISP-FLT-02 |
 
 ### 2.2 Implementation
 

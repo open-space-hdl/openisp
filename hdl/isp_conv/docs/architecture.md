@@ -82,10 +82,10 @@ register block answers a read in the following cycle and every access with OKAY.
 | Register | Implementation |
 | --- | --- |
 | `ID`, `PARAM` | Constants from the generics |
-| `CTRL.HOLD` | One flip-flop |
+| `CTRL.HOLD` | One flip-flop with a parity flip-flop that the reset and every write of `CTRL` set; a mismatch at the image start counts as `HOLD` 0 and pulses `Err_Config` (`RuntimeCoef_g` true) |
 | `COEF[k]` | `CoefBits_g` flip-flops with the reset value `Coef_g`(k), written byte by byte with the write strobes; one parity flip-flop per register that the reset and every write set for the resulting value (`RuntimeCoef_g` true); constants otherwise |
 | `STATUS.ERR_CONFIG` | Sticky flag set by `Err_Config`, cleared by a write of one, the pulse wins |
-| `INJECT.COEF0_PARITY` | Command: inverts the parity flip-flop of `COEF[0]` |
+| `INJECT.PARITY`, `INJECT.INDEX`, `INJECT.CTRL_PARITY` | Commands: invert the parity flip-flop of `COEF[INDEX]` and of `CTRL` |
 
 The read multiplexer of the coefficients has T inputs; the read data is registered behind it.
 
@@ -94,7 +94,7 @@ The read multiplexer of the coefficients has T inputs; the read data is register
 | Property | Value | Requirement |
 | --- | --- | --- |
 | Window rate | One window per clock cycle | CNV-PF-01 |
-| Latency | 3 + log2ceil(T) stages: 6 clock cycles for 3 x 3, 8 for 5 x 5, 10 for 9 x 9 | CNV-PF-02 |
+| Latency | 3 + log2ceil(T) stages: 7 clock cycles for 3 x 3, 8 for 5 x 5, 10 for 9 x 9 | CNV-PF-02 |
 
 Paths: one multiplier of at most 32 x 18 bits between two registers, one adder of at most F + 1 bits per level, and
 the common enable with a fanout that grows with T, replicated by the synthesis tool.

@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, PNT_INJECT,  # noqa: E402
                        PNT_OFFSET_HI, PNT_OFFSET_LO, PNT_SHIFT, crop, ecc_codeword_width, ecc_data_positions,
-                       ecc_decode, frame_sync, point, point_op, window)
+                       ecc_decode, frame_sync, point, point_op, window, conv, conv_full_bits, CNV_COEF,
+                       CNV_CTRL, CNV_INJECT, CNV_STATUS)
 from isp_tbgen import packets  # noqa: E402
 
 
@@ -291,6 +292,52 @@ def test_window_ecc():
     assert ex["sec"] == 1 and ex["ded"] == 0
     assert [elements(o[1], 3, 12) for o in out] == [elements(o[1], 3, 12) for o in window(
         packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
+
+
+def win_data(elems, bits):
+    return sum(e << (k * bits) for k, e in enumerate(elems))
+
+
+def test_conv_sum_and_limits():
+    coef = [-1, -2, -1, -2, 28, -2, -1, -2, -1]                    # gain 16
+    assert conv_full_bits(12, 16, 9) == 31
+    flat = win_data([100] * 9, 12)
+    peak = win_data([0, 0, 0, 0, 100, 0, 0, 0, 0], 12)
+    hole = win_data([100, 100, 100, 100, 0, 100, 100, 100, 100], 12)
+    items = packets([flat, peak, hole], [3])
+    out = conv(items, 12, 3, 3, 16, coef, False, 0)[0]
+    assert [o[1] for o in out] == [1600, 2800, 0]                 # the negative sum -1200 becomes 0
+    out = conv(items, 12, 3, 3, 16, coef, False, 11)[0]
+    assert [o[1] for o in out] == [1600, 2047, 0]                 # saturated to 11 bits
+    assert [(o[2], o[3]) for o in out] == [(0, 3), (0, 3), (1, 3)]
+
+
+def test_conv_image_start_hold_and_inject():
+    w = win_data([1, 2], 3)                                         # e = 1, 2
+    img = packets([w, w], [2])                                      # one image of one line
+    items = [("A", 100, [("W", CNV_COEF + 4, 3, 0xF)])] + img       # c = 1, 3: 7
+    items += [("B", w, 1, 0)]                                       # a packet "00": no image start, keeps 1, 3
+    items += [("A", 101, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 0xFFFFFFFE, 0xF)])] + img   # held: 7
+    items += [("A", 102, [("W", CNV_CTRL, 0, 0xF)])] + img          # c = -2, 3: 4
+    items += [("A", 103, [("W", CNV_INJECT, (1 << 8) | 1, 0xF)])] + img   # parity of COEF[1]: generic 1, 1: 3
+    items += [("A", 104, [("W", CNV_INJECT, (2 << 8) | 1, 0xF), ("C", CNV_COEF, None, 0xF),
+                          ("C", CNV_STATUS, None, 0xF)])] + img     # index 2 >= T: no effect, still 3
+    out, _, _, ex = conv(items, 3, 2, 1, 3, [1, 1], True, 0)
+    assert [o[1] for o in out] == [7, 7, 7, 7, 7, 4, 4, 3, 3, 3, 3]
+    assert ex["config"] == 2
+    reads = [e[2] for e in ex["regs"][-1][1] if e[0] == "C"]
+    assert reads == [0xFFFFFFFE, 0x200]                             # -2 sign-extended, ERR_CONFIG
+
+
+def test_conv_ctrl_parity():
+    w = win_data([1, 2], 3)
+    img = packets([w, w], [2])
+    items = [("A", 100, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 3, 0xF)])] + img     # held: 1 x 1 + 1 x 2 = 3
+    items += [("A", 101, [("W", CNV_INJECT, 2, 0xF)])] + img + img                     # CTRL bad: 3 x 1 + 2 = 5
+    items += [("A", 102, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 0, 0xF)])] + img    # restored, held: 5
+    out, _, _, ex = conv(items, 3, 2, 1, 3, [1, 1], True, 0)
+    assert [o[1] for o in out] == [3, 3, 5, 5, 5, 5, 5, 5]
+    assert ex["config"] == 2 and ex["timing"] == list(range(8))
 
 
 def test_window_ecc_unused_delay():

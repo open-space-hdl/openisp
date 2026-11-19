@@ -62,7 +62,8 @@ architecture sim of isp_pkg_tb is
 begin
 
     p_main : process is
-        variable Exp_v : boolean;
+        variable Exp_v  : boolean;
+        variable Bits_v : natural;
     begin
         test_runner_setup(runner, runner_cfg);
 
@@ -80,6 +81,30 @@ begin
                         error("ispPosWidth(" & integer'image(n) & ") = " & integer'image(ispPosWidth(n)) &
                               ", expected " & integer'image(bitsOf(n)));
                     end if;
+                end loop;
+
+                -- PKG-05: the full precision against its definition, the output width
+                for p in 1 to 32 loop
+
+                    for c in 2 to 18 loop
+
+                        for t in 1 to 256 loop
+                            Bits_v := 0;
+
+                            while 2 ** Bits_v < t loop
+                                Bits_v := Bits_v + 1;
+                            end loop;
+
+                            if ispConvFullBits(p, c, t) /= p + c - 1 + Bits_v or
+                               ispConvOutBits(p, c, t, 0) /= p + c - 1 + Bits_v or ispConvOutBits(p, c, t, 1) /= 1 or
+                               ispConvOutBits(p, c, t, 64) /= 64 then
+                                error("ispConvFullBits / ispConvOutBits(" & integer'image(p) & ", " & integer'image(c) &
+                                      ", " & integer'image(t) & ")");
+                            end if;
+                        end loop;
+
+                    end loop;
+
                 end loop;
 
                 -- PKG-03: table of the eight combinations

@@ -577,3 +577,133 @@ def window(items, width, height, bits, win_x, win_y, anchor_x=None, anchor_y=Non
         annot.append((count, fs.open))
     return out, fs.errors, annot, {"sec": win.sec, "ded": win.ded, "timing": timing}
 
+
+def log2ceil(n):
+    """Smallest b with 2^b >= n."""
+    return (n - 1).bit_length()
+
+
+# Register map of isp_conv (specification, section 7)
+CNV_ID, CNV_PARAM, CNV_CTRL, CNV_STATUS, CNV_INJECT, CNV_COEF = 0x000, 0x004, 0x008, 0x00C, 0x010, 0x100
+
+
+def conv_full_bits(pixel_bits, coef_bits, taps):
+    """F of the specification: every sum that is not negative fits."""
+    return pixel_bits + coef_bits - 1 + log2ceil(taps)
+
+
+class ConvKernel:
+    """isp_conv: the kernel of one window and its registers (specification, sections 1.1 and 7)."""
+
+    def __init__(self, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
+        self.pb, self.wx, self.wy, self.cb = pixel_bits, win_x, win_y, coef_bits
+        self.taps = win_x * win_y
+        assert len(coef) == self.taps
+        self.coef, self.runtime = list(coef), runtime
+        full = conv_full_bits(pixel_bits, coef_bits, self.taps)
+        self.out_b = full if out_bits == 0 else out_bits
+        self.cmask = (1 << coef_bits) - 1
+        self.config_errors = 0
+        self.reset()
+
+    def _signed(self, value):
+        value &= self.cmask
+        return value - (1 << self.cb) if value >> (self.cb - 1) else value
+
+    def reset(self):
+        self.regs = [c & self.cmask for c in self.coef]
+        self.parity = [True] * self.taps
+        self.hold = False
+        self.ctrl_parity = True
+        self.work = list(self.coef)
+        self.status_config = False
+        self.first = True
+
+    def feed(self, data, last, user):
+        """One window; returns the output pixel."""
+        if self.first and user in (SEQ_FIRST, SEQ_ONLY) and self.runtime:
+            # A CTRL with a wrong parity bit counts as HOLD 0 and is reported; one Err_Config per image start
+            error = not self.ctrl_parity
+            if not self.hold or not self.ctrl_parity:
+                if all(self.parity):
+                    self.work = [self._signed(c) for c in self.regs]
+                else:
+                    self.work = list(self.coef)
+                    error = True
+            if error:
+                self.config_errors += 1
+                self.status_config = True
+        self.first = last == 1
+        pmask = (1 << self.pb) - 1
+        s = sum(self.work[k] * (data >> (k * self.pb) & pmask) for k in range(self.taps))
+        return 0 if s < 0 else min(s, (1 << self.out_b) - 1)
+
+    def read(self, addr):
+        if addr == CNV_ID:
+            return 0x434E5601
+        if addr == CNV_PARAM:
+            return (self.pb << 24) | (self.cb << 16) | (self.wy << 8) | self.wx
+        if addr == CNV_CTRL:
+            return 1 if self.hold else 0
+        if addr == CNV_STATUS:
+            return 0x200 if self.status_config else 0
+        if CNV_COEF <= addr < CNV_COEF + 4 * self.taps and addr % 4 == 0:
+            k = (addr - CNV_COEF) // 4
+            value = self._signed(self.regs[k]) if self.runtime else self.coef[k]
+            return value & 0xFFFFFFFF
+        return 0
+
+    def write(self, addr, data, strobes):
+        if addr == CNV_CTRL and strobes & 0x1:
+            self.hold = bool(data & 1)
+            self.ctrl_parity = True
+        elif addr == CNV_STATUS and strobes & 0x2 and data & 0x200:
+            self.status_config = False
+        elif addr == CNV_INJECT and self.runtime and strobes & 0x1:
+            k = (data >> 8) & 0xFF if strobes & 0x2 else 0
+            if data & 1 and k < self.taps:
+                self.parity[k] = not self.parity[k]
+            if data & 2:
+                self.ctrl_parity = not self.ctrl_parity
+        elif self.runtime and CNV_COEF <= addr < CNV_COEF + 4 * self.taps and addr % 4 == 0:
+            k = (addr - CNV_COEF) // 4
+            self.regs[k] = _strobe(self._signed(self.regs[k]) & 0xFFFFFFFF, data, strobes) & self.cmask
+            self.parity[k] = True
+
+    def accesses(self, entries):
+        """Register accesses of one marker; returns them with the expected read data."""
+        resolved = []
+        for op, addr, data, strobes in entries:
+            if op == "W":
+                self.write(addr, data, strobes)
+                resolved.append(("W", addr, data, strobes))
+            else:
+                resolved.append(("C", addr, self.read(addr), 0xF))
+        return resolved
+
+
+def conv(items, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
+    """isp_conv: every beat is a window; q = 0 for a negative sum, otherwise min(S, 2^B - 1). The image start is the
+    first beat of a packet with the flags "01" or "11". Returns (out, 0, annot, {"config", "regs", "timing"}); the
+    output pixel of a window comes from the input beat of that window."""
+    k = ConvKernel(pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits)
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
+    for it in items:
+        if it[0] == "B":
+            out.append(("B", k.feed(it[1], it[2], it[3]), it[2], it[3], 0, 0))
+            timing.append(beat)
+            count += 1
+            beat += 1
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            del timing[len(timing) - drop:]
+            count -= drop
+            out.append(("R", mode))
+            k.reset()
+        elif it[0] == "A":
+            regs.append((it[1], k.accesses(it[2])))
+        annot.append((count, False))
+    return out, 0, annot, {"config": k.config_errors, "regs": regs, "timing": timing}
