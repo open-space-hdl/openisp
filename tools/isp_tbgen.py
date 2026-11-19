@@ -6,8 +6,9 @@
 
 A test is a list of input items (see tools/isp_model.py): beats ('B', pixel, last, user) and directives
 ('G', n) pause, ('T', n) wait cycles, ('W',) wait for the sink, ('P',) probe, ('H', 0/1) hold the sink,
-('M', n) marker, ('R', drop, mode, cycles) reset, ('A', marker, entries) register accesses. `write_test` runs the
-model of the module over the items and writes the stimulus file, the expected file and the register script.
+('M', n) marker, ('R', drop, mode, cycles) reset, ('A', marker, entries) register accesses, ('J', marker, pattern)
+error injection. `write_test` runs the model of the module over the items and writes the stimulus file, the expected
+file and, where the test needs them, the register script, the injection script and the timing file.
 """
 
 import random
@@ -103,12 +104,14 @@ def image_beats(rng, width, height, bits, mode):
     return packets(pixels, split(rng, width * height, width, mode))
 
 
-def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_path=None):
-    """Runs `model(items)` -> (out, errors, annot[, config_errors, regs]) and writes the files. Returns a dict with
-    the number of framing errors ("errors") and, for a model with registers, of configuration errors ("config").
+def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_path=None, inj_path=None,
+               tim_path=None):
+    """Runs `model(items)` -> (out, errors, annot[, extra]) and writes the files. Returns a dict with the number of
+    framing errors ("errors") and the counts of the extra results of the model ("config", "sec", "ded").
     `side(entry)` formats the sideband of an output beat (hexadecimal), default "0"."""
     res = model(items)
     out, errors, annot = res[0], res[1], res[2]
+    extra = res[3] if len(res) > 3 else {}
     stim = []
     for i, it in enumerate(items):
         before = annot[i - 1] if i > 0 else (0, False)
@@ -124,7 +127,7 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_pat
         elif kind == "R":
             _, drop, mode, cycles = it
             stim.append("R {} {} {}".format(before[0] - drop, mode, cycles))
-        elif kind == "A":
+        elif kind in ("A", "J"):
             stim.append("M {}".format(it[1]))
             stim.append("K {}".format(it[1]))
         else:
@@ -139,15 +142,20 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_pat
     Path(stim_path).write_text("\n".join(stim) + "\n", encoding="ascii", newline="\n")
     Path(exp_path).write_text("\n".join(exp) + "\n", encoding="ascii", newline="\n")
     result = {"errors": errors}
-    if len(res) > 3:
-        result["config"] = res[3]
-        if regs_path:
-            lines = []
-            for marker, entries in res[4]:
-                for op, addr, data, strobes in entries:
-                    if op == "W":
-                        lines.append("{} W {:x} {:x} {:x}".format(marker, addr, data, strobes))
-                    else:
-                        lines.append("{} C {:x} {:x}".format(marker, addr, data))
-            Path(regs_path).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
+    result.update({k: v for k, v in extra.items() if k not in ("regs", "timing")})
+    if regs_path:
+        lines = []
+        for marker, entries in extra.get("regs", []):
+            for op, addr, data, strobes in entries:
+                if op == "W":
+                    lines.append("{} W {:x} {:x} {:x}".format(marker, addr, data, strobes))
+                else:
+                    lines.append("{} C {:x} {:x}".format(marker, addr, data))
+        Path(regs_path).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
+    if inj_path:
+        lines = ["{} {:x}".format(it[1], it[2]) for it in items if it[0] == "J"]
+        Path(inj_path).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
+    if tim_path:
+        Path(tim_path).write_text("\n".join(str(n) for n in extra["timing"]) + "\n", encoding="ascii",
+                                  newline="\n")
     return result
