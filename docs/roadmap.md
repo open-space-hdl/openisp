@@ -13,8 +13,8 @@ The [TRL page](https://openspacehdl.org/trl/) explains what the levels mean for 
 
 | Module | Function | Status |
 | --- | --- | --- |
-| `isp_pkg` | Common types and functions: coefficient vector, output dimensions and pixel widths of the modules | Phase C (verification plan) |
-| `isp_frame_sync` | Input side of every module: any division of an image into packets in, complete images with one packet per line and pixel positions out | Phase C (verification plan) |
+| `isp_pkg` | Common types and functions: coefficient vector, output dimensions and pixel widths of the modules | Verified (GHDL) |
+| `isp_frame_sync` | Input side of every module: any division of an image into packets in, complete images with one packet per line and pixel positions out | Verified (GHDL, mutations); timing run open (licence of the device) |
 | `isp_crop` | Region of interest: crops an image to a rectangle of a size set by generics, at a position set by generics or at run time | Phase B (architecture) |
 | `isp_point` | Pixel-level operation: offset, gain, bit shift and clamp between two thresholds, set by generics or at run time | Phase B (architecture) |
 | `isp_window` | Neighbourhood generator: one window per reference pixel, line buffers, border modes, anchor and stride | Phase B (architecture) |

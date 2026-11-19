@@ -54,8 +54,8 @@ Generic coverage:
 `PixelBits_g` is a numeric range: the data path passes the pixel without arithmetic, so a representative set covers
 it: the bounds, odd widths, and the widths around 32 and 64, where the hexadecimal file reader and the comparisons of
 the bench fail first. The two bounds of the image dimensions are simulated in images of one line and of one column;
-the image of 65536 x 65536 pixels (2^32 pixels) is synthesised only. The widths of the counters and of `Out_PosX` and `Out_PosY` follow
-from the dimensions, from 1 bit (dimension 1 and 2) to 16 bits (65536).
+the image of 65536 x 65536 pixels (2^32 pixels) is synthesised only. The widths of the counters and of
+`Out_PosX` and `Out_PosY` follow from the dimensions, from 1 bit (dimension 1 and 2) to 16 bits (65536).
 
 ## 3. Test cases
 
