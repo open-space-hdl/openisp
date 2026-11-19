@@ -119,7 +119,7 @@ CONFIGS += [
     ("cnv_min", "isp_conv_synth", cnv(1, 1, 1, 2, False, 0)),
     ("cnv_max_rt", "isp_conv_synth", cnv(32, 16, 16, 18, True, 64)),
     ("cnv_max", "isp_conv_synth", cnv(32, 16, 16, 18, False, 0)),
-    ("cnv_ones", "isp_conv_synth", cnv(12, 4, 1, 2, False, 0, coef_set=1)),
+    ("cnv_ones", "isp_conv_synth", cnv(12, 1, 4, 2, False, 0, coef_set=1)),
     ("cnv_mtf5_rt", "isp_conv_synth", cnv(12, 5, 5, 16, True, 12)),
 ]
 

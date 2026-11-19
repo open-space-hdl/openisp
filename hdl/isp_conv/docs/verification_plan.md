@@ -86,7 +86,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `test_reset` (TC-CNV-09) | Resets idle, held and running, of one and two cycles, also between the image start and the first output pixel; after the reset the registers hold the generic and the next image uses it | CNV-IF-05, CNV-FT-03, CNV-FT-01 |
 | `test_rate` (TC-CNV-10) | Configurations `rate_*`: images back to back with `In_Valid` and `Out_Ready` high: one window per cycle at the input and one pixel per cycle at the output, every pixel exactly 3 + log2ceil(T) cycles after its window | CNV-PF-01, CNV-PF-02 |
 | TC-CNV-11 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2.3 and both values of `RuntimeCoef_g`; elaboration stops with the message naming the generic for: `PixelBits_g` 33, `WinX_g` 17, `WinY_g` 17, `CoefBits_g` 1 and 19, `OutBits_g` 65, a `Coef_g` with T - 1 and T + 1 values, a coefficient of 2^(`CoefBits_g` - 1) and of -2^(`CoefBits_g` - 1) - 1 | CNV-CF-01, CNV-CF-02 |
-| TC-CNV-12 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the Versal device of the reference systems, on the build machine: 3 x 3 and 5 x 5 with 12-bit pixels and 16-bit run-time coefficients (the defaults of the MTF filter), 16 x 16 run-time (the largest), 1 x 4 ones (the binning) | CNV-CF-03 |
+| TC-CNV-12 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the device of the Timing level (architecture, section 10): 3 x 3 and 5 x 5 with 12-bit pixels and 16-bit run-time coefficients (the defaults of the MTF filter), 16 x 16 run-time (the largest), 1 x 4 ones (the binning) | CNV-CF-03 |
 
 ## 4. Requirement coverage
 

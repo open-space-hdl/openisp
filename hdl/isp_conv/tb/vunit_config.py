@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 
 from isp_model import (CNV_COEF, CNV_CTRL, CNV_ID, CNV_INJECT, CNV_PARAM, CNV_STATUS, SEQ_CONT,  # noqa: E402
-                       SEQ_FIRST, conv, conv_full_bits)
+                       SEQ_FIRST, SEQ_LAST, conv, conv_full_bits)
 from isp_tbgen import RegScript, check, packets, raw_packet, rng_for, seed_for, status, watchdog_us, write, \
     write_test  # noqa: E402
 
@@ -53,12 +53,11 @@ def cfg(name, pb, wx, wy, cb, coef, runtime, ob, w, h, gap=20, stall=20, tests=N
 CONFIGS = [
     cfg("mtf3", 12, 3, 3, 16, mtf3(), True, 0, 8, 6, tests=REGS),
     cfg("mtf5_const", 12, 5, 5, 16, mtf5(), False, 12, 8, 6, 30, 40, tests=CONST),
-    cfg("ones4", 12, 4, 1, 2, [1] * 4, False, 0, 6, 4, tests=CONST),
-    cfg("exhaustive", 3, 2, 1, 3, [1, 1], True, 0, 8, 8, 0, 0, tests=["test_exhaustive"]),
-    cfg("exhaustive_sat", 3, 2, 1, 3, [1, 1], True, 3, 8, 8, 0, 0, tests=["test_exhaustive"]),
+    cfg("ones4", 12, 1, 4, 2, [1] * 4, False, 0, 6, 4, tests=CONST),
+    cfg("exhaustive", 3, 1, 2, 3, [1, 1], True, 0, 8, 8, 0, 0, tests=["test_exhaustive"]),
+    cfg("exhaustive_sat", 3, 1, 2, 3, [1, 1], True, 3, 8, 8, 0, 0, tests=["test_exhaustive"]),
     cfg("min", 1, 1, 1, 2, [1], True, 1, 5, 3, tests=REGS),
-    cfg("max", 32, 16, 16, 18, rand_coef(16, 256, 18), True, 64, 4, 3, 10, 10,
-        tests=["test_static", "test_runtime", "test_parity", "test_registers"]),
+    cfg("max", 32, 16, 16, 18, rand_coef(16, 256, 18), True, 64, 4, 3, 10, 10, tests=REGS),
     cfg("wide", 32, 3, 3, 18, bounds_coef(9, 18), True, 0, 6, 4, tests=REGS),
     cfg("rate_3", 12, 3, 3, 16, rand_coef(3, 9, 16), True, 0, 16, 6, 0, 0, tests=["test_rate", "test_flag_coincidence"]),
     cfg("rate_5", 12, 5, 5, 16, rand_coef(5, 25, 16), True, 0, 16, 6, 0, 0, tests=["test_rate"]),
@@ -69,10 +68,11 @@ CONFIGS += [cfg("size_{}x{}".format(n, 17 - n), 8, n, 17 - n, 8, rand_coef(n, n 
                 tests=["test_static", "test_parity"]) for n in range(1, 17)]
 TAPS = [(1, 1), (1, 2), (1, 3), (2, 2), (1, 5), (2, 4), (3, 11), (2, 16), (5, 13), (4, 16), (10, 13), (8, 16),
         (15, 16), (16, 16)]
-CONFIGS += [cfg("taps_{}".format(x * y), 6, x, y, 6, rand_coef(x * y, x * y, 6), False, 0, 4, 3) for x, y in TAPS]
+CONFIGS += [cfg("taps_{}".format(x * y), 6, x, y, 6, rand_coef(x * y, x * y, 6), False, 0, 4, 3,
+                tests=["test_static", "test_parity"]) for x, y in TAPS]
 WIDTHS = [(1, 2, 1), (3, 3, 0), (16, 17, 12), (31, 18, conv_full_bits(31, 18, 9)), (32, 18, 64), (32, 2, 0)]
 CONFIGS += [cfg("widths_{}_{}_{}".format(p, c, o), p, 3, 3, c, rand_coef(p + c, 9, c), True, o, 6, 4,
-                tests=["test_static", "test_runtime"]) for p, c, o in WIDTHS]
+                tests=["test_static", "test_runtime", "test_parity"]) for p, c, o in WIDTHS]
 
 
 class Ctx:
@@ -87,19 +87,33 @@ class Ctx:
     def rand_window(self, rng):
         return self.window([rng.getrandbits(self.c["pb"]) for _ in range(self.t)])
 
+    def special(self):
+        """Windows of the coefficients of the generic: of largest elements, of zero elements, of the largest and of
+        the most negative sum, and with nonzero elements a sum of exactly 0 where the set has both signs."""
+        top = (1 << self.c["pb"]) - 1
+        coef = self.c["coef"]
+        wins = [self.window([top] * self.t), 0, self.window([top if co > 0 else 0 for co in coef]),
+                self.window([top if co < 0 else 0 for co in coef])]
+        pos = [k for k, co in enumerate(coef) if co > 0]
+        neg = [k for k, co in enumerate(coef) if co < 0]
+        if pos and neg:
+            # c(p) x |c(n)| + c(n) x c(p) = 0 with the smallest such pair that fits the pixel width
+            p, n = min(((p, n) for p in pos for n in neg), key=lambda pn: max(coef[pn[0]], -coef[pn[1]]))
+            if max(coef[p], -coef[n]) <= top:
+                elems = [0] * self.t
+                elems[p], elems[n] = -coef[n], coef[p]
+                wins.append(self.window(elems))
+        return wins
+
     def image(self, rng, extremes=True, mode="lines"):
-        """An image of W x H random windows; with extremes, windows of the largest and of zero elements and the window
-        of the most negative sum of the coefficients of the generic."""
+        """An image of W x H random windows; with extremes, the special windows of the generic at random places."""
         c = self.c
         n = c["w"] * c["h"]
         wins = [self.rand_window(rng) for _ in range(n)]
-        if extremes and n >= 3:
-            top = (1 << c["pb"]) - 1
-            neg = [top if co < 0 else 0 for co in c["coef"]]
-            idx = rng.sample(range(n), 3)
-            wins[idx[0]] = self.window([top] * self.t)
-            wins[idx[1]] = 0
-            wins[idx[2]] = self.window(neg)
+        if extremes:
+            spec = self.special()
+            for k, s in zip(rng.sample(range(n), min(n, len(spec))), spec):
+                wins[k] = s
         lengths = [c["w"]] * c["h"] if mode == "lines" else [n]
         return packets(wins, lengths)
 
@@ -244,13 +258,16 @@ def build_reset(rng, x):
     items += [("W",), ("T", 4), ("R", 0, 0, 2)]
     items += x.regs.access(*x.reads(), check(CNV_CTRL), check(CNV_STATUS)) + x.image(rng)
     n = x.c["w"] * x.c["h"]
-    for drop, mode, cycles in ((2, 0, 1), (3, 1, 2), (0, 0, 1)):
+    # Held and running resets during an image, of one and two cycles; the last two between the image start and the
+    # first output pixel (the first window in the pipeline)
+    for drop, mode, cycles, k in ((2, 0, 1, None), (3, 1, 2, None), (0, 0, 1, None), (1, 0, 1, 1), (1, 1, 2, 1)):
         if x.c["runtime"]:
             items += x.regs.access(*x.set_writes(other))
-        img = x.image(rng)
-        k = rng.randint(max(drop, 1) + 1, n - 1) if n > max(drop, 1) + 1 else n
-        items += img[:k] + [("R", min(drop, k), mode, cycles)]
-        items += [("B", b[1], b[2], 2 if b[3] != 0 else 0) for b in img[k:]]
+        wins = [b[1] for b in x.image(rng)]
+        k = rng.randint(max(drop, 1) + 1, n - 1) if k is None else k
+        items += packets(wins[:k], [k], last=False)
+        items += [("R", drop, mode, cycles)]
+        items += raw_packet(wins[k:], SEQ_LAST)
         items += x.image(rng)
     return items + status()
 
