@@ -82,7 +82,7 @@ package body isp_tb_axilite_pkg is
         variable Prev_v    : natural              := 0;
         variable Started_v : boolean              := false;
         variable Op_v      : character;
-        variable Addr_v    : unsigned(31 downto 0);
+        variable Addr_v    : unsigned(Axi.write_address_channel.awaddr'length - 1 downto 0);
         variable Data_v    : std_logic_vector(31 downto 0);
         variable Strobe_v  : std_logic_vector(3 downto 0);
         constant Cfg_c     : t_axilite_bfm_config := ispAxiConfig(ClkPeriod);
@@ -109,9 +109,10 @@ package body isp_tb_axilite_pkg is
             end if;
 
             readWord(L_v, W_v, Len_v);
-            Op_v   := W_v(1);
+            Op_v := W_v(1);
             readWord(L_v, W_v, Len_v);
-            Addr_v := unsigned(hexToSlv(W_v(1 to Len_v), 32));
+            -- The address in the width of the bus (hexToSlv stops at an address that does not fit)
+            Addr_v := unsigned(hexToSlv(W_v(1 to Len_v), Axi.write_address_channel.awaddr'length));
             readWord(L_v, W_v, Len_v);
             Data_v := hexToSlv(W_v(1 to Len_v), 32);
 

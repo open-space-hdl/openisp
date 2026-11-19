@@ -11,11 +11,14 @@ number of error pulses and an annotation per input item:
 - ('R', drop, mode, cycles): a reset of the module; the last `drop` output beats before it are lost
 - ('A', marker, entries): register accesses at a marker of the stimulus; entries are (op, address, data, strobes)
   with op 'W' (write) or 'C' (read and compare; the model sets the expected data)
+- ('J', marker, pattern): error injection at a marker: the flip pattern of the ECC codewords, latched for the next
+  pixel event
 - any other item ('G', 'T', 'H', 'M', 'K', 'W', 'P') passes through without effect on the model
 
 Output items: ('B', pixel, last, user, x, y) and ('R', mode). The annotation of an input item is the state after it:
-(number of output beats so far, image open). Models of modules with registers also return the resolved register
-entries per marker.
+(number of output beats so far, image open). Models with further results return them as a fourth element, a dict:
+"config" (Err_Config pulses), "regs" (resolved register entries per marker), "sec" and "ded" (ECC status pulses),
+"timing" (per output beat the index of the input beat that completes it, or -1).
 """
 
 SEQ_CONT, SEQ_FIRST, SEQ_LAST, SEQ_ONLY = 0, 1, 2, 3
@@ -133,19 +136,19 @@ CRP_ID, CRP_IMAGE, CRP_ROI_SIZE, CRP_ROI_POS, CRP_STATUS, CRP_INJECT = 0x00, 0x0
 def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
     """isp_crop: the region of interest of every image of the frame sync. With `runtime`, the position is ROI_POS at
     the image start when it lies inside the image and its parity bit matches; otherwise the generics apply and
-    Err_Config pulses. Returns (out, framing errors, annot, config errors, register entries per marker)."""
+    Err_Config pulses. Returns (out, framing errors, annot, {"config", "regs", "timing"})."""
     fs = FrameSync(width, height)
     reg = (roi_y << 16) | roi_x                  # ROI_POS, reset value from the generics
     parity_ok = True
     status_framing = status_config = False
     config_errors = 0
     pos = (roi_x, roi_y)
-    out, annot, regs = [], [], []
-    count = 0
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
 
-    def select(beats):
+    def select(beats, src):
         nonlocal pos, config_errors, status_config, count
-        for b in beats:
+        for n, b in enumerate(beats):
             _, pixel, _last, _user, x, y = b
             if x == 0 and y == 0:
                 # Image start: the limits of this image
@@ -160,6 +163,8 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
             x0, y0 = pos
             if x0 <= x < x0 + roi_w and y0 <= y < y0 + roi_h:
                 out.append(("B", pixel, 1 if x == x0 + roi_w - 1 else 0, line_flags(y - y0, roi_h), x, y))
+                # The pixel of the input beat is the last of the beats it causes; the others are padding
+                timing.append(src if n == len(beats) - 1 else -1)
                 count += 1
 
     def read(addr):
@@ -178,13 +183,15 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
     for it in items:
         if it[0] == "B":
             before = fs.errors
-            select(fs.feed(it[1], it[2], it[3]))
+            select(fs.feed(it[1], it[2], it[3]), beat)
+            beat += 1
             if fs.errors > before:
                 status_framing = True
         elif it[0] == "R":
             _, drop, mode, _cycles = it
             assert drop <= count, "reset drops more beats than were produced"
             _drop(out, drop)
+            del timing[len(timing) - drop:]
             count -= drop
             out.append(("R", mode))
             fs.reset()
@@ -201,16 +208,16 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
                                 mask = 0xFF << (8 * byte)
                                 reg = (reg & ~mask) | (data & mask)
                         parity_ok = True
-                    elif addr == CRP_STATUS:
+                    elif addr == CRP_STATUS and strobes & 0x2:
                         if data & 0x100:
                             status_framing = False
                         if data & 0x200:
                             status_config = False
-                    elif addr == CRP_INJECT and runtime and data & 1:
+                    elif addr == CRP_INJECT and runtime and strobes & 0x1 and data & 1:
                         parity_ok = not parity_ok
                     resolved.append(("W", addr, data, strobes))
                 else:
                     resolved.append(("C", addr, read(addr), 0xF))
             regs.append((marker, resolved))
         annot.append((count, fs.open))
-    return out, fs.errors, annot, config_errors, regs
+    return out, fs.errors, annot, {"config": config_errors, "regs": regs, "timing": timing}
