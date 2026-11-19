@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 
 from isp_model import (RPL_CTRL, RPL_ID, RPL_IMAGE, RPL_MAP_ADDR, RPL_MAP_DATA, RPL_MAP_LINE,  # noqa: E402
                        RPL_MAP_WORDS, RPL_PARAM, RPL_STATUS, SEQ_CONT, SEQ_LAST, ecc_codeword_width,
-                       ecc_data_positions, replace)
+                       ecc_data_positions, replace, replace_pixel)
 from isp_tbgen import (RegScript, check, image_beats, malformed_streams, packets, random_image,  # noqa: E402
                        raw_packet, rng_for, seed_for, status, watchdog_us, write, write_test)
 
@@ -51,6 +51,8 @@ CONFIGS = [
     cfg("w65536", 65536, 2, 12, 2, gap=10, stall=10, tests=["test_static"]),
     cfg("h65536", 5, 65536, 12, 2, gap=10, stall=10, tests=["test_static"]),
     cfg("exhaustive", 120, 256, 4, 7, gap=0, stall=0, tests=["test_exhaustive"]),
+    # Every pair of 6-bit values: at this width the division with one bit less of K fails for d = 13
+    cfg("exhaustive_p6", 120, 4096, 6, 7, gap=0, stall=0, tests=["test_exhaustive"]),
     # The pacer of the scrubber counts milliseconds of ClkFreqHz_g: with 1000 Hz one millisecond is one clock cycle
     cfg("scrub_period", 40, 6, 12, 2, gap=0, stall=0, tests=["test_scrub"], clk=1000, period=300),
     cfg("scrub_overrun", 40, 6, 12, 2, gap=0, stall=0, tests=["test_scrub"], clk=1000, period=5),
@@ -137,6 +139,11 @@ class Ctx:
         for k, v in enumerate(values):
             self.map[start + k] = v
         return [write(RPL_MAP_ADDR, start)] + [write(RPL_MAP_DATA, v) for v in values]
+
+    def unreplaced(self, xo, y):
+        """Pixel (xo, y) is not operational and has no operational pixel within G, with the map as written."""
+        flags = [not (self.map[y * self.wl + x // 32] >> (x % 32) & 1) for x in range(self.w)]
+        return replace_pixel([0] * self.w, flags, xo, self.g)[1]
 
     def write_map(self, rng):
         """A random map, written word by word with the counting MAP_ADDR."""
@@ -323,20 +330,23 @@ def build_flag_coincidence(rng, x):
 
 
 def build_exhaustive(rng, x):
-    # Every line: a D^1 b D^2 a ... D^13 (a or b), then 15 defects at the right border; a = y mod 16, b = y / 16. The
-    # groups of 1 to 13 meet every pair (dl, dr) with dl + dr = length + 1, the pairs of values in both orders over
-    # the lines; the border group gives the one-sided and the unreplaced pixels.
+    # Every line: a D^1 b D^2 a ... D^13 (a or b), then the rest of the line defects at the right border; with P-bit
+    # pixels a = y mod 2^P, b = y / 2^P over 2^(2P) lines. The groups of 1 to 13 meet every pair (dl, dr) with
+    # dl + dr = length + 1, the pairs of values in both orders over the lines; the border group gives the one-sided
+    # and the unreplaced pixels.
+    bits = x.bits
+    assert x.h == 1 << (2 * bits) and x.g == 7
     pix, marks = [], []
     for y in range(x.h):
-        a, b = y % 16, y // 16
+        a, b = y % (1 << bits), y >> bits
         line, m = [a], [0]
         for n in range(1, 14):
-            line += [rng.getrandbits(4) for _ in range(n)]
+            line += [rng.getrandbits(bits) for _ in range(n)]
             m += [1] * n
             line.append(b if n % 2 else a)
             m.append(0)
         rest = x.w - len(line)
-        line += [rng.getrandbits(4) for _ in range(rest)]
+        line += [rng.getrandbits(bits) for _ in range(rest)]
         m += [1] * rest
         pix += line
         marks.append(m)
@@ -356,8 +366,20 @@ def build_reset(rng, x):
     # two images
     mid = [k for k in range(g + 3, n) if k % w not in (0, w - 1)] or [n]
     line_end = w * rng.randrange(h)
-    cases = [(rng.choice(mid), 0, 0, 1), (rng.choice(mid), 2, 1, 2), (line_end + w, rng.randint(1, g), 0, 1),
-             (n, 0, 1, 2)]
+
+    def dropped(k, drop):
+        """The last `drop` output pixels that the model emits for the first k pixels of an image."""
+        out = []
+        for i in range(k):
+            y, xi = divmod(i, w)
+            out += [(xo, y) for xo in (range(xi - g, xi - g + 1) if xi < w - 1 else range(xi - g, w)) if xo >= 0]
+        return out[len(out) - drop:] if drop else []
+
+    # A running reset takes a random number of the dropped beats out of the module before the reset, so it is placed
+    # where no dropped pixel is unreplaced: Stat_Unreplaced counts the pixels that leave the module
+    running = [k for k in mid if k < n and not any(x.unreplaced(xo, y) for xo, y in dropped(k, 2))]
+    run_case = (rng.choice(running), 2, 1, 2) if running else (rng.choice(mid), 0, 1, 2)
+    cases = [(rng.choice(mid), 0, 0, 1), run_case, (line_end + w, rng.randint(1, g), 0, 1), (n, 0, 1, 2)]
     for k, drop, mode, cycles in cases:
         beats = packets(random_image(rng, w, h, x.bits), [w] * h)
         items += beats[:k] + [("R", drop, mode, cycles)]

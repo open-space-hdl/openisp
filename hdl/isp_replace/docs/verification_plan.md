@@ -45,6 +45,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `w65536` | 65536 x 2 | 4096 | 12 | 2 | 1, 0 | 10 % / 10 % |
 | `h65536` | 5 x 65536 | 65536 | 12 | 2 | 1, 0 | 10 % / 10 % |
 | `exhaustive` | 120 x 256 | 1024 | 4 | 7 | 1, 0 | none |
+| `exhaustive_p6` | 120 x 4096 | 16384 | 6 | 7 | 1, 0 | none |
 | `scrub_period`, `scrub_overrun` | 40 x 6 | 12 | 12 | 2 | 1, 0; `ClkFreqHz_g` 1000 (the pacer of Open Logic counts milliseconds of this clock, so a millisecond is one clock cycle) with a scrub period of 300 ms (300 cycles, longer than a pass) and of 5 ms (shorter than a pass) | none |
 | `flags` | 40 x 6 | 12 | 12 | 2 | 1, 0 | none (the flag sweeps need a pulse that moves by one cycle per step) |
 | `rate_g2`, `rate_g7`, `rate_w33` | as `g2`, `g7`, `w33` with 6 lines | | | | | none |
@@ -61,8 +62,8 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | Generic | Declared range | Simulated | Synthesised (TC-RPL-12) |
 | --- | --- | --- | --- |
 | `ImageWidth_g` | 2 x `MaxGap_g` + 1 to 65536 | 3, 15 (2 x G + 1), 9 to 33 (gap sweep), 20, 33, 40, 64, 100, 120, 65536 | 2 x G + 1, 65536 |
-| `ImageHeight_g` | 1 to 65536 | 1, 2, 3, 4, 5, 6, 40, 256, 65536 | 1, 65536 |
-| `PixelBits_g` | 1 to 24 | 1, 4, 8, 10, 12, 24 | 1, 24 |
+| `ImageHeight_g` | 1 to 65536 | 1, 2, 3, 4, 5, 6, 40, 256, 4096, 65536 | 1, 65536 |
+| `PixelBits_g` | 1 to 24 | 1, 4, 6, 8, 10, 12, 24 | 1, 24 |
 | `MaxGap_g` | 1 to 7 | every value | 1, 7 |
 | `RamRdLatency_g` | 1 to 3 | every value | 1, 3 |
 | `EccPipeline_g` | 0 to 2 | every value | 0, 2 |
@@ -93,7 +94,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `test_scrub` (TC-RPL-06) | Single and double errors injected with `Scrub_Enable` 0, then `Scrub_Enable` 1 without images for a time of several passes: `Scrub_EccSec` and `Scrub_EccDed` pulse, `Scrub_PassDone` pulses; then `Scrub_Enable` 0 and an image: no `Stat_EccSec` for the corrected words, `Stat_EccDed` for the double error. Images with the scrubber running are output as by the model. Configurations `scrub_period` and `scrub_overrun`: the number of `Scrub_PassDone` pulses over 3000 cycles with the scrubber on (10 periods, one less or more for the phase of the pacer) and `Scrub_Overrun` | RPL-IF-05, RPL-FT-01 |
 | `test_registers` (TC-RPL-07) | `ID`, `IMAGE`, `PARAM`, `MAP_LINE`, `MAP_WORDS`, the reset values; `MAP_DATA` and `CTRL` read 0; writes to read-only registers without effect; byte strobes on `MAP_ADDR`; a write of `MAP_DATA` with partial strobes writes all 32 bits; unused addresses read 0; every `STATUS` flag set by its event, kept by a write of 0, cleared by a write of 1 | RPL-RG-01, RPL-RG-02, RPL-RG-03, RPL-IF-03 |
 | `test_flag_coincidence` (TC-RPL-08) | The clears of `STATUS.ERR_FRAMING` and `STATUS.UNREPLACED` swept cycle by cycle across their pulses, as in `isp_crop` (TC-CRP-07) | RPL-RG-02 |
-| `test_exhaustive` (TC-RPL-09) | Configuration `exhaustive`: every line holds groups of 1 to 13 defects between two operational pixels, line y with the left value y mod 16 and the right value y / 16: every pair of 4-bit values with every pair (dl, dr) of 1 to 7, and the one-sided and the unreplaced pixels of the longer groups | RPL-FN-01, RPL-ER-02 |
+| `test_exhaustive` (TC-RPL-09) | Configurations `exhaustive` (4 bits) and `exhaustive_p6` (6 bits): every line holds groups of 1 to 13 defects between two operational pixels, line y with the left value y mod 2^P and the right value y / 2^P: every pair of P-bit values with every pair (dl, dr) of 1 to 7, and the one-sided and the unreplaced pixels of the defects at the right border. At 6 bits a division constant one bit shorter fails (d = 13, values near the top); at 4 bits it does not, which a model of the division shows for every width from 1 to 24 | RPL-FN-01, RPL-ER-02 |
 | `test_reset` (TC-RPL-10) | Resets idle, held and running, of one and two cycles, during a line, during the virtual columns of the window and between images; the next image is checked completely | RPL-IF-06, RPL-FT-02, RPL-FT-03 |
 | `test_rate` (TC-RPL-11) | Configurations `rate_*`: images back to back with `In_Valid` and `Out_Ready` high: hold cycles between the first pixels of two lines (at most G), the interval between two image starts, the latency of every pixel from the acceptance of p(x + G, y) | RPL-PF-01, RPL-PF-02, RPL-PF-03 |
 | TC-RPL-12 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2.3; elaboration stops with the message naming the generic for: `MaxGap_g` 0 and 8, `ImageWidth_g` 2 x G and 65537, `ImageHeight_g` 65537, `PixelBits_g` 25, `RamRdLatency_g` 4, `EccPipeline_g` 3 | RPL-CF-01, RPL-CF-02 |
@@ -148,10 +149,10 @@ derivation is never adjusted to fit a measurement.
 | The weights of the interpolation swapped (L x dl + R x dr) | TC-RPL-01, 09 |
 | No rounding term | TC-RPL-09 |
 | The search one place too far (G + 1) | TC-RPL-01 (groups longer than 2 x G), 09 |
-| A place outside the image taken as operational | TC-RPL-01 (groups at the border) |
+| A place outside the image taken as operational: the window carries the mark instead of the operational flag, so that the zero border reads as operational (the border modes mirror and replicate would be equivalent: a place outside then reaches only a pixel that the search on the other side finds nearer) | TC-RPL-01 (groups at the border) |
 | A one-sided replacement from the wrong side | TC-RPL-01, 09 |
 | An unreplaced pixel output as 0 or not reported | TC-RPL-01, 09 |
-| The division constant one bit shorter (K = `PixelBits_g` + 7) | TC-RPL-09 |
+| The division constant one bit shorter (K = `PixelBits_g` + 7) | TC-RPL-09 (`exhaustive_p6`) |
 | The read-ahead across the image start (word 0 read at the end of the image before) | TC-RPL-03 |
 | No new word at the first pixel of a line (the word counter not advanced at the end of a line; the lookup takes the word from the column, so the partial last word needs no case of its own) | TC-RPL-01 (`g2`, `w33`) |
 | `MAP_ADDR` cut to the width of the map address | TC-RPL-03 |
