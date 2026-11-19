@@ -1,3 +1,4 @@
 # OpenISP modules in dependency order (compiled into the library openisp by run.py)
 hdl/isp_frame_sync
 hdl/isp_crop
+hdl/isp_point
