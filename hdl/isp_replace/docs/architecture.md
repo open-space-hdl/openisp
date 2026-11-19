@@ -1,0 +1,126 @@
+# isp_replace: Architecture
+
+## 1. Block diagram
+
+![isp_replace block diagram: frame sync, map lookup, window, interpolation and
+registers](img/isp_replace_arch.drawio.svg)
+
+The frame sync (RP-1) delivers complete images with the position of every pixel. The map lookup (RP-2) reads the
+defect map in step with the pixels and attaches to every pixel its mark. The window (RP-3) delivers every pixel
+with its G neighbours on each side, all with their marks. The interpolation (RP-4) passes an operational pixel and
+replaces a non-operational one. The registers (RP-5) are on an AXI4-Lite slave; through them the software writes
+the defect map.
+
+## 2. Building blocks
+
+| ID | Block | Function |
+| --- | --- | --- |
+| RP-1 | Frame sync | [`isp_frame_sync`](../../isp_frame_sync/docs/architecture.md): input stream handling, position of every pixel, `Err_Framing`, `Stat_ImageOpen`. |
+| RP-2 | Map lookup | Defect map in `olo_ft_ram_sdp_scrub` (H x ceil(W / 32) words of 32 bits); word counter, current word, selection of the mark of every pixel (section 5). |
+| RP-3 | Window | [`isp_window`](../../isp_window/docs/architecture.md) with a window of 2 x G + 1 columns and one line, the anchor in the middle, the border mode zero and pixels of `PixelBits_g` + 1 bits: the pixel and its "operational" flag. No line buffer. |
+| RP-4 | Interpolation | Search for the nearest operational pixel on each side, weighted sum, division by the distance, output register (section 6). |
+| RP-5 | Registers | `olo_axi_lite_slave` (8 address bits, 32 data bits) with the registers of the specification (section 7); write port of the defect map, clear sequence. |
+
+## 3. Ports
+
+| Port | Direction | Width | Description |
+| --- | --- | --- | --- |
+| `Clk` | in | 1 | Clock |
+| `Rst` | in | 1 | Synchronous reset, high-active |
+| `In_Valid`, `In_Ready`, `In_Data`, `In_Last`, `In_User` | | as `isp_frame_sync` | Input pixel stream |
+| `Out_Valid`, `Out_Ready`, `Out_Data`, `Out_Last`, `Out_User` | | pixel stream, `PixelBits_g` | Output pixel stream |
+| `S_AxiLite_*` | | 8 address bits, 32 data bits | AXI4-Lite slave of the registers, port names of `olo_axi_lite_slave` |
+| `Err_Framing` | out | 1 | Pulse: error of the input stream (from RP-1) |
+| `Stat_ImageOpen` | out | 1 | Level: an input image is open (from RP-1) |
+| `Stat_Unreplaced` | out | 1 | Pulse: a non-operational pixel was not replaced |
+| `Stat_EccSec`, `Stat_EccDed` | out | 1 | Pulse: a read of the defect map corrected a single bit error, detected a double bit error |
+| `ErrInj_BitFlip` | in | 39 | Flip pattern for the next write of the defect map (codeword of a 32-bit word) |
+| `ErrInj_Valid` | in | 1 | Latches the flip pattern |
+| `Scrub_Enable` | in | 1 | Scrubber enable (default '1') |
+| `Scrub_EccSec`, `Scrub_EccDed`, `Scrub_PassDone`, `Scrub_Overrun` | out | 1 | Scrubber status of Open Logic |
+
+## 4. The mark as part of the pixel
+
+RP-2 turns the mark into an "operational" flag, the inverse of the mark, and puts it beside the pixel. The window
+RP-3 treats the pair as a pixel of `PixelBits_g` + 1 bits and knows nothing of its meaning. With the border mode
+zero, a place of the window outside the image holds the pixel 0 with the flag 0: it is not operational. The left and
+the right border of the image therefore need no case of their own in the interpolation (RPL-FN-02).
+
+RP-3 contains a frame sync of its own. RP-1 and RP-2 deliver complete images, so it only acts after an upset between
+the blocks.
+
+## 5. Map lookup (RP-2)
+
+The defect map is read in the order of the pixels. Every line has its own words, so the address of the word is a
+counter that counts up through the image: by one after every 32 pixels of a line and at the end of every line. It
+returns to 0 with pixel (0, 0).
+
+- The lookup holds the word of the current 32 pixels and reads the next word ahead, as soon as the current one is in
+  use. The read latency of the RAM and of its ECC decoder (`RamRdLatency_g` + `EccPipeline_g` cycles) lies inside
+  the 32 pixels of a word.
+- A pixel waits in the lookup only when its word has not arrived: after the reset, and for lines of fewer pixels
+  than the read latency.
+- The read port of the RAM is busy once in 32 pixels; the scrubber uses the other cycles (RPL-FT-01).
+- The write port belongs to RP-5: a write of `MAP_DATA`, or the clear sequence. The datapath never writes.
+- `Stat_EccSec` and `Stat_EccDed` pulse with the read of a word; a word with a double error is used as read (E6).
+
+## 6. Interpolation (RP-4)
+
+The window holds the pixels x - G to x + G of a line with their flags; the middle element is the pixel (x, y) to
+output.
+
+| Stage | Operation |
+| --- | --- |
+| 1 | Two priority searches over the flags: dl, the distance of the nearest operational pixel on the left, and dr on the right, each 1 to G or none; the two pixels L and R are selected by them. |
+| 2 | N = L x dr + R x dl + floor(d / 2) with d = dl + dr: two multiplications of a pixel with a number of at most three bits, built from shifts and adders. |
+| 3 | Q = floor(N / d) by a multiplication with a constant: N x ceil(2^K / d) / 2^K with K = `PixelBits_g` + 8, the constant from a table of the 13 possible divisors 2 to 14. |
+| 4 | Output register: the pixel itself when it is operational or when neither side has an operational pixel (`Stat_Unreplaced`, E5); L or R when only one side has one; Q otherwise. |
+
+The division in stage 3 is exact: for a divisor d of at most 14 and a numerator below 2^(`PixelBits_g` + 4), the
+error of the rounded constant, at most d - 1 parts in 2^K per unit of the numerator, stays below one unit of the
+quotient. The verification checks it for every divisor against the reference model.
+
+`Out_Last` and `Out_User` of the window stream travel beside the pixel through the four stages. All stages share one
+enable: they advance when the output register is empty or its beat transfers.
+
+## 7. Registers (RP-5)
+
+| Register | Implementation |
+| --- | --- |
+| `ID`, `IMAGE`, `PARAM`, `MAP_LINE`, `MAP_WORDS` | Constants from the generics |
+| `MAP_ADDR` | Counter with the width of the map address; written by the software, counted up by every write of `MAP_DATA` |
+| `MAP_DATA` | Write strobe of the RAM with the address `MAP_ADDR`; no effect during a clear or with an address outside the map |
+| `CTRL.CLEAR` | Starts the clear sequence: a counter writes 0 to every word, one per clock cycle; `STATUS.BUSY` is high meanwhile |
+| `STATUS` | `Stat_ImageOpen`, the busy flag, and sticky flags set by `Err_Framing`, `Stat_Unreplaced` and the error flags of the reads and of the scrubber; cleared by a write of one, the event wins |
+
+The RAM is initialised with zeros when the device is configured, so the map marks no pixel then. The reset does not
+touch the RAM; the software clears the map with `CTRL.CLEAR` where a reset shall start from an empty map.
+
+## 8. Timing and throughput
+
+| Property | Value | Requirement |
+| --- | --- | --- |
+| Pixel rate | One pixel per clock cycle within a line | RPL-PF-01 |
+| Image period | H x (W + G) cycles: the window generates G virtual columns after every line; plus the registers of the blocks | RPL-PF-02 |
+| Latency | 2 clock cycles in RP-1, 1 in the lookup, 3 in the window, 4 in the interpolation: 10 clock cycles after the pixel G columns to the right | RPL-PF-03 |
+
+Paths: the priority searches over at most seven flags and the selection of L and R (stage 1), and the
+multiplication with the constant in stage 3, at most 28 x 32 bits, which the synthesis tool maps to DSP blocks
+with their registers.
+
+## 9. Fault tolerance
+
+| Element | Protection |
+| --- | --- |
+| Defect map | SECDED per word in `olo_ft_ram_sdp_scrub`, scrubbed in the cycles without a read; a double error is reported and stays until the word is written |
+| Word counter, current word, window register, interpolation | Flip-flops; the counter restarts with every image, an upset changes pixels of the image in progress |
+| `MAP_ADDR`, clear sequence | Flip-flops; an upset during a map update writes a word to a wrong place, which the software finds only by writing the map again |
+
+Triple modular redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
+
+## 10. Resource estimate
+
+For 12-bit pixels, G = 2 and an image of 2048 x 1024 pixels: a defect map of 65536 words (2.6 Mbit with check
+bits, about 72 block RAMs of 36 kbit), one or two DSP blocks for the division, and about 700 flip-flops and 700 LUTs
+(two frame syncs, the window of five pixels, the interpolation, the AXI4-Lite slave). Synthesis results replace these
+estimates in the verification report.
