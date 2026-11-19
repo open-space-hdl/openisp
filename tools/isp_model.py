@@ -284,7 +284,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
         values[PNT_ID] = 0x504E5401
         values[PNT_IMAGE] = ((height - 1) << 16) | (width - 1)
         values[PNT_PARAM] = (max_shift << 24) | (gain_bits << 16) | (out_bits << 8) | in_bits
-        values[PNT_CTRL] = 1 if (runtime and st["hold"]) else 0
+        values[PNT_CTRL] = 1 if st["hold"] else 0
         values[PNT_STATUS] = (1 if fs.open else 0) | (0x100 if status_framing else 0) | \
             (0x200 if status_config else 0)
         return values.get(addr, 0)
@@ -296,6 +296,8 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
                 status_framing = False
             if data & 0x200:
                 status_config = False
+        if addr == PNT_CTRL and strobes & 0x1:
+            st["hold"] = bool(data & 1)
         if not runtime:
             return
         off64 = to_signed(st["off"], ow) & ((1 << 64) - 1)
@@ -319,8 +321,6 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
         elif addr == PNT_HIGH:
             st["high"] = _strobe(st["high"], data, strobes) & full
             st["parity"][5] = True
-        elif addr == PNT_CTRL and strobes & 0x1:
-            st["hold"] = bool(data & 1)
         elif addr == PNT_INJECT and strobes & 0x1:
             for n in range(6):
                 if data & (1 << n):
@@ -551,4 +551,116 @@ def window(items, width, height, bits, win_x, win_y, anchor_x=None, anchor_y=Non
             win.inject(it[2])
         annot.append((count, fs.open))
     return out, fs.errors, annot, {"sec": win.sec, "ded": win.ded, "timing": timing}
+
+
+def log2ceil(n):
+    """Smallest b with 2^b >= n."""
+    return (n - 1).bit_length()
+
+
+# Register map of isp_conv (specification, section 7)
+CNV_ID, CNV_PARAM, CNV_CTRL, CNV_STATUS, CNV_INJECT, CNV_COEF = 0x000, 0x004, 0x008, 0x00C, 0x010, 0x100
+
+
+def conv_full_bits(pixel_bits, coef_bits, taps):
+    """F of the specification: every sum that is not negative fits."""
+    return pixel_bits + coef_bits - 1 + log2ceil(taps)
+
+
+def conv(items, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
+    """isp_conv: every beat is a window; q = 0 for a negative sum, otherwise min(S, 2^B - 1). The image start is the
+    first beat of a packet with the flags "01" or "11". Returns (out, 0, annot, {"config", "regs"})."""
+    taps = win_x * win_y
+    assert len(coef) == taps
+    full = conv_full_bits(pixel_bits, coef_bits, taps)
+    out_b = full if out_bits == 0 else out_bits
+    cmask = (1 << coef_bits) - 1
+
+    def to_signed(value):
+        value &= cmask
+        return value - (1 << coef_bits) if value >> (coef_bits - 1) else value
+
+    st = {}
+
+    def reset_regs():
+        st["coef"] = [c & cmask for c in coef]
+        st["parity"] = [True] * taps
+        st["hold"] = False
+
+    reset_regs()
+    work = list(coef)
+    status_config = False
+    config_errors = 0
+    first = True
+    out, annot, regs = [], [], []
+    count = 0
+
+    def read(addr):
+        if addr == CNV_ID:
+            return 0x434E5601
+        if addr == CNV_PARAM:
+            return (pixel_bits << 24) | (coef_bits << 16) | (win_y << 8) | win_x
+        if addr == CNV_CTRL:
+            return 1 if st["hold"] else 0
+        if addr == CNV_STATUS:
+            return 0x200 if status_config else 0
+        if CNV_COEF <= addr < CNV_COEF + 4 * taps and addr % 4 == 0:
+            k = (addr - CNV_COEF) // 4
+            value = to_signed(st["coef"][k]) if runtime else coef[k]
+            return value & 0xFFFFFFFF
+        return 0
+
+    def write(addr, data, strobes):
+        nonlocal status_config
+        if addr == CNV_CTRL and strobes & 0x1:
+            st["hold"] = bool(data & 1)
+        elif addr == CNV_STATUS and strobes & 0x2 and data & 0x200:
+            status_config = False
+        elif addr == CNV_INJECT and runtime and strobes & 0x1 and data & 1:
+            k = (data >> 8) & 0xFF if strobes & 0x2 else 0
+            if k < taps:
+                st["parity"][k] = not st["parity"][k]
+        elif runtime and CNV_COEF <= addr < CNV_COEF + 4 * taps and addr % 4 == 0:
+            k = (addr - CNV_COEF) // 4
+            st["coef"][k] = _strobe(to_signed(st["coef"][k]) & 0xFFFFFFFF, data, strobes) & cmask
+            st["parity"][k] = True
+
+    for it in items:
+        if it[0] == "B":
+            _, data, last, user = it[:4]
+            if first and user in (SEQ_FIRST, SEQ_ONLY) and runtime and not st["hold"]:
+                if all(st["parity"]):
+                    work = [to_signed(c) for c in st["coef"]]
+                else:
+                    work = list(coef)
+                    config_errors += 1
+                    status_config = True
+            first = last == 1
+            pmask = (1 << pixel_bits) - 1
+            s = sum(work[k] * (data >> (k * pixel_bits) & pmask) for k in range(taps))
+            q = 0 if s < 0 else min(s, (1 << out_b) - 1)
+            out.append(("B", q, last, user, 0, 0))
+            count += 1
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            count -= drop
+            out.append(("R", mode))
+            reset_regs()
+            work = list(coef)
+            status_config = False
+            first = True
+        elif it[0] == "A":
+            _, marker, entries = it
+            resolved = []
+            for op, addr, data, strobes in entries:
+                if op == "W":
+                    write(addr, data, strobes)
+                    resolved.append(("W", addr, data, strobes))
+                else:
+                    resolved.append(("C", addr, read(addr), 0xF))
+            regs.append((marker, resolved))
+        annot.append((count, False))
+    return out, 0, annot, {"config": config_errors, "regs": regs}
 
