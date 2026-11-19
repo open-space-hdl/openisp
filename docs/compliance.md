@@ -23,5 +23,6 @@ requirement included).
 
 | Module | Requirements | Verified by a test case | Without a test case |
 | --- | --- | --- | --- |
+| `isp_window` | 39 | - | In development: no verification plan yet |
 
-Requirements: 0; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 39; without a test case: 0; test cases of the plans not run by a testbench: 0.

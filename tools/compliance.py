@@ -16,8 +16,9 @@ requirement IDs) and writes docs/compliance.md: for every core requirement of th
 trace to it and the test cases that verify them. With --check the file is not written; the exit code is 1 when a core
 requirement in the scope of the core has no test case, when a module requirement has no test case, when a module
 requirement names a core requirement that the matrix does not contain, when a test case of a plan is not run or when
-docs/compliance.md is not current. Before the matrix exists (docs/architecture.md without section 10), every table is
-empty.
+docs/compliance.md is not current. A module without a verification plan is in development: its requirements are
+listed, but not counted as gaps. Before the matrix exists (docs/architecture.md without section 10), the references to
+core requirements are not checked.
 """
 
 import re
@@ -167,12 +168,16 @@ def main():
         "| --- | --- | --- | --- |",
     ]
     covered = set().union(*tests.values()) if tests else set()
-    untested = sorted(r for r in reqs if r not in covered)
-    unknown = sorted({(r, c) for r, (_, refs) in reqs.items() for c in refs if c not in known})
+    planned = {p.parent.parent.name for p in ROOT.glob("hdl/*/docs/verification_plan.md")}
+    untested = sorted(r for r, (m, _) in reqs.items() if r not in covered and m in planned)
+    unknown = sorted({(r, c) for r, (_, refs) in reqs.items() for c in refs if c not in known}) if matrix else []
     for module in sorted({m for m, _ in reqs.values()}):
         ids = [r for r, (m, _) in reqs.items() if m == module]
-        gaps = [r for r in ids if r not in covered]
-        lines.append(f"| `{module}` | {len(ids)} | {len(ids) - len(gaps)} | {', '.join(gaps) or '-'} |")
+        if module in planned:
+            gaps = [r for r in ids if r not in covered]
+            lines.append(f"| `{module}` | {len(ids)} | {len(ids) - len(gaps)} | {', '.join(gaps) or '-'} |")
+        else:
+            lines.append(f"| `{module}` | {len(ids)} | - | In development: no verification plan yet |")
     lines += [
         "",
         f"Requirements: {len(reqs)}; without a test case: {len(untested)}; test cases of the plans not run by a "

@@ -13,7 +13,7 @@ The [TRL page](https://openspacehdl.org/trl/) explains what the levels mean for 
 
 | Module | Function | Status |
 | --- | --- | --- |
-| `isp_window` | 2D window generator: one WinX x WinY neighbourhood per pixel of a raster stream, with border handling; the front end of every 2D stage | Phase A (requirements) |
+| `isp_window` | 2D window generator: one WinX x WinY neighbourhood per pixel of a raster stream, with border handling; the front end of every 2D stage | Phase A (requirements) done; phase B (architecture) |
 
 The later stages (black level, defect pixel correction, flat-field correction, demosaicing, colour correction,
 binning, statistics, filters) and their order are planned in the architecture document.
