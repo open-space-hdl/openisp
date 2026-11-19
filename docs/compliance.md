@@ -58,7 +58,7 @@ requirement included).
 | --- | --- | --- | --- |
 | `isp_bin` | 15 | - | In development: no verification plan yet |
 | `isp_conv` | 23 | - | In development: no verification plan yet |
-| `isp_crop` | 29 | 28 | CRP-FN-04 |
+| `isp_crop` | 29 | 29 | - |
 | `isp_filter2d` | 15 | - | In development: no verification plan yet |
 | `isp_frame_sync` | 28 | 28 | - |
 | `isp_pkg` | 4 | 4 | - |
@@ -66,4 +66,4 @@ requirement included).
 | `isp_replace` | 30 | - | In development: no verification plan yet |
 | `isp_window` | 27 | 27 | - |
 
-Requirements: 198; without a test case: 1; test cases of the plans not run by a testbench: 12.
+Requirements: 198; without a test case: 0; test cases of the plans not run by a testbench: 12.
