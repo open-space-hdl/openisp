@@ -107,6 +107,7 @@ derivation is never adjusted to fit a measurement.
 | `ErrInj_Valid` not connected | TC-FLT-04 |
 | `Err_Config` of the kernel not connected | TC-FLT-04 |
 | `Stat_EccSec` and `Stat_EccDed` of the window exchanged | TC-FLT-04 |
+| `Stat_EccDed` of the window and `Err_Config` of the kernel exchanged | TC-FLT-04 |
 | `Stat_ImageOpen` of the window not connected | TC-FLT-02 (the probes of the source) |
 | The register slave of the kernel not connected (reads 0) | TC-FLT-03 |
 

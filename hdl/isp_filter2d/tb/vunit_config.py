@@ -221,7 +221,9 @@ def build_errors(rng, x):
     writes = x.set_writes(s)
     k = rng.randrange(x.t)
     items += x.regs.access(*writes) + x.image(rng)
-    items += x.regs.access(write(CNV_INJECT, (k << 8) | 1)) + x.image(rng) + x.image(rng, "random")
+    # One image with the parity error: one Err_Config, so that its count differs from those of Stat_EccSec (3) and
+    # Stat_EccDed (2) and an exchange of two of the outputs shows
+    items += x.regs.access(write(CNV_INJECT, (k << 8) | 1)) + x.image(rng, "random")
     items += x.regs.access(writes[k], check(CNV_STATUS), write(CNV_STATUS, 0x200), check(CNV_STATUS))
     items += x.image(rng)
     return items + status()
