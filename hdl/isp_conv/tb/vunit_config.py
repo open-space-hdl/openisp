@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 
 from isp_model import (CNV_COEF, CNV_CTRL, CNV_ID, CNV_INJECT, CNV_PARAM, CNV_STATUS, SEQ_CONT,  # noqa: E402
-                       SEQ_FIRST, SEQ_LAST, conv, conv_full_bits)
+                       SEQ_FIRST, conv, conv_full_bits)
 from isp_tbgen import RegScript, check, packets, raw_packet, rng_for, seed_for, status, watchdog_us, write, \
     write_test  # noqa: E402
 
@@ -129,9 +129,10 @@ class Ctx:
 
 
 def build_static(rng, x):
+    # Window streams as isp_window delivers them (one packet per line); other packet shapes in test_packets
     items = []
-    for mode in ("lines", "one", "lines", "lines"):
-        items += x.image(rng, True, mode)
+    for _ in range(4):
+        items += x.image(rng)
     items += [("G", 20)] + x.image(rng)
     return items + status()
 
@@ -263,11 +264,11 @@ def build_reset(rng, x):
     for drop, mode, cycles, k in ((2, 0, 1, None), (3, 1, 2, None), (0, 0, 1, None), (1, 0, 1, 1), (1, 1, 2, 1)):
         if x.c["runtime"]:
             items += x.regs.access(*x.set_writes(other))
-        wins = [b[1] for b in x.image(rng)]
+        # The window stream stops at the reset, as isp_window does when it is reset with the module, and the next
+        # image follows
+        img = x.image(rng)
         k = rng.randint(max(drop, 1) + 1, n - 1) if k is None else k
-        items += packets(wins[:k], [k], last=False)
-        items += [("R", drop, mode, cycles)]
-        items += raw_packet(wins[k:], SEQ_LAST)
+        items += img[:k] + [("R", drop, mode, cycles)]
         items += x.image(rng)
     return items + status()
 
