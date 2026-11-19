@@ -62,7 +62,9 @@ first. The simulation model of the RAM of Open Logic starts with zeros, which ar
   write without the strobe of its byte, cleared by a write of 1. Every access was answered with OKAY.
 - Resets idle, held and running, of one and two cycles, during a line, while the window outputs the virtual columns
   of a line, and between two images: the registers return to their reset values, the map stays, the next images are
-  correct.
+  correct. A reset of one cycle swept over the cycles of the map reads of pixel (0, 0), with the next image right
+  after it: the next image is correct for every step, also with a read latency of 5. A held reset that drops an
+  unreplaced pixel waiting in the output register: no `Stat_Unreplaced` for it.
 - The control and status outputs carry no metavalue after the first reset, no output pixel carries a metavalue, and
   `Out_Valid`, the pulses and the scrubber status are 0 after every reset.
 
@@ -90,9 +92,10 @@ Measured timing (test_rate) and coincidence (test_flag_coincidence), with Lat = 
 
 ## 4. Mutations
 
-Run on 2026-11-19 on commit 1303358 in a worktree of its own (`git diff --quiet` before and after every mutant), with
-the 14 tests of the configuration `g2` (every test but the flag sweeps), test_static and test_map_update of `w33`,
-the configurations `exhaustive`, `exhaustive_p6` and `clear`, and test_static of `one_word`. Every mutant of the plan
+Run on 2026-11-19 on commit MUTATION_COMMIT in a worktree of its own (`git diff --quiet` before and after every mutant),
+with 14 tests: the 7 of `g2` (every test but the flag sweeps), test_static and test_map_update of `w33`,
+test_exhaustive of `exhaustive` and of `exhaustive_p6`, test_clear and test_static of `clear`, and test_static of
+`one_word`. Every mutant of the plan
 (section 6) fails at least one test, and the tests that fail include those the plan expects. A mutant that changes
 several places of the source carries all of them in one run.
 
@@ -166,7 +169,7 @@ scrubber free running and paced, without latches; the netlist of the default con
 | --- | --- |
 | The derivation of the plan expected G + Lat + 1 hold cycles between the first pixels of lines 0 and 1 and an image period of H x (W + G) + Lat + 1. The rate test measured less (for example 7 instead of 11 holds and 132 instead of 136 cycles with G = 7 and Lat = 3). A trace of the handshakes showed the cause: after an image, the wait for word 0 of the next image runs beside the G virtual columns of the last line of the image before, which the buffers between the input and the window move into the next image; after an idle module the wait stands alone. The RTL is right | The specification (RPL-PF-01), the architecture and the plan state the exact values: Lat + 1 holds after an idle module, max(G, Lat + 1) after an image; the period H x (W + G) + max(0, Lat + 1 - G), the first interval after an idle module H x W + (H - 1) x G + Lat + 1. The bench checks these values exactly |
 | `Stat_Unreplaced` pulsed when an unreplaced pixel entered the output register. A reset that drops pixels in the pipeline made the count depend on the stage the dropped pixel had reached; the count of `test_reset` differed from the model by one in two configurations | `Stat_Unreplaced` pulses in the cycle after the pixel left the output, so a pixel lost by a reset reports nothing (RPL-IF-04); the model counts the delivered pixels |
-| A read issued during the reset delivered its word after the counter of pending reads had returned to 0, and the counter ran below 0 (simulation stop) | A word that arrives with no read pending is dropped; the architecture states it |
+| The first runs stopped in every test of `g2` with a range error of the counter of pending reads, which ran below 0. The first explanation, a read issued during the reset that returned after it, was wrong: every read-valid stage of `olo_ft_ram_sdp_scrub` clears with the reset. A trace of every event of the read valid showed the cause: when a read of the scrubber returns, the read valid rises to '1' and falls back to '0' within the same simulation time (the mask of the scrubber reads takes effect one delta cycle later), and the combinational process of the lookup saw the '1' in that delta cycle with no read pending. At every clock edge the read valid is '0', so the glitch never reached a register; the RTL is right | The guard that drops a word with no read pending stays, as the defence against an upset of the counter (RPL-FT-02) that it is; it also keeps the counter in its range in the delta cycle of the glitch. `test_reset` sweeps a reset of one cycle over the cycles of the map reads of pixel (0, 0); with a read latency of 5 the reset met a read in four steps, with 0, 1 and 2 reads under way, and the next image was correct every time |
 | The flag sweeps ran first in `g2`, with gaps of the source and stalls of the sink; the pulse moved by more than one cycle per step and missed the coincidence | The sweeps run in the configuration `flags` without gaps and stalls |
 | The plan asked for a scrub period of 2 µs; the pacer of Open Logic has a granularity of 1 ms | The bench sets `ClkFreqHz_g` to 1000, so that a millisecond of the pacer is one clock cycle, with periods of 300 and 5 ms |
 | The plan listed the mutant "the map lookup takes the uncorrected word"; Open Logic delivers only the corrected word, so the mutant cannot be written in the module | Replaced by "a word with a double error replaced by zeros instead of used as read" (E6), and the mutant of the E1 rule added |

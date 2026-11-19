@@ -386,6 +386,22 @@ def build_reset(rng, x):
         if k < n:
             items += raw_packet([b[1] for b in beats[k:]], SEQ_LAST)
         items += x.image(rng)
+    # A reset of one cycle in the cycles in which pixel (0, 0) issues the reads of words 0 to 2 and they return
+    # (swept over the read latency), with the first beat of the next image right after the reset
+    lat = x.c["lat"] + x.c["ecc"]
+    for delay in range(lat + 5):
+        beats = packets(random_image(rng, w, h, x.bits), [w] * h)
+        items += [("W",), ("T", 4)] + beats[:1] + ([("T", delay)] if delay else []) + [("R", 0, 0, 1)]
+        items += x.image(rng)
+    # A pixel lost by a reset reports nothing: the last G + 1 pixels of line 0 marked make pixel W - 1 unreplaced;
+    # a held reset after line 0 drops q(W - 1), which waits in the output register (RPL-IF-04)
+    marks = [[0] * (w - g - 1) + [1] * (g + 1)] + [[0] * w for _ in range(h - 1)]
+    items += x.clear() + x.regs.access(*x.write_words(0, x.words_of(rng, marks)))
+    beats = packets(random_image(rng, w, h, x.bits), [w] * h)
+    items += beats[:w] + [("R", 1, 0, 1)]
+    if w < n:
+        items += raw_packet([b[1] for b in beats[w:]], SEQ_LAST)
+    items += x.regs.access(check(RPL_STATUS)) + x.image(rng)
     return items + status()
 
 

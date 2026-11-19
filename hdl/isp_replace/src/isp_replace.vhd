@@ -455,7 +455,9 @@ begin
         -- RP-2 Map lookup (architecture, section 5)
         -------------------------------------------------------------------------------------------
         -- A word read from the map joins the queue, unless it belongs to a read-ahead that an image start dropped or
-        -- no read is pending (a read issued before the reset, or after an upset)
+        -- no read is pending; the latter is a defence against an upset of the counter (RPL-FT-02), and it keeps the
+        -- counter in its range when the read valid of the RAM rises for zero time in simulation as a read of the
+        -- scrubber returns
         Arr_v     := false;
         ArrWord_v := Ram_RdDed & Ram_RdSec & Ram_RdData;
         if Ram_RdValid = '1' then
