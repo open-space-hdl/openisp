@@ -76,7 +76,7 @@ the run-time parameters are swept exhaustively (`exhaustive`) cover them.
 | `test_input_stream` (TC-PNT-02) | Malformed input streams through the frame sync (short images, pixels without an image start, E3, E4, random packets): the missing pixels (value 0) pass the operation; `Stat_ImageOpen` probed | PNT-FN-02, PNT-ER-01, PNT-ER-02, PNT-IF-04 |
 | `test_runtime` (TC-PNT-03) | Parameter sets written between images: random sets, the gains 0, 1 and the largest, the shifts 0, the largest, `MaxShift_g` + 1 and 127 (taken as `MaxShift_g`), the most negative and the largest offset, `Low` above `High`, `Low` equal to `High`; a set written during an image takes effect with the next image; every register read back (offset sign-extended, unused bits) | PNT-FN-01, PNT-FN-04, PNT-FN-05, PNT-RG-03, PNT-RG-05 |
 | `test_hold` (TC-PNT-04) | `CTRL.HOLD` 1: several registers written over two images, which keep the set before; `CTRL.HOLD` 0: the next image takes the whole new set; `CTRL.HOLD` 1 with a register of bad parity takes no set and reports nothing | PNT-FN-04 |
-| `test_parity` (TC-PNT-05) | Every bit of `INJECT` in turn: the next image and every further image use the generics with one `Err_Config` each until the register is written; two bits at once; a second injection that restores the parity; with `Runtime_g` false no effect | PNT-ER-03, PNT-FT-02, PNT-RG-04, PNT-FT-01 |
+| `test_parity` (TC-PNT-05) | Bits 0 to 5 of `INJECT` in turn: the next image and every further image use the generics with one `Err_Config` each until the register is written; two bits at once; a second injection that restores the parity. Bit 6 (`CTRL`) with `CTRL.HOLD` 1: the held set is taken at every image start, with one `Err_Config` each, until `CTRL` is written, which restores the parity and the hold. An injection without the strobe of byte 0 and with `Runtime_g` false has no effect | PNT-ER-03, PNT-ER-04, PNT-FT-02, PNT-RG-04, PNT-FT-01 |
 | `test_registers` (TC-PNT-06) | `ID`, `IMAGE`, `PARAM`, the reset values (also `HIGH` from the sentinel -1, `OFFSET_HI` the sign of `Offset_g`); writes with every single byte strobe; writes to read-only registers (and to the parameter registers with `Runtime_g` false) without effect; unused addresses read 0; `STATUS` flags set by their events, kept by a write of 0, cleared by a write of 1; `INJECT` reads 0 | PNT-RG-01, PNT-RG-02, PNT-RG-03, PNT-RG-05, PNT-IF-03 |
 | `test_flag_coincidence` (TC-PNT-07) | The clears of `STATUS.ERR_FRAMING` and `STATUS.ERR_CONFIG` swept cycle by cycle across an `Err_Framing` pulse (a discarded pixel) and an `Err_Config` pulse (an image start with a register of bad parity), as in `isp_crop` (TC-CRP-07); each sweep has steps before, at and after the pulse | PNT-RG-02 |
 | `test_exhaustive` (TC-PNT-08) | Configuration `exhaustive` (4-bit pixels, 3-bit gain): every combination of offset (-16 to 15), gain (0 to 7) and shift (0 to 8 and 127, of which 7, 8 and 127 are taken as `MaxShift_g` = 6, below the width of the product) as a run-time set, each over an image of all 16 pixel values (2560 sets), with the thresholds 0 / 15, 2 / 13 and 9 / 5 (`Low` above `High`) in turn: every output against the model | PNT-FN-01, PNT-FN-05 |
@@ -101,7 +101,7 @@ the run-time parameters are swept exhaustively (`exhaustive`) cover them.
 | PNT-FN-06 | TC-PNT-01 to 10 (configurations with and without gaps and stalls) | Test |
 | PNT-PF-01, PNT-PF-02 | TC-PNT-10 | Test |
 | PNT-ER-01, PNT-ER-02 | TC-PNT-02, 09 | Test |
-| PNT-ER-03 | TC-PNT-05 | Test |
+| PNT-ER-03, PNT-ER-04 | TC-PNT-05 | Test |
 | PNT-FT-01 | TC-PNT-05 (the set reloaded with every image) and review (no state between pixels) | Test and review |
 | PNT-FT-02 | TC-PNT-05 | Test |
 | PNT-FT-03 | TC-PNT-09 and the checks of section 3.1 | Test |
@@ -132,6 +132,7 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | A shift above `MaxShift_g` not limited | TC-PNT-03 (`shift_limit`), 08 |
 | `CTRL.HOLD` without effect | TC-PNT-04 |
 | No parity check of `GAIN` | TC-PNT-05 |
+| No parity check of `CTRL` | TC-PNT-05 |
 | No parity check of `OFFSET_HI` | TC-PNT-05 |
 | The parity bit of `GAIN` not set by a write | TC-PNT-03, 05 |
 | The thresholds taken from the registers directly, not from the working set | TC-PNT-03 (write during an image) |

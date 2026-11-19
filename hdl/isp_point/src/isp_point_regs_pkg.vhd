@@ -72,7 +72,7 @@ package isp_point_regs_pkg is
     constant StatusErrConfig_c  : natural := 9;
 
     constant InjectParityLo_c : natural := 0;
-    constant InjectParityHi_c : natural := 5;
+    constant InjectParityHi_c : natural := 6;
 
     constant OffsetLoOffsetLo_c : natural := 0;
     constant OffsetLoOffsetHi_c : natural := 31;

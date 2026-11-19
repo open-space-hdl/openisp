@@ -68,7 +68,7 @@ Address 0x0C: Control.
 
 | Bits | Field | Access | Reset | Description |
 | --- | --- | --- | --- | --- |
-| 0 | HOLD | RW | 0 | 1: the image starts do not take the parameter registers |
+| 0 | HOLD | RW | 0 | 1: the image starts do not take the parameter registers; with a wrong parity bit of CTRL it counts as 0 |
 
 ### STATUS
 
@@ -86,7 +86,7 @@ Address 0x14: Error injection for the test of the error handling.
 
 | Bits | Field | Access | Reset | Description |
 | --- | --- | --- | --- | --- |
-| 5:0 | PARITY | W1 | 0 | Write one to bit n: inverts the parity bit of OFFSET_LO (bit 0), OFFSET_HI (1), GAIN (2), SHIFT (3), LOW (4), HIGH (5) |
+| 6:0 | PARITY | W1 | 0 | Write one to bit n: inverts the parity bit of OFFSET_LO (bit 0), OFFSET_HI (1), GAIN (2), SHIFT (3), LOW (4), HIGH (5), CTRL (6) |
 
 ### OFFSET_LO
 

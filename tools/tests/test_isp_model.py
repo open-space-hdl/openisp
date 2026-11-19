@@ -161,6 +161,18 @@ def test_point_hold_and_parity():
     assert cerr == 3
 
 
+def test_point_ctrl_parity():
+    img = packets([10, 20], [2])
+    items = [("A", 100, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 3, 0xF)])] + img      # held: gain 1
+    items += [("A", 101, [("W", PNT_INJECT, 1 << 6, 0xF)])] + img + img                # CTRL bad: gain 3, 2 errors
+    items += [("A", 102, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 5, 0xF)])] + img    # restored, held: gain 3
+    items += [("A", 103, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_INJECT, (1 << 6) | (1 << 2), 0xF)])] + img
+    # CTRL and GAIN bad at the same image start: the generics, one Err_Config
+    out, _, _, ex = run_point(items)
+    assert [o[1] for o in out] == [10, 20, 30, 60, 30, 60, 30, 60, 10, 20]
+    assert ex["config"] == 3
+
+
 def test_point_readback():
     items = [("A", 100, [("W", PNT_OFFSET_LO, 0xFFFFFFF0, 0xF), ("C", PNT_OFFSET_LO, None, 0xF),
                          ("C", PNT_OFFSET_HI, None, 0xF),

@@ -162,8 +162,15 @@ def build_parity(rng, c):
     # Two registers at once, then a second injection that restores both
     items += c.regs.access(write(PNT_INJECT, 0b100100)) + c.image(rng, "lines")
     items += c.regs.access(write(PNT_INJECT, 0b100100), check(PNT_INJECT)) + c.image(rng, "random")
+    # CTRL (PNT-ER-04): with HOLD 1, an injection makes HOLD count as 0: the held set is taken, with Err_Config, at
+    # every image start until CTRL is written; a write of CTRL restores the parity
+    held, later = c.random_set(rng), c.random_set(rng)
+    items += c.regs.access(write(PNT_CTRL, 1), *c.set_writes(held)) + c.image(rng, "random")
+    items += c.regs.access(write(PNT_INJECT, 1 << 6)) + c.image(rng, "lines") + c.image(rng, "random")
+    items += c.regs.access(write(PNT_CTRL, 1), *c.set_writes(later)) + c.image(rng, "lines")
+    items += c.regs.access(write(PNT_CTRL, 0)) + c.image(rng, "random")
     # Without the strobe of byte 0 the injection has no effect
-    items += c.regs.access(write(PNT_INJECT, 0x3F, 0xE)) + c.image(rng, "lines")
+    items += c.regs.access(write(PNT_INJECT, 0x7F, 0xE)) + c.image(rng, "lines")
     items += c.regs.access(check(PNT_STATUS))
     return items + status()
 

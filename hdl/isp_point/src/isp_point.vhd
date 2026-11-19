@@ -125,6 +125,7 @@ architecture rtl of isp_point is
     constant ParShift_c : natural := 3;
     constant ParLow_c   : natural := 4;
     constant ParHigh_c  : natural := 5;
+    constant ParCtrl_c  : natural := 6;
 
     -- Stages: 1 sum, 2 to 1 + MultStages_g product, 2 + MultStages_g shifted value, 3 + MultStages_g output register
     constant Stages_c : positive := MultStages_g + 3;
@@ -159,7 +160,7 @@ architecture rtl of isp_point is
         Shift       : unsigned(6 downto 0);
         Low         : unsigned(OutBits_g - 1 downto 0);
         High        : unsigned(OutBits_g - 1 downto 0);
-        Parity      : std_logic_vector(5 downto 0);
+        Parity      : std_logic_vector(6 downto 0);
         Hold        : std_logic;
         FlagFraming : std_logic;
         FlagConfig  : std_logic;
@@ -187,8 +188,8 @@ architecture rtl of isp_point is
     end record;
 
     -- Parity bits of the reset values
-    constant ParityRst_c : std_logic_vector(5 downto 0) :=
-        (xor GenHigh_c) & (xor GenLow_c) & (xor GenShift_c) & (xor GenGain_c) & offsetParity(GenOffset_c, true) &
+    constant ParityRst_c : std_logic_vector(6 downto 0) :=
+        '0' & (xor GenHigh_c) & (xor GenLow_c) & (xor GenShift_c) & (xor GenGain_c) & offsetParity(GenOffset_c, true) &
         offsetParity(GenOffset_c, false);
 
     signal r, r_next : TwoProcess_r;
@@ -340,6 +341,7 @@ begin
         variable v         : TwoProcess_r;
         variable Advance_v : boolean;
         variable Start_v   : boolean;
+        variable CtrlBad_v : boolean;
         variable Off_v     : signed(OW_c - 1 downto 0);
         variable Gain_v    : unsigned(GainBits_g - 1 downto 0);
         variable Shift_v   : unsigned(6 downto 0);
@@ -406,7 +408,12 @@ begin
                 Shift_v := r.WShift;
                 Low_v   := r.WLow;
                 High_v  := r.WHigh;
-                if Runtime_g and Start_v and r.Hold = '0' then
+                -- PNT-ER-04: a CTRL with a wrong parity bit counts as HOLD 0 and is reported
+                CtrlBad_v := r.Hold /= r.Parity(ParCtrl_c);
+                if Runtime_g and Start_v and CtrlBad_v then
+                    v.ErrConfig := '1';
+                end if;
+                if Runtime_g and Start_v and (r.Hold = '0' or CtrlBad_v) then
                     -- PNT-FN-04, PNT-ER-03: the registers with matching parity, otherwise the generics
                     if offsetParity(r.Offset, false) = r.Parity(ParOffLo_c) and
                        offsetParity(r.Offset, true) = r.Parity(ParOffHi_c) and
@@ -455,7 +462,8 @@ begin
 
                 when RegCtrl_c =>
                     if Rb_ByteEna(0) = '1' then
-                        v.Hold := Rb_WrData(CtrlHold_c);
+                        v.Hold              := Rb_WrData(CtrlHold_c);
+                        v.Parity(ParCtrl_c) := Rb_WrData(CtrlHold_c);
                     end if;
 
                 when RegStatus_c =>

@@ -263,7 +263,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
     def reset_regs():
         st["off"] = gen[0] & ((1 << ow) - 1)
         st["gain"], st["shift"], st["low"], st["high"] = gen[1], gen[2], gen[3], gen[4]
-        st["parity"] = [True] * 6
+        st["parity"] = [True] * 7                    # OFFSET_LO, OFFSET_HI, GAIN, SHIFT, LOW, HIGH, CTRL
         st["hold"] = False
 
     reset_regs()
@@ -302,6 +302,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
                 status_config = False
         if addr == PNT_CTRL and strobes & 0x1:
             st["hold"] = bool(data & 1)
+            st["parity"][6] = True
         if not runtime:
             return
         off64 = to_signed(st["off"], ow) & ((1 << 64) - 1)
@@ -326,7 +327,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
             st["high"] = _strobe(st["high"], data, strobes) & full
             st["parity"][5] = True
         elif addr == PNT_INJECT and strobes & 0x1:
-            for n in range(6):
+            for n in range(7):
                 if data & (1 << n):
                     st["parity"][n] = not st["parity"][n]
 
@@ -336,11 +337,17 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
             beats = fs.feed(it[1], it[2], it[3])
             for n, b in enumerate(beats):
                 _, pixel, last, user, x, y = b
-                if x == 0 and y == 0 and runtime and not st["hold"]:
-                    if all(st["parity"]):
-                        work = reg_set()
-                    else:
-                        work = gen
+                if x == 0 and y == 0 and runtime:
+                    # A CTRL with a wrong parity bit counts as HOLD 0 and is reported; one Err_Config per image start
+                    ctrl_bad = not st["parity"][6]
+                    error = ctrl_bad
+                    if not st["hold"] or ctrl_bad:
+                        if all(st["parity"][:6]):
+                            work = reg_set()
+                        else:
+                            work = gen
+                            error = True
+                    if error:
                         config_errors += 1
                         status_config = True
                 out.append(("B", point_op(pixel, *work), last, user, x, y))

@@ -38,7 +38,7 @@ registers:
     offset: 0x0C
     description: Control
     fields:
-      - {name: HOLD, bits: "0", access: RW, reset: 0, description: "1: the image starts do not take the parameter registers"}
+      - {name: HOLD, bits: "0", access: RW, reset: 0, description: "1: the image starts do not take the parameter registers; with a wrong parity bit of CTRL it counts as 0"}
   - name: STATUS
     offset: 0x10
     description: Status
@@ -50,7 +50,7 @@ registers:
     offset: 0x14
     description: Error injection for the test of the error handling
     fields:
-      - {name: PARITY, bits: "5:0", access: W1, reset: 0, description: "Write one to bit n: inverts the parity bit of OFFSET_LO (bit 0), OFFSET_HI (1), GAIN (2), SHIFT (3), LOW (4), HIGH (5)"}
+      - {name: PARITY, bits: "6:0", access: W1, reset: 0, description: "Write one to bit n: inverts the parity bit of OFFSET_LO (bit 0), OFFSET_HI (1), GAIN (2), SHIFT (3), LOW (4), HIGH (5), CTRL (6)"}
   - name: OFFSET_LO
     offset: 0x18
     description: Offset, bits 31 to 0
