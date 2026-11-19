@@ -141,3 +141,28 @@ The source waits for it with `K m` before its next beat, so a register access fa
 stream. The markers of the register script start at 100, so that they do not collide with the markers of a timing
 test. A test that needs an access at a cycle the script cannot express (for example a clear that coincides with an
 event) drives the BFM itself.
+
+## 8. Injection script
+
+A module with ECC-protected memories gets an injection script per test, `<test>.inj`. The entity
+`tb/isp_tb_inject.vhd` executes it beside the source and drives the error injection ports of the module and, where
+the module has a scrubber, its enable.
+
+| Entry | Meaning |
+| --- | --- |
+| `<m> J <pattern>` | When the source sets marker m: `ErrInj_BitFlip` = pattern (hexadecimal) with `ErrInj_Valid` for one cycle; the pattern applies to the next write of the memory |
+| `<m> S <0 or 1>` | When the source sets marker m: `Scrub_Enable` = 0 or 1 |
+
+When the entries of a marker are done, the entity sets its acknowledge to m, and the source waits for it with `K m`,
+as for the register script. A testbench with a register script and an injection script gives the source the larger
+of the two acknowledges; the markers of both scripts are distinct and increase through the test, so `K m` waits for
+the script that owns marker m. The source pauses before an injection until every pixel it sent has passed the memory
+(`T` with the drain time of the module), so the next write of the memory is the one the model expects.
+
+## 9. Timing file
+
+A rate test gets a timing file, `<test>.tim`, from the model: one line per output beat with the index of the input
+beat that completes it (counted from 0 over the accepted beats of the test), or -1 for a beat that the module
+completes without a new input pixel (the right and the lower border). The testbench records the cycle of every
+accepted input beat and checks, for every output beat with an index, the cycles from the acceptance of that input
+beat to the output against the design values of the verification plan.
