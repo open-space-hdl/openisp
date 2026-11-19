@@ -92,12 +92,11 @@ Measured timing (test_rate) and coincidence (test_flag_coincidence), with Lat = 
 
 ## 4. Mutations
 
-Run on 2026-11-19 on commit MUTATION_COMMIT in a worktree of its own (`git diff --quiet` before and after every mutant),
-with 14 tests: the 7 of `g2` (every test but the flag sweeps), test_static and test_map_update of `w33`,
-test_exhaustive of `exhaustive` and of `exhaustive_p6`, test_clear and test_static of `clear`, and test_static of
-`one_word`. Every mutant of the plan
-(section 6) fails at least one test, and the tests that fail include those the plan expects. A mutant that changes
-several places of the source carries all of them in one run.
+Run on 2026-11-19 on commit a1eceec in a worktree of its own (`git diff --quiet` before and after every mutant), with
+14 tests: the 7 of `g2` (every test but the flag sweeps), test_static and test_map_update of `w33`, test_exhaustive of
+`exhaustive` and of `exhaustive_p6`, test_clear and test_static of `clear`, and test_static of `one_word`. Every one
+of the 16 mutants of the plan (section 6) fails at least one test, and the tests that fail include those the plan
+expects. A mutant that changes several places of the source carries all of them in one run.
 
 A first run on 6431301 kept two mutants alive, both equivalent for the tests of that commit (section 7): the border
 mode mirror, which the plan now replaces by the window that carries the mark instead of the operational flag, and the
@@ -113,12 +112,13 @@ division constant one bit shorter, which the configuration `exhaustive_p6` now k
 | A one-sided replacement from the wrong side | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
 | An unreplaced pixel output as 0 and not reported | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
 | The division constant one bit shorter (K = PixelBits_g + 7) | killed by 1 of 14 tests | test_exhaustive |
-| The read-ahead across the image start (words 0 and 1 read at the end of the image before) | killed by 9 of 14 tests | test_clear, test_map_update, test_registers, test_scrub, test_static |
+| The read-ahead across the image start (words 0 and 1 read at the end of the image before) | killed by 10 of 14 tests | test_clear, test_map_update, test_registers, test_reset, test_scrub, test_static |
 | No new word at the first pixel of a line (the word counter not advanced at the end of a line) | killed by 12 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_reset, test_scrub, test_static |
 | MAP_ADDR cut to the width of the map address | killed by 3 of 14 tests | test_map_update, test_registers |
 | MAP_ADDR counted up by a write without effect | killed by 3 of 14 tests | test_clear, test_map_update |
 | A CTRL.CLEAR during a clear restarts it | killed by 1 of 14 tests | test_clear |
 | A word with a double error replaced by zeros instead of used as read | killed by 3 of 14 tests | test_ecc, test_registers, test_scrub |
+| Stat_Unreplaced pulsed when the pixel enters the output register (not when it leaves the module) | killed by 1 of 14 tests | test_reset |
 | No Stat_EccSec pulse with a read | killed by 2 of 14 tests | test_ecc, test_registers |
 | The error flags of a word reported when it is read, not when it comes in use | killed by 1 of 14 tests | test_ecc |
 

@@ -64,8 +64,10 @@ returns to 0 with pixel (0, 0).
 - The reads of an image start in the cycle in which pixel (0, 0) reaches the lookup; reads of the image before
   that are still under way are dropped when they arrive. A word that arrives with no read pending is dropped as
   well; this cannot happen without an upset of the counter, since every read-valid stage of the RAM clears with the
-  reset, and is a defence against such an upset (RPL-FT-02). A pixel waits in the lookup only for the first word of
-  an image.
+  reset, and is a defence against such an upset (RPL-FT-02). The guard also keeps the counter in its range in
+  simulation: the read valid of the RAM rises to '1' for zero time (one delta cycle) when a read of the scrubber
+  returns, and the combinational logic of the lookup sees it with no read pending; no clock edge sees it. A pixel
+  waits in the lookup only for the first word of an image.
 - When no word can come for a pixel (only after an upset of the counters), the pixel passes as operational until
   the next image start realigns the lookup (RPL-FT-02).
 - The RAM has max(2, H x ceil(W / 32)) words, as `olo_ft_ram_sdp_scrub` needs at least 2; the extra word of a map of
