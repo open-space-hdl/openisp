@@ -709,6 +709,95 @@ def conv(items, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
     return out, 0, annot, {"config": k.config_errors, "regs": regs, "timing": timing}
 
 
+def filter2d(items, width, height, pixel_bits, win_x, win_y, anchor_x=None, anchor_y=None, stride_x=1, stride_y=1,
+             border="replicate", coef_bits=16, coef=None, runtime=False, out_bits=0):
+    """isp_filter2d: the windows of the model window are the input of the kernel of the model conv. Returns (out,
+    framing errors, annot, {"sec", "ded", "config", "regs", "timing"})."""
+    anchor_x = (win_x - 1) // 2 if anchor_x is None else anchor_x
+    anchor_y = (win_y - 1) // 2 if anchor_y is None else anchor_y
+    fs = FrameSync(width, height)
+    win = Window(width, height, pixel_bits, win_x, win_y, anchor_x, anchor_y, stride_x, stride_y, border)
+    k = ConvKernel(pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits)
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
+    for it in items:
+        if it[0] == "B":
+            beats = fs.feed(it[1], it[2], it[3])
+            for n, b in enumerate(beats):
+                src = beat if n == len(beats) - 1 else -1
+                for o in win.pixel(b[1], b[4], b[5], src):
+                    out.append(("B", k.feed(o[1], o[2], o[3]), o[2], o[3], o[4], o[5]))
+                    timing.append(o[6])
+                    count += 1
+            beat += 1
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            del timing[len(timing) - drop:]
+            count -= drop
+            out.append(("R", mode))
+            fs.reset()
+            win.reset()
+            k.reset()
+        elif it[0] == "J":
+            win.inject(it[2])
+        elif it[0] == "A":
+            regs.append((it[1], k.accesses(it[2])))
+        annot.append((count, fs.open))
+    return out, fs.errors, annot, {"sec": win.sec, "ded": win.ded, "config": k.config_errors, "regs": regs,
+                                   "timing": timing}
+
+
+def bin_sum(items, width, height, pixel_bits, bin_x, bin_y, border):
+    """isp_bin from the definition of a bin (specification, section 1.1): the sum of the pixels p' of every bin, for
+    the Wo x Ho bins of the border mode. Returns (out, framing errors, annot)."""
+    assert border in ("valid", "zero", "replicate")
+    if border == "valid":
+        wo, ho = width // bin_x, height // bin_y
+    else:
+        wo, ho = -(-width // bin_x), -(-height // bin_y)
+    fs = FrameSync(width, height)
+    out, annot = [], []
+    count = 0
+    img = {}
+
+    def ext(x, y):
+        if 0 <= x < width and 0 <= y < height:
+            return img[(x, y)]
+        if border == "zero":
+            return 0
+        return img[(min(max(x, 0), width - 1), min(max(y, 0), height - 1))]
+
+    def emit_line(m):
+        nonlocal count
+        for n in range(wo):
+            s = sum(ext(n * bin_x + i, m * bin_y + j) for i in range(bin_x) for j in range(bin_y))
+            out.append(("B", s, 1 if n == wo - 1 else 0, line_flags(m, ho), n, m))
+            count += 1
+
+    for it in items:
+        if it[0] == "B":
+            for b in fs.feed(it[1], it[2], it[3]):
+                _, pixel, _last, _user, x, y = b
+                img[(x, y)] = pixel
+                # A line of bins is complete with the last pixel of its last line in the image
+                if x == width - 1:
+                    for m in range(ho):
+                        last_line = min(m * bin_y + bin_y - 1, height - 1)
+                        if last_line == y:
+                            emit_line(m)
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            count -= drop
+            out.append(("R", mode))
+            fs.reset()
+        annot.append((count, fs.open))
+    return out, fs.errors, annot
+
+
 # Register map of isp_replace (specification, section 7)
 RPL_ID, RPL_IMAGE, RPL_PARAM, RPL_MAP_LINE, RPL_MAP_WORDS = 0x00, 0x04, 0x08, 0x0C, 0x10
 RPL_CTRL, RPL_STATUS, RPL_MAP_ADDR, RPL_MAP_DATA = 0x14, 0x18, 0x1C, 0x20

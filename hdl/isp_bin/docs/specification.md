@@ -45,7 +45,7 @@ completed, as the border mode says.
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| BIN-PF-01 | Within a line, with `In_Valid` and `Out_Ready` high, the module shall accept one pixel per clock cycle. | ISP-STR-09 |
+| BIN-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input for at most `BinX_g` - 1 clock cycles between the acceptance of the first pixels of two consecutive lines of an image in the border modes zero and replicate, and for no clock cycle between the first and the last pixel of an image in the border mode valid. | ISP-STR-09 |
 | BIN-PF-02 | In the border mode valid the interval between the starts of two consecutive images shall not exceed H x W + 16 clock cycles; in the border modes zero and replicate it shall not exceed H x (W + `BinX_g` - 1) + (`BinY_g` - 1) x Wo + 16 clock cycles. | ISP-STR-09 |
 
 ### 2.4 Error handling and fault tolerance
@@ -70,7 +70,7 @@ The module has no error conditions of its own: E1 to E4 of `isp_frame_sync` (`Er
 
 | Generic | Default | Range | Description |
 | --- | --- | --- | --- |
-| `ImageWidth_g` | none | `BinX_g` to 65536 | W: pixels per line of the input image |
+| `ImageWidth_g` | none | `BinX_g` to 65536; with `Resource_g` "BRAM" and `BinY_g` above 1, Wo at least 3 + `EccPipeline_g` | W: pixels per line of the input image |
 | `ImageHeight_g` | none | `BinY_g` to 65536 | H: lines of the input image |
 | `PixelBits_g` | none | 1 to 28 | P: bits per input pixel |
 | `BinX_g` | 2 | 1 to 16 | Pixels of a bin along the line |
