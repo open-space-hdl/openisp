@@ -67,6 +67,7 @@ binning, replacement of non-operational pixels) add their core requirements when
 | ISP-FT-02 | Every memory shall offer the error injection of Open Logic for the test of the error handling in the system. |
 | ISP-FT-03 | Tables that hold their content longer than an image (run-time parameters) shall be scrubbed. |
 | ISP-FT-04 | Every state machine and counter shall return to a defined state from any state: an upset of a register shall disturb at most the image in progress, and every module shall realign with the next image start. After the reset, control outputs and status outputs shall be defined (no metavalues). |
+| ISP-FT-05 | A configuration register that holds its value longer than an image shall carry a parity bit that is set with every write and checked when the value is taken at an image start. A mismatch shall be reported, and the image shall be processed with the values of the generics. The register map shall offer the injection of a parity error for the test of this error handling. |
 
 ### 3.5 Implementation (GEN)
 

@@ -62,24 +62,28 @@ lines of the output image. The module has no memory.
 | CRP-ER-01 | Every output image shall be complete whatever the input: `RoiHeight_g` packets of `RoiWidth_g` pixels with the sequence flags of CRP-FN-03. The ROI pixels of an input image that `isp_frame_sync` completed are the pixels it delivered (value 0 for missing pixels). | ISP-STR-08 |
 | CRP-ER-02 | The image after an error of the input stream shall be processed as if no error had occurred. | ISP-STR-08 |
 | CRP-ER-03 | A position read from `ROI_POS` with X + `RoiWidth_g` > W or Y + `RoiHeight_g` > H shall be rejected: the image shall be processed with the position (`RoiX_g`, `RoiY_g`) (E5). The register shall keep the value that was written. | ISP-CFG-02 |
+| CRP-ER-04 | A value of `ROI_POS` whose parity bit does not match at the image start shall be rejected in the same way (E6). | ISP-FT-05 |
 
 ### 2.5 Fault tolerance
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | CRP-FT-01 | The selection shall use the position that `isp_frame_sync` delivers with every pixel and keep no pixel position of its own; the limits of the ROI in use shall be loaded from `ROI_POS` with every image. An upset of the datapath then disturbs at most the image in progress, and the module realigns with the next image start. | ISP-FT-04 |
+| CRP-FT-03 | `ROI_POS` shall carry one parity bit over its 32 bits, set by the reset and by every write, and checked with every image start (CRP-ER-04). | ISP-FT-05 |
 | CRP-FT-02 | After the reset, `In_Ready`, `Out_Valid`, `Err_Framing`, `Err_Config` and `Stat_ImageOpen` shall be defined, and with defined input pixels every output beat shall be free of metavalues. | ISP-FT-04 |
 
 The module has no memory, so the requirements on memories (ISP-FT-01 to ISP-FT-03) do not apply to it. Its registers
 are flip-flops; their mitigation by triple modular redundancy is a choice of the integrator in the synthesis tool
-(user guide, section "Protection scope"). `ROI_POS` holds its value until it is written: an upset of this register
-moves the region until the software writes it again; it can be read back at any time.
+(user guide, section "Protection scope"). `ROI_POS` holds its value until it is written: its parity bit
+detects an upset of one bit at the next image start, the images are then processed with the position of the generics
+and `STATUS.ERR_CONFIG` tells the software to write the register again.
 
 ### 2.6 Partner behaviour
 
 The partners of the input are those of `isp_frame_sync` (its specification, section 2.6). The consumer of the output
 may hold `Out_Ready` low at any beat. The AXI4-Lite master is a processor or a register bridge of the system on the
-clock `Clk`; it may access the registers at any time, also while images pass.
+clock `Clk`; it may access the registers at any time, also while images pass. A register bus in another clock domain
+needs a clock crossing in the system.
 
 ## 3. Error conditions
 
@@ -89,6 +93,7 @@ condition:
 | ID | Condition | Detection | Response | Status |
 | --- | --- | --- | --- | --- |
 | E5 | `RuntimeRoi_g` true: the position read from `ROI_POS` with an image start places the ROI partly outside the image | Range check with the image start | The image is processed with the position of the generics | `Err_Config`, `STATUS.ERR_CONFIG` |
+| E6 | `RuntimeRoi_g` true: the parity bit of `ROI_POS` does not match its value at an image start (upset of the register) | Parity check with the image start | The image is processed with the position of the generics, and so is every further image until `ROI_POS` is written | `Err_Config`, `STATUS.ERR_CONFIG` |
 
 ## 4. Configuration parameters
 
@@ -128,7 +133,7 @@ Output image: `RoiWidth_g` x `RoiHeight_g` pixels of `PixelBits_g` bits.
 ## 7. Register map
 
 Byte addresses of 32-bit registers on the AXI4-Lite slave. Access: RO read only, RW read and write, W1C sticky flag,
-write one to clear. Reads of other addresses return 0, writes to them and to read-only fields have no effect; every
+write one to clear, W1 command, write one. Reads of other addresses return 0, writes to them and to read-only fields have no effect; every
 access is answered with OKAY.
 
 | Address | Register | Bits | Field | Access | Reset | Description |
@@ -143,9 +148,11 @@ access is answered with OKAY.
 | 0x10 | `STATUS` | 0 | `IMAGE_OPEN` | RO | 0 | An input image is open (`Stat_ImageOpen`) |
 | | | 8 | `ERR_FRAMING` | W1C | 0 | Set by every pulse of `Err_Framing` |
 | | | 9 | `ERR_CONFIG` | W1C | 0 | Set by every pulse of `Err_Config` |
+| 0x14 | `INJECT` | 0 | `ROI_POS_PARITY` | W1 | 0 | Write one: inverts the parity bit of `ROI_POS` (test of the error handling); reads as zero |
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | CRP-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
 | CRP-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
-| CRP-RG-03 | A write to `ROI_POS` shall change only the bytes that the write strobes select. | ISP-CFG-03 |
+| CRP-RG-03 | A write to `ROI_POS` shall change only the bytes that the write strobes select, and set the parity bit for the resulting value. | ISP-CFG-03, ISP-FT-05 |
+| CRP-RG-04 | A write of one to `INJECT.ROI_POS_PARITY` shall invert the parity bit of `ROI_POS`, so that the next image start finds a mismatch. | ISP-FT-05 |

@@ -17,7 +17,7 @@ the output register, a pixel outside is dropped. The registers (CR-4) are on an 
 | CR-1 | Frame sync | [`isp_frame_sync`](../../isp_frame_sync/docs/architecture.md) with `ImageWidth_g`, `ImageHeight_g`, `PixelBits_g`: input stream handling, `Err_Framing`, `Stat_ImageOpen`. |
 | CR-2 | Position stage | Register for one pixel with its position. With `RuntimeRoi_g`: registers for the limits of the region, loaded together with pixel (0, 0); range check and `Err_Config`. |
 | CR-3 | Selection | Comparison of the position with the limits; output register with `Out_Last` and `Out_User` formed from the position in the region. |
-| CR-4 | Registers | `olo_axi_lite_slave` (8 address bits, 32 data bits) with the registers of the specification (section 7): identification, characteristics, `ROI_POS`, `STATUS`. |
+| CR-4 | Registers | `olo_axi_lite_slave` (8 address bits, 32 data bits) with the registers of the specification (section 7): identification, characteristics, `ROI_POS` with its parity bit, `STATUS`, `INJECT`. |
 
 ## 3. Ports
 
@@ -59,8 +59,9 @@ With `RuntimeRoi_g` true, the cycle that loads pixel (0, 0) into the stage also 
 
 - The position is valid when `ROI_POS.X` <= `ImageWidth_g` - `RoiWidth_g` and `ROI_POS.Y` <= `ImageHeight_g` -
   `RoiHeight_g`, two comparisons with constants.
-- A valid position gives X0 = `ROI_POS.X`, Y0 = `ROI_POS.Y`; an invalid one gives X0 = `RoiX_g`, Y0 = `RoiY_g` and a
-  pulse on `Err_Config` (E5). The register is not changed.
+- The parity of the 32 bits of `ROI_POS` is compared with its parity bit.
+- A valid position with matching parity gives X0 = `ROI_POS.X`, Y0 = `ROI_POS.Y`; otherwise X0 = `RoiX_g`,
+  Y0 = `RoiY_g` and a pulse on `Err_Config` (E5, E6). The register is not changed.
 - X1 and Y1 are computed from the chosen X0 and Y0 in the same cycle.
 
 The limits are registers before the comparison, so pixel (0, 0) is compared with the limits of its own image, and
@@ -88,7 +89,8 @@ register block answers a read in the following cycle and every access with OKAY.
 | Register | Implementation |
 | --- | --- |
 | `ID`, `IMAGE`, `ROI_SIZE` | Constants from the generics |
-| `ROI_POS` | 2 x 16 flip-flops with the reset values `RoiX_g` and `RoiY_g`, written byte by byte with the write strobes (`RuntimeRoi_g` true); constants otherwise |
+| `ROI_POS` | 2 x 16 flip-flops with the reset values `RoiX_g` and `RoiY_g`, written byte by byte with the write strobes, and one parity flip-flop that the reset and every write set for the resulting value (`RuntimeRoi_g` true); constants otherwise |
+| `INJECT.ROI_POS_PARITY` | Command: inverts the parity flip-flop |
 | `STATUS.IMAGE_OPEN` | `Stat_ImageOpen` |
 | `STATUS.ERR_FRAMING`, `STATUS.ERR_CONFIG` | Sticky flags: set by the pulse, cleared by a write of one; the pulse wins when both come in the same cycle (CRP-RG-02) |
 
@@ -112,8 +114,9 @@ position with the four limits (up to 16 bits each) into the enable of the output
 
 The module has no memory and no position counter of its own: the position of every pixel comes from CR-1, and the
 limits of the region are loaded with every image. An upset of a datapath register disturbs at most the image in
-progress. `ROI_POS` is a register that lives until it is written: an upset moves the region, or makes the position
-invalid (then the generics apply and `Err_Config` reports it), until the software writes it again. Triple modular
+progress. `ROI_POS` is a register that lives until it is written. Its parity bit detects an upset of one of its bits at the
+next image start: the generics apply, `Err_Config` and `STATUS.ERR_CONFIG` report it, and the software writes the
+register again. The parity check lies in the cycle that loads the limits, beside the range check. Triple modular
 redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
 
 ## 10. Resource estimate

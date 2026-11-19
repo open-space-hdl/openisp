@@ -23,7 +23,7 @@ requirement included).
 
 | Module | Requirements | Verified by a test case | Without a test case |
 | --- | --- | --- | --- |
-| `isp_crop` | 26 | - | In development: no verification plan yet |
+| `isp_crop` | 29 | - | In development: no verification plan yet |
 | `isp_frame_sync` | 28 | - | In development: no verification plan yet |
 
-Requirements: 54; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 57; without a test case: 0; test cases of the plans not run by a testbench: 0.
