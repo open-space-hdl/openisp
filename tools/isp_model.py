@@ -21,6 +21,8 @@ Output items: ('B', pixel, last, user, x, y) and ('R', mode). The annotation of 
 "timing" (per output beat the index of the input beat that completes it, or -1).
 """
 
+from collections import deque
+
 SEQ_CONT, SEQ_FIRST, SEQ_LAST, SEQ_ONLY = 0, 1, 2, 3
 
 
@@ -136,19 +138,19 @@ CRP_ID, CRP_IMAGE, CRP_ROI_SIZE, CRP_ROI_POS, CRP_STATUS, CRP_INJECT = 0x00, 0x0
 def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
     """isp_crop: the region of interest of every image of the frame sync. With `runtime`, the position is ROI_POS at
     the image start when it lies inside the image and its parity bit matches; otherwise the generics apply and
-    Err_Config pulses. Returns (out, framing errors, annot, {"config", "regs"})."""
+    Err_Config pulses. Returns (out, framing errors, annot, {"config", "regs", "timing"})."""
     fs = FrameSync(width, height)
     reg = (roi_y << 16) | roi_x                  # ROI_POS, reset value from the generics
     parity_ok = True
     status_framing = status_config = False
     config_errors = 0
     pos = (roi_x, roi_y)
-    out, annot, regs = [], [], []
-    count = 0
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
 
-    def select(beats):
+    def select(beats, src):
         nonlocal pos, config_errors, status_config, count
-        for b in beats:
+        for n, b in enumerate(beats):
             _, pixel, _last, _user, x, y = b
             if x == 0 and y == 0:
                 # Image start: the limits of this image
@@ -163,6 +165,8 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
             x0, y0 = pos
             if x0 <= x < x0 + roi_w and y0 <= y < y0 + roi_h:
                 out.append(("B", pixel, 1 if x == x0 + roi_w - 1 else 0, line_flags(y - y0, roi_h), x, y))
+                # The pixel of the input beat is the last of the beats it causes; the others are padding
+                timing.append(src if n == len(beats) - 1 else -1)
                 count += 1
 
     def read(addr):
@@ -181,13 +185,15 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
     for it in items:
         if it[0] == "B":
             before = fs.errors
-            select(fs.feed(it[1], it[2], it[3]))
+            select(fs.feed(it[1], it[2], it[3]), beat)
+            beat += 1
             if fs.errors > before:
                 status_framing = True
         elif it[0] == "R":
             _, drop, mode, _cycles = it
             assert drop <= count, "reset drops more beats than were produced"
             _drop(out, drop)
+            del timing[len(timing) - drop:]
             count -= drop
             out.append(("R", mode))
             fs.reset()
@@ -216,7 +222,7 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
                     resolved.append(("C", addr, read(addr), 0xF))
             regs.append((marker, resolved))
         annot.append((count, fs.open))
-    return out, fs.errors, annot, {"config": config_errors, "regs": regs}
+    return out, fs.errors, annot, {"config": config_errors, "regs": regs, "timing": timing}
 
 
 def _strobe(old, data, strobes):
@@ -243,7 +249,7 @@ def point_op(pixel, offset, gain, shift, low, high):
 
 def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_g, gain_g, shift_g, low_g, high_g,
           runtime):
-    """isp_point. Returns (out, framing errors, annot, {"config", "regs"})."""
+    """isp_point. Returns (out, framing errors, annot, {"config", "regs", "timing"})."""
     fs = FrameSync(width, height)
     ow = min(in_bits + 1, 64)                         # bits of the offset
     full = (1 << out_bits) - 1
@@ -259,15 +265,15 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
     def reset_regs():
         st["off"] = gen[0] & ((1 << ow) - 1)
         st["gain"], st["shift"], st["low"], st["high"] = gen[1], gen[2], gen[3], gen[4]
-        st["parity"] = [True] * 6
+        st["parity"] = [True] * 7                    # OFFSET_LO, OFFSET_HI, GAIN, SHIFT, LOW, HIGH, CTRL
         st["hold"] = False
 
     reset_regs()
     work = gen                                        # the parameter set in use, from the reset the generics
     status_framing = status_config = False
     config_errors = 0
-    out, annot, regs = [], [], []
-    count = 0
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
 
     def reg_set():
         return (to_signed(st["off"], ow), st["gain"], min(st["shift"], max_shift), st["low"], st["high"])
@@ -298,6 +304,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
                 status_config = False
         if addr == PNT_CTRL and strobes & 0x1:
             st["hold"] = bool(data & 1)
+            st["parity"][6] = True
         if not runtime:
             return
         off64 = to_signed(st["off"], ow) & ((1 << 64) - 1)
@@ -322,30 +329,41 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
             st["high"] = _strobe(st["high"], data, strobes) & full
             st["parity"][5] = True
         elif addr == PNT_INJECT and strobes & 0x1:
-            for n in range(6):
+            for n in range(7):
                 if data & (1 << n):
                     st["parity"][n] = not st["parity"][n]
 
     for it in items:
         if it[0] == "B":
             before = fs.errors
-            for b in fs.feed(it[1], it[2], it[3]):
+            beats = fs.feed(it[1], it[2], it[3])
+            for n, b in enumerate(beats):
                 _, pixel, last, user, x, y = b
-                if x == 0 and y == 0 and runtime and not st["hold"]:
-                    if all(st["parity"]):
-                        work = reg_set()
-                    else:
-                        work = gen
+                if x == 0 and y == 0 and runtime:
+                    # A CTRL with a wrong parity bit counts as HOLD 0 and is reported; one Err_Config per image start
+                    ctrl_bad = not st["parity"][6]
+                    error = ctrl_bad
+                    if not st["hold"] or ctrl_bad:
+                        if all(st["parity"][:6]):
+                            work = reg_set()
+                        else:
+                            work = gen
+                            error = True
+                    if error:
                         config_errors += 1
                         status_config = True
                 out.append(("B", point_op(pixel, *work), last, user, x, y))
+                # The pixel of the input beat is the last of the beats it causes; the others are padding
+                timing.append(beat if n == len(beats) - 1 else -1)
                 count += 1
+            beat += 1
             if fs.errors > before:
                 status_framing = True
         elif it[0] == "R":
             _, drop, mode, _cycles = it
             assert drop <= count, "reset drops more beats than were produced"
             _drop(out, drop)
+            del timing[len(timing) - drop:]
             count -= drop
             out.append(("R", mode))
             fs.reset()
@@ -363,7 +381,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
                     resolved.append(("C", addr, read(addr), 0xF))
             regs.append((marker, resolved))
         annot.append((count, fs.open))
-    return out, fs.errors, annot, {"config": config_errors, "regs": regs}
+    return out, fs.errors, annot, {"config": config_errors, "regs": regs, "timing": timing}
 
 
 # ECC of Open Logic (olo_ft_pkg_ecc): bit 0 the overall parity, bits 1 to n the Hamming codeword with the parity bits
@@ -437,7 +455,7 @@ class Window:
         self.reset()
 
     def reset(self):
-        self.delays = [[(0, 0)] * self.w for _ in range(self.wy - 1)]
+        self.delays = [deque([(0, 0)] * self.w) for _ in range(self.wy - 1)]
         self.pending = 0
         self.cols = {}
 
@@ -464,7 +482,7 @@ class Window:
         value = pixel
         for t in range(self.wy - 1):
             queue = self.delays[t]
-            stored, flips = queue.pop(0)
+            stored, flips = queue.popleft()
             mask, s, d = ecc_decode(flips, self.bits)
             read = stored ^ mask
             sec, ded = sec or s, ded or d

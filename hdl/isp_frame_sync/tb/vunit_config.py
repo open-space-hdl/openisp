@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 
 from isp_model import SEQ_CONT, SEQ_FIRST, SEQ_LAST, SEQ_ONLY, frame_sync  # noqa: E402
 from isp_tbgen import (image_beats, packets, random_image, raw_packet, rng_for, seed_for, split,  # noqa: E402
-                       write_test)
+                       watchdog_us, write_test)
 
 MODULE = "isp_frame_sync"
 ALL = ["test_images", "test_short_images", "test_excess_pixels", "test_end_flags", "test_reset", "test_status",
@@ -151,6 +151,19 @@ def build_reset(rng, w, h, bits):
             # The rest of the interrupted image: a run of E2
             items += raw_packet(pix[k:], SEQ_LAST)
             items += image_beats(rng, w, h, bits, "lines")
+    if w >= 3 and n >= 4:
+        # Held reset inside the first packet of an image ("01", "11" for one line): the rest of that packet starts
+        # an image at a wrong position (the first beat after the reset is a first beat), which the next image start
+        # completes with padding; the image after it is correct. Deterministic in the held mode only.
+        pix = random_image(rng, w, h, bits)
+        k = rng.randint(2, w - 1)
+        flags = SEQ_FIRST if h > 1 else SEQ_ONLY
+        items += [("B", p, 0, flags) for p in pix[:k]]
+        items += [("R", 2, 0, 1)]
+        items += [("B", p, 1 if j == w - 1 else 0, flags) for j, p in enumerate(pix[k:w], start=k)]
+        items += packets(pix[w:], [w] * (h - 1), first=False)
+        items += image_beats(rng, w, h, bits, "lines")
+        items += image_beats(rng, w, h, bits, "random")
     if n >= 3:
         for mode, cycles in ((0, 2), (1, 1)):
             # While missing pixels are generated: the cut image, the next image start and one more pixel
@@ -251,4 +264,4 @@ def configure(lib, out_dir):
                 "ImageWidth_g": w, "ImageHeight_g": h, "PixelBits_g": bits,
                 "StimFile_g": stim.as_posix(), "ExpFile_g": exp.as_posix(),
                 "GapPct_g": gap, "StallPct_g": stall, "Seed_g": seed_for(MODULE, name, test),
-                "ExpFraming_g": errors})
+                "ExpFraming_g": errors, "WatchdogUs_g": watchdog_us(stim, exp)})

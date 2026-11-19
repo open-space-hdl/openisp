@@ -35,4 +35,4 @@ order.
 | Run-time image dimensions | The dimensions are generics. Ports for the dimensions, with the generics as maxima, would land in `isp_frame_sync` and in the line buffers (`olo_ft_delay_cfg`); every module of a chain would need consistent settings |
 | Defect list | The defect map of `isp_replace` has one bit per pixel. A list of the positions of the non-operational pixels needs less memory for a detector with few defects |
 | Timing on PolarFire | The timing of every module is shown by an out-of-context run on the AMD Versal device of the reference systems. Runs on Microchip PolarFire are a later option |
-| Register description | The register maps are tables in the module specifications. A description file per module with a generator of the VHDL package, the documentation and a C header follows with the RTL |
+| Register description | Every module with registers has a description file (`hdl/<module>/regs/`) from which `tools/regmap.py` generates the VHDL package, the register map and the C header, and which it compares with the table of the specification; the modules get it with their RTL |

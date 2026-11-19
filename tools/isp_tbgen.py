@@ -6,10 +6,10 @@
 
 A test is a list of input items (see tools/isp_model.py): beats ('B', pixel, last, user) and directives
 ('G', n) pause, ('T', n) wait cycles, ('W',) wait for the sink, ('P',) probe, ('H', 0/1) hold the sink,
-('M', n) marker, ('R', drop, mode, cycles) reset, ('A', marker, entries) register accesses, ('J', marker, pattern)
-error injection, ('S', marker, 0 or 1) scrubber enable. `write_test` runs the model of the module over the items
-and writes the stimulus file, the expected file and, where the test needs them, the register script, the injection
-script and the timing file.
+('M', n) marker, ('K', n) wait for the acknowledge, ('R', drop, mode, cycles) reset, ('A', marker, entries) register
+accesses, ('J', marker, pattern) error injection, ('S', marker, 0 or 1) scrubber enable. `write_test` runs the model
+of the module over the items and writes the stimulus file, the expected file and, where the test needs them, the
+register script, the injection script and the timing file.
 """
 
 import random
@@ -105,6 +105,13 @@ def image_beats(rng, width, height, bits, mode):
     return packets(pixels, split(rng, width * height, width, mode))
 
 
+def watchdog_us(*files):
+    """Watchdog of a test in microseconds: 1 ms plus 0.5 us per entry of its files. An entry takes a few cycles of
+    10 ns, also with gaps, stalls and pauses, so the margin is more than tenfold (docs/testbench.md, section 6)."""
+    entries = sum(len(Path(f).read_text(encoding="ascii").splitlines()) for f in files)
+    return 1000 + entries // 2
+
+
 def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_path=None, inj_path=None,
                tim_path=None):
     """Runs `model(items)` -> (out, errors, annot[, extra]) and writes the files. Returns a dict with the number of
@@ -119,7 +126,7 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_pat
         kind = it[0]
         if kind == "B":
             stim.append("B {} {} {}".format(hexw(it[1], data_bits), it[2], it[3]))
-        elif kind in ("G", "T", "H", "M"):
+        elif kind in ("G", "T", "H", "M", "K"):
             stim.append("{} {}".format(kind, it[1]))
         elif kind == "W":
             stim.append("W {}".format(before[0]))
@@ -160,3 +167,63 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_pat
         Path(tim_path).write_text("\n".join(str(n) for n in extra["timing"]) + "\n", encoding="ascii",
                                   newline="\n")
     return result
+
+
+class RegScript:
+    """Markers of the register script of a test (docs/testbench.md, section 7), from 100 on."""
+
+    def __init__(self, first=100):
+        self.markers = iter(range(first, 1 << 30))
+
+    def access(self, *entries):
+        """Register accesses after every pixel sent so far has passed the module: wait for the sink, a pause, then
+        the accesses at the next marker."""
+        return [("W",), ("T", 8), ("A", next(self.markers), list(entries))]
+
+
+def write(addr, data, strobes=0xF):
+    """A register write of the register script."""
+    return ("W", addr, data, strobes)
+
+
+def check(addr, data=None):
+    """A register read of the register script; the model gives the expected data unless the test does."""
+    return ("C", addr, data, 0xF)
+
+
+def status():
+    """Wait for the sink, give the module time for discards, probe the status of the source (Stat_ImageOpen)."""
+    return [("W",), ("T", 8), ("P",)]
+
+
+def short_image(rng, width, height, bits, k):
+    """The first k pixels of an image, without the last flags (the image is cut)."""
+    pix = random_image(rng, width, height, bits)[:k]
+    return packets(pix, split(rng, k, width, "random"), last=False)
+
+
+def malformed_streams(rng, width, height, bits, packets_count=60):
+    """Malformed input streams for the frame sync of a module: short images completed at the next image start,
+    pixels without an image start, wrong end flags (E3, E4), random packets with random flags."""
+    n = width * height
+    items = image_beats(rng, width, height, bits, "random")
+    if n >= 2:
+        for k in sorted({1, n // 2, n - 1} - {0}):
+            items += short_image(rng, width, height, bits, k) + image_beats(rng, width, height, bits, "random")
+            items += status()
+    items += raw_packet([rng.getrandbits(bits) for _ in range(3)], SEQ_CONT)
+    items += raw_packet([rng.getrandbits(bits) for _ in range(2)], SEQ_LAST)
+    items += image_beats(rng, width, height, bits, "lines") + status()
+    if n >= 2:
+        items += raw_packet([rng.getrandbits(bits) for _ in range(n)], SEQ_FIRST)
+        items += raw_packet([rng.getrandbits(bits)], SEQ_ONLY)
+        items += raw_packet([rng.getrandbits(bits) for _ in range(n - 1)], SEQ_LAST)
+    for _ in range(packets_count):
+        if rng.random() < 0.2:
+            items += image_beats(rng, width, height, bits, rng.choice(["lines", "one", "random"]))
+            continue
+        length = rng.randint(1, 2 * n)
+        items += raw_packet([rng.getrandbits(bits) for _ in range(length)], rng.randint(0, 3))
+    items += image_beats(rng, width, height, bits, "random") + image_beats(rng, width, height, bits, "lines")
+    return items + status()
+

@@ -126,6 +126,12 @@ def test_crop_reset_restores_generics():
     assert crop_pixels([o for o in out]) == [3, 4, 7, 8, 6, 7, 10, 11]
 
 
+def test_crop_timing():
+    # 4 x 3, region (1, 1) of 2 x 2: the output pixels come from the input beats 5, 6, 9 and 10
+    out, _, _, ex = crop(packets(list(range(1, 13)), [4, 4, 4]), 4, 3, 1, 1, 2, 2, False)
+    assert ex["timing"] == [5, 6, 9, 10]
+
+
 def test_point_op():
     # Dark level 100, gain 1229 / 1024
     assert point_op(200, -100, 1229, 10, 0, 4095) == 120          # 122900 / 1024 = 120.02
@@ -155,6 +161,18 @@ def test_point_hold_and_parity():
     cerr = ex["config"]
     assert [o[1] for o in out] == [20, 40, 20, 40, 30, 60, 10, 20, 10, 20, 10, 20, 10, 20, 50, 100]
     assert cerr == 3
+
+
+def test_point_ctrl_parity():
+    img = packets([10, 20], [2])
+    items = [("A", 100, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 3, 0xF)])] + img      # held: gain 1
+    items += [("A", 101, [("W", PNT_INJECT, 1 << 6, 0xF)])] + img + img                # CTRL bad: gain 3, 2 errors
+    items += [("A", 102, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 5, 0xF)])] + img    # restored, held: gain 3
+    items += [("A", 103, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_INJECT, (1 << 6) | (1 << 2), 0xF)])] + img
+    # CTRL and GAIN bad at the same image start: the generics, one Err_Config
+    out, _, _, ex = run_point(items)
+    assert [o[1] for o in out] == [10, 20, 30, 60, 30, 60, 30, 60, 10, 20]
+    assert ex["config"] == 3
 
 
 def test_point_readback():

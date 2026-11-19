@@ -56,7 +56,7 @@ window to one pixel and passes the packet signals on, which gives a pixel stream
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| WIN-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most Rr clock cycles between the acceptance of the first pixels of two consecutive lines of an image in the border modes zero, replicate and mirror, and for no clock cycle between the first and the last pixel of an image in the border mode valid. | ISP-STR-09 |
+| WIN-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most Rr clock cycles between the acceptance of the first pixels of two consecutive lines of an image in the border modes zero, replicate and mirror, and for no clock cycle between the first and the last pixel of an image in the border mode valid; between the first pixels of the first two lines of an image the input also waits for the windows of the lower border of the image before (WIN-PF-02), Rb x (W + Rr) clock cycles at most. | ISP-STR-09 |
 | WIN-PF-02 | With back-to-back input and `Out_Ready` high, the interval between the starts of two consecutive images shall not exceed (H + Rb) x (W + Rr) + 8 clock cycles in the border modes zero, replicate and mirror, and H x W + 8 clock cycles in the border mode valid: Rr cycles per line for the windows at the right border, Rb lines for the windows at the lower border, 8 cycles of registers. | ISP-STR-09 |
 | WIN-PF-03 | With `Out_Ready` high, the window of the reference pixel (x, y) shall be at the output at most 6 clock cycles after the module accepted the pixel p(x + Rr, y + Rb), where that pixel is inside the image. | ISP-STR-09 |
 
@@ -154,3 +154,7 @@ The border modes extend the input image beyond its borders:
 - The input stage of `isp_frame_sync` takes up to two pixels while the module holds its input for the right
   border, so the hold cycles of a line can fall after the first pixels of the next line: WIN-PF-01 counts them
   between the first pixels of two lines, and the latency of WIN-PF-03 leaves room for these two pixels.
+- For the same reason the input stage takes the first pixels of an image while the module still generates the
+  virtual lines of the image before. These hold cycles fall between the first pixels of the first two lines of the
+  image, and the first interval between two image starts after an idle module is shorter than the period of
+  WIN-PF-02.

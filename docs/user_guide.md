@@ -96,6 +96,10 @@ A register bus in another clock domain needs a clock crossing in the system. Eve
 reads of unused addresses return 0. A module whose registers are not needed leaves the slave unconnected: its inputs
 default to inactive.
 
+The register map of a module is generated from its register description (`hdl/<module>/regs/<module>_regs.yml`) by
+`tools/regmap.py`: the page "Register map" of the module, the VHDL package `<module>_regs_pkg` and the C header
+`sw/<module>_regs.h` with the addresses, the field positions and masks and the identification for the software.
+
 Every register map starts with the same registers:
 
 | Register | Content |
@@ -126,7 +130,7 @@ and so for every further image until the register is written again. The software
 - reads `STATUS` after every image or periodically,
 - writes the parameter registers again when `ERR_CONFIG` is set, then clears the flag.
 
-The register `INJECT` inverts the parity bit of one register, so that the system can test this path.
+The register `INJECT` inverts the parity bit of a parameter register, so that the system can test this path.
 
 ### 4.4 Defect map of `isp_replace`
 
@@ -189,6 +193,7 @@ requirements of a mission is shown by a radiation test with the modules in opera
 | The register bus is in the clock domain of the module, or the system provides a clock crossing | The AXI4-Lite slaves have no crossing of their own |
 | The software reacts to `STATUS.ERR_CONFIG` by writing the parameter registers again | An upset of a parameter register persists until it is written (section 4.3) |
 | The defect map is written between images where an image must not see a partial update | The map is read in step with the pixels (section 4.4) |
+| A chain is reset together with its source, or between images | A reset inside a first or only packet of an image makes the rest of that packet an image start: one wrong image with `Err_Framing`, the next one correct (`isp_frame_sync` specification, section 6) |
 
 ## 8. Resources and performance
 
