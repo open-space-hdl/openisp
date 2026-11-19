@@ -10,8 +10,9 @@ Usage: python lint/synth_check.py [name ...]
 Uses the libraries compiled by the regression runner (run `python run.py --compile` first). Names select
 configurations; without names all run. Exit code 0 when every configuration synthesises without error and without
 inferred latch, and every configuration outside the ranges stops with its expected message.
-GHDL 6.0.0 cannot override real generics with -g: an entity with real generics is synthesised through a wrapper in
-lint/ that takes integer generics and converts them.
+GHDL 6.0.0 cannot override real or vector generics with -g: such an entity is synthesised through a wrapper
+lint/<entity>_synth.vhd that takes integer generics and converts them; the wrappers are analysed into the library
+before the synthesis.
 This is a technology-independent check of synthesizability; resources and timing need the FPGA tools.
 """
 
@@ -101,6 +102,27 @@ CONFIGS += [
     ("win_bram_min", "isp_window", win(4, 8, 12, 3, 3, "replicate", ecc=1, resource="BRAM")),
 ]
 
+
+def cnv(bits, wx, wy, cb, runtime, out_bits, coef_set=0, count=0, offset=0):
+    """Generics of the wrapper isp_conv_synth (lint/isp_conv_synth.vhd)."""
+    return {"PixelBits_g": str(bits), "WinX_g": str(wx), "WinY_g": str(wy), "CoefBits_g": str(cb),
+            "RuntimeCoef_g": str(runtime).lower(), "OutBits_g": str(out_bits), "CoefSet_g": str(coef_set),
+            "CoefCount_g": str(count), "CoefOffset_g": str(offset)}
+
+
+# isp_conv (TC-CNV-11): the bounds of every numeric generic with both values of RuntimeCoef_g, coefficients at their
+# bounds
+CONFIGS += [
+    ("cnv_default_rt", "isp_conv_synth", cnv(12, 3, 3, 16, True, 0)),
+    ("cnv_default", "isp_conv_synth", cnv(12, 3, 3, 16, False, 0)),
+    ("cnv_min_rt", "isp_conv_synth", cnv(1, 1, 1, 2, True, 1)),
+    ("cnv_min", "isp_conv_synth", cnv(1, 1, 1, 2, False, 0)),
+    ("cnv_max_rt", "isp_conv_synth", cnv(32, 16, 16, 18, True, 64)),
+    ("cnv_max", "isp_conv_synth", cnv(32, 16, 16, 18, False, 0)),
+    ("cnv_ones", "isp_conv_synth", cnv(12, 4, 1, 2, False, 0, coef_set=1)),
+    ("cnv_mtf5_rt", "isp_conv_synth", cnv(12, 5, 5, 16, True, 12)),
+]
+
 # Configurations outside the declared ranges and the message their elaboration stops with
 FSY_OK = {"ImageWidth_g": "8", "ImageHeight_g": "4", "PixelBits_g": "12"}
 NEGATIVE = [
@@ -147,6 +169,20 @@ NEGATIVE += [
      "mirror needs an odd WinY_g"),
     ("win_bram_narrow", "isp_window", dict(WIN_OK, Resource_g="BRAM", ImageWidth_g="3"),
      "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g"),
+]
+
+CNV_OK = cnv(12, 3, 3, 16, True, 0)
+NEGATIVE += [
+    ("cnv_bits_33", "isp_conv_synth", dict(CNV_OK, PixelBits_g="33"), "isp_conv: PixelBits_g must be 1 to 32"),
+    ("cnv_x_17", "isp_conv_synth", dict(CNV_OK, WinX_g="17"), "isp_conv: WinX_g must be 1 to 16"),
+    ("cnv_y_17", "isp_conv_synth", dict(CNV_OK, WinY_g="17"), "isp_conv: WinY_g must be 1 to 16"),
+    ("cnv_coef_bits_1", "isp_conv_synth", dict(CNV_OK, CoefBits_g="1"), "isp_conv: CoefBits_g must be 2 to 18"),
+    ("cnv_coef_bits_19", "isp_conv_synth", dict(CNV_OK, CoefBits_g="19"), "isp_conv: CoefBits_g must be 2 to 18"),
+    ("cnv_out_bits_65", "isp_conv_synth", dict(CNV_OK, OutBits_g="65"), "isp_conv: OutBits_g must be 0 or 1 to 64"),
+    ("cnv_coef_fewer", "isp_conv_synth", dict(CNV_OK, CoefCount_g="-1"), "isp_conv: Coef_g must have"),
+    ("cnv_coef_more", "isp_conv_synth", dict(CNV_OK, CoefCount_g="1"), "isp_conv: Coef_g must have"),
+    ("cnv_coef_low", "isp_conv_synth", dict(CNV_OK, CoefOffset_g="-1"), "isp_conv: Coef_g values must be"),
+    ("cnv_coef_high", "isp_conv_synth", dict(CNV_OK, CoefOffset_g="65536"), "isp_conv: Coef_g values must be"),
 ]
 
 PNT_OK = pnt(8, 6, 12, 12, 16, 28, 2, True)
@@ -206,6 +242,12 @@ def main():
     if not LIBS.exists():
         raise SystemExit("compiled libraries not found, run: python run.py --compile")
     names = set(sys.argv[1:])
+    # Wrappers of entities whose generics GHDL cannot set on the command line
+    for wrapper in sorted((ROOT / "lint").glob("*_synth.vhd")):
+        res = subprocess.run(["ghdl", "-a", "--std=08", "-frelaxed", f"-P{LIBS / 'olo'}", "--work=openisp",
+                              f"--workdir={LIBS / 'openisp'}", str(wrapper)], capture_output=True, text=True)
+        if res.returncode != 0:
+            raise SystemExit(f"{wrapper.name}: analysis failed\n{res.stderr}")
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         results = [synth(n, t, g, work) for n, t, g in CONFIGS if not names or n in names]

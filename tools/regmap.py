@@ -292,7 +292,8 @@ def spec_rows(m):
         if len(cells) != 7 or not line.startswith("|") or cells[0] in ("Address", "---"):
             continue
         if cells[0]:
-            addr, reg = cells[0], cells[1].strip("`").split("`")[0]
+            # An array register (`COEF[k]`, k = ...) is compared by its name without the index
+            addr, reg = cells[0], cells[1].strip("`").split("`")[0].split("[")[0]
         access = cells[4].split()[0]
         reset = cells[5]
         rows.append((addr, reg, cells[2], cells[3].strip("`"), access, reset))

@@ -78,7 +78,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `test_static` (TC-CNV-01) | Four images of random windows with the coefficients of the generic, plus in every image a window of largest elements (the largest sum) and of zero elements, and windows that give the most negative sum and a sum of exactly 0; back to back and with pauses | CNV-IF-01, CNV-IF-02, CNV-FN-01 to 03, CNV-FN-05 |
 | `test_runtime` (TC-CNV-02) | Coefficient sets written between images: random sets, both bounds, a set that changes the sign of every coefficient; a set written during an image takes effect with the next image; every coefficient read back sign-extended | CNV-FN-01, CNV-FN-04, CNV-RG-03 |
 | `test_hold` (TC-CNV-03) | `CTRL.HOLD` 1: coefficients written over two images, which keep the set before; `CTRL.HOLD` 0: the next image takes the whole new set; `CTRL.HOLD` 1 with a register of bad parity takes no set and reports nothing | CNV-FN-04 |
-| `test_parity` (TC-CNV-04) | `INJECT` for every coefficient in turn (T up to 16; the first, the last and eight random ones above): the next image and every further image use the generic with one `Err_Config` each until the register is written; two injections in one set; a second injection that restores the parity; an index of T or above without effect; with `RuntimeCoef_g` false no effect | CNV-IF-04, CNV-ER-01, CNV-FT-02, CNV-RG-04, CNV-FT-01 |
+| `test_parity` (TC-CNV-04) | `INJECT` for every coefficient in turn for T up to 16; above, the first, the last and eight random ones, because the parity paths of all coefficients come from one generate loop of the RTL: the next image and every further image use the generic with one `Err_Config` each until the register is written; two injections in one set; a second injection that restores the parity; an index of T or above without effect. `INJECT.CTRL_PARITY` with `CTRL.HOLD` 1: the held set is taken at every image start, with one `Err_Config` each, until `CTRL` is written. With `RuntimeCoef_g` false no effect | CNV-IF-04, CNV-ER-01, CNV-ER-02, CNV-FT-02, CNV-RG-04, CNV-FT-01 |
 | `test_registers` (TC-CNV-05) | `ID`, `PARAM`, the reset values of all coefficients (the generic, sign-extended); writes with every single byte strobe; writes to read-only registers and with `RuntimeCoef_g` false to the coefficients without effect; the addresses above the last coefficient and the gaps read 0; `STATUS.ERR_CONFIG` set, kept by a write of 0, cleared by a write of 1; `INJECT` reads 0 | CNV-RG-01, CNV-RG-02, CNV-RG-03, CNV-IF-03 |
 | `test_flag_coincidence` (TC-CNV-06) | The clear of `STATUS.ERR_CONFIG` swept cycle by cycle across an `Err_Config` pulse, as in `isp_crop` (TC-CRP-07) | CNV-RG-02 |
 | `test_exhaustive` (TC-CNV-07) | Configurations `exhaustive` and `exhaustive_sat`: every coefficient pair (64 sets) as a run-time set, each over an image of all 64 element pairs: every sign, carry and saturation case of the arithmetic | CNV-FN-01 |
@@ -102,7 +102,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | CNV-FN-04 | TC-CNV-02, 03, 08 | Test |
 | CNV-FN-05 | TC-CNV-01 (configurations with and without gaps and stalls), 08 | Test |
 | CNV-PF-01, CNV-PF-02 | TC-CNV-10 | Test |
-| CNV-ER-01 | TC-CNV-04 | Test |
+| CNV-ER-01, CNV-ER-02 | TC-CNV-04 | Test |
 | CNV-FT-01 | TC-CNV-04, 09 and review (no state between windows) | Test and review |
 | CNV-FT-02 | TC-CNV-04 | Test |
 | CNV-FT-03 | TC-CNV-09 and the checks of section 3.1 | Test |
@@ -131,7 +131,8 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | The last product dropped when a level of the adder tree has an odd count | TC-CNV-01 (taps sweep) |
 | The working set loaded at the first beat of every packet, not only at the image start | TC-CNV-08 |
 | `CTRL.HOLD` without effect | TC-CNV-03 |
-| No parity check | TC-CNV-04 |
+| No parity check of the coefficients | TC-CNV-04 |
+| No parity check of `CTRL` | TC-CNV-04 |
 | No `Err_Config` pulse | TC-CNV-04 |
 | `INJECT.INDEX` ignored (always coefficient 0) | TC-CNV-04 |
 | A coefficient read back without sign extension | TC-CNV-02, 05 |

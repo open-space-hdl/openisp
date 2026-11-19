@@ -328,3 +328,14 @@ def test_conv_image_start_hold_and_inject():
     reads = [e[2] for e in ex["regs"][-1][1] if e[0] == "C"]
     assert reads == [0xFFFFFFFE, 0x200]                             # -2 sign-extended, ERR_CONFIG
 
+
+def test_conv_ctrl_parity():
+    w = win_data([1, 2], 3)
+    img = packets([w, w], [2])
+    items = [("A", 100, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 3, 0xF)])] + img     # held: 1 x 1 + 1 x 2 = 3
+    items += [("A", 101, [("W", CNV_INJECT, 2, 0xF)])] + img + img                     # CTRL bad: 3 x 1 + 2 = 5
+    items += [("A", 102, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 0, 0xF)])] + img    # restored, held: 5
+    out, _, _, ex = conv(items, 3, 2, 1, 3, [1, 1], True, 0)
+    assert [o[1] for o in out] == [3, 3, 5, 5, 5, 5, 5, 5]
+    assert ex["config"] == 2 and ex["timing"] == list(range(8))
+

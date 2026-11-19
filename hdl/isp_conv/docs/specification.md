@@ -33,7 +33,7 @@ registers on an AXI4-Lite slave (section 7). Together with `isp_window` the modu
 | CNV-IF-01 | The module shall take windows on a window stream (`In_Valid`, `In_Ready`, `In_Data` of T x `PixelBits_g` bits, `In_Last`, `In_User`); element k occupies bits (k + 1) x `PixelBits_g` - 1 downto k x `PixelBits_g`. | ISP-STR-01, ISP-FLT-02 |
 | CNV-IF-02 | The module shall output pixels of B bits on a pixel stream (`Out_Valid`, `Out_Ready`, `Out_Data`, `Out_Last`, `Out_User`). | ISP-STR-01, ISP-STR-02 |
 | CNV-IF-03 | The module shall have an AXI4-Lite slave (`S_AxiLite_*`, 32 data bits, 12 address bits, clock `Clk`) for the registers of section 7. | ISP-CFG-03 |
-| CNV-IF-04 | The module shall pulse `Err_Config` for one clock cycle for every coefficient set it rejects (CNV-ER-01). | ISP-FT-05 |
+| CNV-IF-04 | The module shall pulse `Err_Config` for one clock cycle for every image start at which it rejects the coefficient set or finds `CTRL` with a wrong parity bit (CNV-ER-01, CNV-ER-02). | ISP-FT-05 |
 | CNV-IF-05 | The module shall have one clock `Clk` and a synchronous, high-active reset `Rst`. | ISP-GEN-01 |
 
 ### 2.2 Function
@@ -43,7 +43,7 @@ registers on an AXI4-Lite slave (section 7). Together with `isp_window` the modu
 | CNV-FN-01 | For every window the module shall output the pixel q of section 1.1, with the coefficient set of the image. | ISP-FLT-02 |
 | CNV-FN-02 | The module shall output `In_Last` and `In_User` of a window with its pixel, so that the output is the pixel stream of the image that the window stream carries. | ISP-STR-05, ISP-STR-06 |
 | CNV-FN-03 | With `RuntimeCoef_g` false the coefficient set shall be the generic `Coef_g`. | ISP-FLT-03 |
-| CNV-FN-04 | With `RuntimeCoef_g` true the module shall take the coefficient set from the registers with every image start at which `CTRL.HOLD` is 0 and use it for the whole image; at an image start with `CTRL.HOLD` 1 the coefficient set of the image before shall stay. | ISP-FLT-03, ISP-CFG-02 |
+| CNV-FN-04 | With `RuntimeCoef_g` true the module shall take the coefficient set from the registers with every image start at which `CTRL.HOLD` is 0 and use it for the whole image; at an image start with `CTRL.HOLD` 1 the coefficient set of the image before shall stay; a `CTRL` with a wrong parity bit counts as `CTRL.HOLD` 0 (CNV-ER-02). | ISP-FLT-03, ISP-CFG-02 |
 | CNV-FN-05 | The output shall not depend on the timing of the stream handshakes, and an image start may follow the last window of an image without a gap. | ISP-STR-07 |
 
 ### 2.3 Throughput and latency
@@ -58,13 +58,14 @@ registers on an AXI4-Lite slave (section 7). Together with `isp_window` the modu
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | CNV-ER-01 | A coefficient set with a register whose parity bit does not match at the image start shall be rejected: the image shall be processed with the coefficient set of the generic (E1). | ISP-FT-05 |
+| CNV-ER-02 | With `RuntimeCoef_g` true, a `CTRL` whose parity bit does not match at an image start shall count as `CTRL.HOLD` 0, and `Err_Config` shall pulse (E2), at every image start until `CTRL` is written. | ISP-FT-05 |
 
 ### 2.5 Fault tolerance
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | CNV-FT-01 | The coefficient set in use shall be loaded with every image start (CNV-FN-04), and the datapath shall keep no state between windows, so that an upset of the datapath disturbs at most the image in progress. | ISP-FT-04 |
-| CNV-FT-02 | Every coefficient register shall carry one parity bit over its bits, set by the reset and by every write, and checked with every image start at which the registers are taken (CNV-ER-01). | ISP-FT-05 |
+| CNV-FT-02 | Every coefficient register and `CTRL` shall carry one parity bit over its bits, set by the reset and by every write, and checked with every image start: `CTRL` always, the coefficient registers when they are taken (CNV-ER-01, CNV-ER-02). | ISP-FT-05 |
 | CNV-FT-03 | After the reset, `In_Ready`, `Out_Valid` and `Err_Config` shall be defined, and with defined input windows every output beat shall be free of metavalues. | ISP-FT-04 |
 
 The module has no memory, so the requirements on memories (ISP-FT-01 to ISP-FT-03) do not apply to it.
@@ -81,6 +82,7 @@ system on the clock `Clk`; a register bus in another clock domain needs a clock 
 | ID | Condition | Detection | Response | Status |
 | --- | --- | --- | --- | --- |
 | E1 | `RuntimeCoef_g` true: the parity bit of a coefficient register does not match its value at an image start with `CTRL.HOLD` 0 (upset of the register) | Parity check with the image start | The image is processed with the coefficient set of the generic, and so is every further image until the register is written | `Err_Config`, `STATUS.ERR_CONFIG` |
+| E2 | `RuntimeCoef_g` true: the parity bit of `CTRL` does not match its value at an image start (upset of `CTRL.HOLD`) | Parity check with the image start | `CTRL.HOLD` counts as 0: the image takes the coefficient registers (with their own parity check), and so does every further image until `CTRL` is written | `Err_Config`, `STATUS.ERR_CONFIG` |
 
 ## 4. Configuration parameters
 
@@ -131,6 +133,7 @@ return 0, writes to them and to read-only fields have no effect; every access is
 | 0x008 | `CTRL` | 0 | `HOLD` | RW | 0 | 1: the image starts do not take the coefficient registers |
 | 0x00C | `STATUS` | 9 | `ERR_CONFIG` | W1C | 0 | Set by every pulse of `Err_Config` |
 | 0x010 | `INJECT` | 0 | `PARITY` | W1 | 0 | Write one: inverts the parity bit of `COEF[INDEX]` (test of the error handling); reads as zero |
+| | | 1 | `CTRL_PARITY` | W1 | 0 | Write one: inverts the parity bit of `CTRL` (test of the error handling); reads as zero |
 | | | 15:8 | `INDEX` | W | 0 | Coefficient whose parity bit a write of `PARITY` inverts; an index of T or above has no effect; reads as zero |
 | 0x100 + 4 x k | `COEF[k]`, k = 0 to T - 1 | 17:0 | `COEF` | RW | `Coef_g`(k) | Coefficient of element k (two's complement, `CoefBits_g` bits); reads sign-extended to 32 bits |
 
