@@ -567,79 +567,96 @@ def conv_full_bits(pixel_bits, coef_bits, taps):
     return pixel_bits + coef_bits - 1 + log2ceil(taps)
 
 
-def conv(items, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
-    """isp_conv: every beat is a window; q = 0 for a negative sum, otherwise min(S, 2^B - 1). The image start is the
-    first beat of a packet with the flags "01" or "11". Returns (out, 0, annot, {"config", "regs"})."""
-    taps = win_x * win_y
-    assert len(coef) == taps
-    full = conv_full_bits(pixel_bits, coef_bits, taps)
-    out_b = full if out_bits == 0 else out_bits
-    cmask = (1 << coef_bits) - 1
+class ConvKernel:
+    """isp_conv: the kernel of one window and its registers (specification, sections 1.1 and 7)."""
 
-    def to_signed(value):
-        value &= cmask
-        return value - (1 << coef_bits) if value >> (coef_bits - 1) else value
+    def __init__(self, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
+        self.pb, self.wx, self.wy, self.cb = pixel_bits, win_x, win_y, coef_bits
+        self.taps = win_x * win_y
+        assert len(coef) == self.taps
+        self.coef, self.runtime = list(coef), runtime
+        full = conv_full_bits(pixel_bits, coef_bits, self.taps)
+        self.out_b = full if out_bits == 0 else out_bits
+        self.cmask = (1 << coef_bits) - 1
+        self.config_errors = 0
+        self.reset()
 
-    st = {}
+    def _signed(self, value):
+        value &= self.cmask
+        return value - (1 << self.cb) if value >> (self.cb - 1) else value
 
-    def reset_regs():
-        st["coef"] = [c & cmask for c in coef]
-        st["parity"] = [True] * taps
-        st["hold"] = False
+    def reset(self):
+        self.regs = [c & self.cmask for c in self.coef]
+        self.parity = [True] * self.taps
+        self.hold = False
+        self.work = list(self.coef)
+        self.status_config = False
+        self.first = True
 
-    reset_regs()
-    work = list(coef)
-    status_config = False
-    config_errors = 0
-    first = True
-    out, annot, regs = [], [], []
-    count = 0
+    def feed(self, data, last, user):
+        """One window; returns the output pixel."""
+        if self.first and user in (SEQ_FIRST, SEQ_ONLY) and self.runtime and not self.hold:
+            if all(self.parity):
+                self.work = [self._signed(c) for c in self.regs]
+            else:
+                self.work = list(self.coef)
+                self.config_errors += 1
+                self.status_config = True
+        self.first = last == 1
+        pmask = (1 << self.pb) - 1
+        s = sum(self.work[k] * (data >> (k * self.pb) & pmask) for k in range(self.taps))
+        return 0 if s < 0 else min(s, (1 << self.out_b) - 1)
 
-    def read(addr):
+    def read(self, addr):
         if addr == CNV_ID:
             return 0x434E5601
         if addr == CNV_PARAM:
-            return (pixel_bits << 24) | (coef_bits << 16) | (win_y << 8) | win_x
+            return (self.pb << 24) | (self.cb << 16) | (self.wy << 8) | self.wx
         if addr == CNV_CTRL:
-            return 1 if st["hold"] else 0
+            return 1 if self.hold else 0
         if addr == CNV_STATUS:
-            return 0x200 if status_config else 0
-        if CNV_COEF <= addr < CNV_COEF + 4 * taps and addr % 4 == 0:
+            return 0x200 if self.status_config else 0
+        if CNV_COEF <= addr < CNV_COEF + 4 * self.taps and addr % 4 == 0:
             k = (addr - CNV_COEF) // 4
-            value = to_signed(st["coef"][k]) if runtime else coef[k]
+            value = self._signed(self.regs[k]) if self.runtime else self.coef[k]
             return value & 0xFFFFFFFF
         return 0
 
-    def write(addr, data, strobes):
-        nonlocal status_config
+    def write(self, addr, data, strobes):
         if addr == CNV_CTRL and strobes & 0x1:
-            st["hold"] = bool(data & 1)
+            self.hold = bool(data & 1)
         elif addr == CNV_STATUS and strobes & 0x2 and data & 0x200:
-            status_config = False
-        elif addr == CNV_INJECT and runtime and strobes & 0x1 and data & 1:
+            self.status_config = False
+        elif addr == CNV_INJECT and self.runtime and strobes & 0x1 and data & 1:
             k = (data >> 8) & 0xFF if strobes & 0x2 else 0
-            if k < taps:
-                st["parity"][k] = not st["parity"][k]
-        elif runtime and CNV_COEF <= addr < CNV_COEF + 4 * taps and addr % 4 == 0:
+            if k < self.taps:
+                self.parity[k] = not self.parity[k]
+        elif self.runtime and CNV_COEF <= addr < CNV_COEF + 4 * self.taps and addr % 4 == 0:
             k = (addr - CNV_COEF) // 4
-            st["coef"][k] = _strobe(to_signed(st["coef"][k]) & 0xFFFFFFFF, data, strobes) & cmask
-            st["parity"][k] = True
+            self.regs[k] = _strobe(self._signed(self.regs[k]) & 0xFFFFFFFF, data, strobes) & self.cmask
+            self.parity[k] = True
 
+    def accesses(self, entries):
+        """Register accesses of one marker; returns them with the expected read data."""
+        resolved = []
+        for op, addr, data, strobes in entries:
+            if op == "W":
+                self.write(addr, data, strobes)
+                resolved.append(("W", addr, data, strobes))
+            else:
+                resolved.append(("C", addr, self.read(addr), 0xF))
+        return resolved
+
+
+def conv(items, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
+    """isp_conv: every beat is a window; q = 0 for a negative sum, otherwise min(S, 2^B - 1). The image start is the
+    first beat of a packet with the flags "01" or "11". Returns (out, 0, annot, {"config", "regs"})."""
+    k = ConvKernel(pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits)
+    out, annot, regs = [], [], []
+    count = 0
     for it in items:
         if it[0] == "B":
-            _, data, last, user = it[:4]
-            if first and user in (SEQ_FIRST, SEQ_ONLY) and runtime and not st["hold"]:
-                if all(st["parity"]):
-                    work = [to_signed(c) for c in st["coef"]]
-                else:
-                    work = list(coef)
-                    config_errors += 1
-                    status_config = True
-            first = last == 1
-            pmask = (1 << pixel_bits) - 1
-            s = sum(work[k] * (data >> (k * pixel_bits) & pmask) for k in range(taps))
-            q = 0 if s < 0 else min(s, (1 << out_b) - 1)
-            out.append(("B", q, last, user, 0, 0))
+            out.append(("B", k.feed(it[1], it[2], it[3]), it[2], it[3], 0, 0))
             count += 1
         elif it[0] == "R":
             _, drop, mode, _cycles = it
@@ -647,20 +664,245 @@ def conv(items, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
             _drop(out, drop)
             count -= drop
             out.append(("R", mode))
-            reset_regs()
-            work = list(coef)
-            status_config = False
-            first = True
+            k.reset()
         elif it[0] == "A":
-            _, marker, entries = it
+            regs.append((it[1], k.accesses(it[2])))
+        annot.append((count, False))
+    return out, 0, annot, {"config": k.config_errors, "regs": regs}
+
+
+def filter2d(items, width, height, pixel_bits, win_x, win_y, anchor_x=None, anchor_y=None, stride_x=1, stride_y=1,
+             border="replicate", coef_bits=16, coef=None, runtime=False, out_bits=0):
+    """isp_filter2d: the windows of the model window are the input of the kernel of the model conv. Returns (out,
+    framing errors, annot, {"sec", "ded", "config", "regs", "timing"})."""
+    anchor_x = (win_x - 1) // 2 if anchor_x is None else anchor_x
+    anchor_y = (win_y - 1) // 2 if anchor_y is None else anchor_y
+    fs = FrameSync(width, height)
+    win = Window(width, height, pixel_bits, win_x, win_y, anchor_x, anchor_y, stride_x, stride_y, border)
+    k = ConvKernel(pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits)
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
+    for it in items:
+        if it[0] == "B":
+            beats = fs.feed(it[1], it[2], it[3])
+            for n, b in enumerate(beats):
+                src = beat if n == len(beats) - 1 else -1
+                for o in win.pixel(b[1], b[4], b[5], src):
+                    out.append(("B", k.feed(o[1], o[2], o[3]), o[2], o[3], o[4], o[5]))
+                    timing.append(o[6])
+                    count += 1
+            beat += 1
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            del timing[len(timing) - drop:]
+            count -= drop
+            out.append(("R", mode))
+            fs.reset()
+            win.reset()
+            k.reset()
+        elif it[0] == "J":
+            win.inject(it[2])
+        elif it[0] == "A":
+            regs.append((it[1], k.accesses(it[2])))
+        annot.append((count, fs.open))
+    return out, fs.errors, annot, {"sec": win.sec, "ded": win.ded, "config": k.config_errors, "regs": regs,
+                                   "timing": timing}
+
+
+def bin_sum(items, width, height, pixel_bits, bin_x, bin_y, border):
+    """isp_bin from the definition of a bin (specification, section 1.1): the sum of the pixels p' of every bin, for
+    the Wo x Ho bins of the border mode. Returns (out, framing errors, annot)."""
+    assert border in ("valid", "zero", "replicate")
+    if border == "valid":
+        wo, ho = width // bin_x, height // bin_y
+    else:
+        wo, ho = -(-width // bin_x), -(-height // bin_y)
+    fs = FrameSync(width, height)
+    out, annot = [], []
+    count = 0
+    img = {}
+
+    def ext(x, y):
+        if 0 <= x < width and 0 <= y < height:
+            return img[(x, y)]
+        if border == "zero":
+            return 0
+        return img[(min(max(x, 0), width - 1), min(max(y, 0), height - 1))]
+
+    def emit_line(m):
+        nonlocal count
+        for n in range(wo):
+            s = sum(ext(n * bin_x + i, m * bin_y + j) for i in range(bin_x) for j in range(bin_y))
+            out.append(("B", s, 1 if n == wo - 1 else 0, line_flags(m, ho), n, m))
+            count += 1
+
+    for it in items:
+        if it[0] == "B":
+            for b in fs.feed(it[1], it[2], it[3]):
+                _, pixel, _last, _user, x, y = b
+                img[(x, y)] = pixel
+                # A line of bins is complete with the last pixel of its last line in the image
+                if x == width - 1:
+                    for m in range(ho):
+                        last_line = min(m * bin_y + bin_y - 1, height - 1)
+                        if last_line == y:
+                            emit_line(m)
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            count -= drop
+            out.append(("R", mode))
+            fs.reset()
+        annot.append((count, fs.open))
+    return out, fs.errors, annot
+
+
+# Register map of isp_replace (specification, section 7)
+RPL_ID, RPL_IMAGE, RPL_PARAM, RPL_MAP_LINE, RPL_MAP_WORDS = 0x00, 0x04, 0x08, 0x0C, 0x10
+RPL_CTRL, RPL_STATUS, RPL_MAP_ADDR, RPL_MAP_DATA = 0x14, 0x18, 0x1C, 0x20
+
+
+def replace_pixel(line, flags, x, gap):
+    """Replacement of pixel x of a line (specification, section 1.1): returns (q, unreplaced). `flags` is true for
+    an operational pixel; a place outside the line is not operational."""
+    if flags[x]:
+        return line[x], False
+    width = len(line)
+    dl = next((d for d in range(1, gap + 1) if x - d >= 0 and flags[x - d]), None)
+    dr = next((d for d in range(1, gap + 1) if x + d < width and flags[x + d]), None)
+    if dl is not None and dr is not None:
+        d = dl + dr
+        return (line[x - dl] * dr + line[x + dr] * dl + d // 2) // d, False
+    if dl is not None:
+        return line[x - dl], False
+    if dr is not None:
+        return line[x + dr], False
+    return line[x], True
+
+
+def replace(items, width, height, pixel_bits, gap):
+    """isp_replace. The defect map is read as the architecture reads it (section 5): words 0 to 2 with pixel (0, 0),
+    word k + 2 when word k comes in use, never across the image start; a word keeps the value it had when it was
+    read. Map words carry injected error patterns, decoded with the code of olo_ft_pkg_ecc. Items ('A', ...) are
+    register accesses, ('J', marker, pattern) an injection into the next write of the map. The scrubber is not
+    modelled (the tests that count pulses run with Scrub_Enable 0); ('S', marker, 1) marks the words with a single
+    error as corrected. Returns (out, framing errors, annot, {"unreplaced", "sec", "ded", "regs"})."""
+    wl = -(-width // 32)
+    words = height * wl
+    fs = FrameSync(width, height)
+    st = {"map": [0] * words, "err": [0] * words, "addr": 0, "pending": 0, "framing": False, "unrepl": False,
+          "sec": False, "ded": False}
+    cnt = {"unreplaced": 0, "sec": 0, "ded": 0}
+    out, annot, regs = [], [], []
+    count = 0
+    cache = {}                                   # words of the image in progress, as read
+    line = {"pix": [], "flags": []}
+
+    def read_word(k):
+        if k in cache or k >= words:
+            return
+        mask, s, d = ecc_decode(st["err"][k], 32)
+        cache[k] = st["map"][k] ^ mask
+        cnt["sec"] += s
+        cnt["ded"] += d
+        st["sec"] = st["sec"] or s
+        st["ded"] = st["ded"] or d
+
+    def read(addr):
+        values = {RPL_ID: 0x52504C01, RPL_IMAGE: ((height - 1) << 16) | (width - 1),
+                  RPL_PARAM: (pixel_bits << 8) | gap, RPL_MAP_LINE: wl, RPL_MAP_WORDS: words,
+                  RPL_MAP_ADDR: st["addr"],
+                  RPL_STATUS: (1 if fs.open else 0) | (0x100 if st["framing"] else 0) |
+                  (0x400 if st["unrepl"] else 0) | (0x10000 if st["sec"] else 0) | (0x20000 if st["ded"] else 0)}
+        return values.get(addr, 0)
+
+    def write(addr, data, strobes):
+        if addr == RPL_MAP_ADDR:
+            st["addr"] = _strobe(st["addr"], data, strobes)
+        elif addr == RPL_MAP_DATA:
+            if st["addr"] < words:
+                st["map"][st["addr"]] = data
+                st["err"][st["addr"]] = st["pending"]
+                st["pending"] = 0
+                st["addr"] += 1
+        elif addr == RPL_CTRL and strobes & 0x1 and data & 1:
+            # The tests wait for the end of the clear before the next access to the map
+            st["map"] = [0] * words
+            st["err"] = [st["pending"]] + [0] * (words - 1) if st["pending"] else [0] * words
+            st["pending"] = 0
+        elif addr == RPL_STATUS:
+            if strobes & 0x2 and data & 0x100:
+                st["framing"] = False
+            if strobes & 0x2 and data & 0x400:
+                st["unrepl"] = False
+            if strobes & 0x4 and data & 0x10000:
+                st["sec"] = False
+            if strobes & 0x4 and data & 0x20000:
+                st["ded"] = False
+
+    for it in items:
+        if it[0] == "B":
+            before = fs.errors
+            for b in fs.feed(it[1], it[2], it[3]):
+                _, pixel, _last, _user, x, y = b
+                k = y * wl + x // 32
+                if x == 0 and y == 0:
+                    cache.clear()
+                    for j in range(3):
+                        read_word(j)
+                if x % 32 == 0:
+                    read_word(k + 2)
+                mark = cache[k] >> (x % 32) & 1
+                line["pix"].append(pixel)
+                line["flags"].append(mark == 0)
+                # q(x - G) needs the pixels up to x; the last G pixels of a line follow at its end
+                done = range(x - gap, x - gap + 1) if x < width - 1 else range(max(x - gap, 0), width)
+                for xo in done:
+                    if xo < 0:
+                        continue
+                    padded = line["flags"] + [False] * (width - len(line["flags"]))
+                    q, unrepl = replace_pixel(line["pix"] + [0] * (width - len(line["pix"])), padded, xo, gap)
+                    if unrepl:
+                        cnt["unreplaced"] += 1
+                        st["unrepl"] = True
+                    out.append(("B", q, 1 if xo == width - 1 else 0, line_flags(y, height), xo, y))
+                    count += 1
+                if x == width - 1:
+                    line = {"pix": [], "flags": []}
+            if fs.errors > before:
+                st["framing"] = True
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            count -= drop
+            out.append(("R", mode))
+            fs.reset()
+            cache.clear()
+            line = {"pix": [], "flags": []}
+            st.update({"addr": 0, "pending": 0, "framing": False, "unrepl": False, "sec": False, "ded": False})
+        elif it[0] == "J":
+            st["pending"] = it[2]
+        elif it[0] == "S" and it[2] == 1:
+            # The scrubber, enabled for several passes without images, corrects the single errors and reports both
+            if any(bin(e).count("1") == 1 for e in st["err"]):
+                st["sec"] = True
+            if any(bin(e).count("1") == 2 for e in st["err"]):
+                st["ded"] = True
+            st["err"] = [e if bin(e).count("1") != 1 else 0 for e in st["err"]]
+        elif it[0] == "A":
             resolved = []
-            for op, addr, data, strobes in entries:
+            for op, addr, data, strobes in it[2]:
                 if op == "W":
                     write(addr, data, strobes)
                     resolved.append(("W", addr, data, strobes))
                 else:
-                    resolved.append(("C", addr, read(addr), 0xF))
-            regs.append((marker, resolved))
-        annot.append((count, False))
-    return out, 0, annot, {"config": config_errors, "regs": regs}
-
+                    # An expected value given by the test (STATUS.BUSY during a clear) passes through
+                    resolved.append(("C", addr, read(addr) if data is None else data, 0xF))
+            regs.append((it[1], resolved))
+        annot.append((count, fs.open))
+    return out, fs.errors, annot, {"unreplaced": cnt["unreplaced"], "sec": cnt["sec"], "ded": cnt["ded"],
+                                   "regs": regs}

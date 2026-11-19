@@ -12,7 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, PNT_INJECT,  # noqa: E402
                        PNT_OFFSET_HI, PNT_OFFSET_LO, PNT_SHIFT, crop, ecc_codeword_width, ecc_data_positions,
                        ecc_decode, frame_sync, point, point_op, window, conv, conv_full_bits, CNV_COEF,
-                       CNV_CTRL, CNV_INJECT, CNV_STATUS)
+                       CNV_CTRL, CNV_INJECT, CNV_STATUS, filter2d, bin_sum, replace, replace_pixel,
+                       RPL_MAP_ADDR, RPL_MAP_DATA, RPL_STATUS)
 from isp_tbgen import packets  # noqa: E402
 
 
@@ -309,4 +310,81 @@ def test_conv_image_start_hold_and_inject():
     assert ex["config"] == 2
     reads = [e[2] for e in ex["regs"][-1][1] if e[0] == "C"]
     assert reads == [0xFFFFFFFE, 0x200]                             # -2 sign-extended, ERR_CONFIG
+
+
+def test_filter2d_composition():
+    pix = image(3, 3)
+    ones = [1] * 9
+    out = filter2d(packets(pix, [9]), 3, 3, 8, 3, 3, coef_bits=2, coef=ones)[0]
+    assert out[0][1] == 11 + 11 + 12 + 11 + 11 + 12 + 21 + 21 + 22
+    centre = [0, 0, 0, 0, 1, 0, 0, 0, 0]
+    out = filter2d(packets(pix, [9]), 3, 3, 8, 3, 3, coef_bits=2, coef=centre)[0]
+    assert [o[1] for o in out] == pix
+
+
+def test_bin_definition():
+    pix = image(5, 3)
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "valid")[0]
+    assert [(o[1], o[2], o[3]) for o in out] == [(66, 0, 3), (74, 1, 3)]
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "zero")[0]
+    assert [o[1] for o in out] == [66, 74, 40, 63, 67, 35]
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "replicate")[0]
+    assert out[5][1] == 35 * 4 and out[3][1] == 31 + 32 + 31 + 32
+
+
+def test_bin_equals_two_filters():
+    # The definition of a bin and the two filters in series give the same images (model consistency)
+    import random
+    rng = random.Random(7)
+    for w, h, bx, by, border in [(13, 9, 2, 2, "valid"), (13, 9, 3, 5, "zero"), (14, 12, 3, 5, "replicate"),
+                                 (8, 6, 4, 1, "zero"), (5, 12, 1, 4, "replicate")]:
+        pix = [rng.getrandbits(8) for _ in range(w * h)]
+        items = packets(pix, [w] * h)
+        ref = [o[1] for o in bin_sum(items, w, h, 8, bx, by, border)[0]]
+        wo = w // bx if border == "valid" else -(-w // bx)
+        mid = filter2d(items, w, h, 8, bx, 1, 0, 0, bx, 1, border, 2, [1] * bx)[0]
+        mid_bits = 8 + (bx - 1).bit_length()
+        ho_items = packets([o[1] for o in mid], [wo] * h)
+        out = filter2d(ho_items, wo, h, mid_bits, 1, by, 0, 0, 1, by, border, 2, [1] * by)[0]
+        assert [o[1] for o in out] == ref, (w, h, bx, by, border)
+
+
+def test_replace_pixel():
+    assert replace_pixel([10, 20, 30, 40, 50], [1, 1, 0, 1, 1], 2, 2) == (30, False)
+    line, flags = [10, 99, 99, 40, 50], [1, 0, 0, 1, 1]
+    assert replace_pixel(line, flags, 1, 2) == (20, False)        # (10 x 2 + 40 x 1 + 1) / 3
+    assert replace_pixel(line, flags, 2, 2) == (30, False)        # (10 x 1 + 40 x 2 + 1) / 3
+    assert replace_pixel([99, 20, 30], [0, 1, 1], 0, 1) == (20, False)   # left border: from the right
+    line, flags = [10, 98, 99, 97, 50], [1, 0, 0, 0, 1]
+    assert [replace_pixel(line, flags, x, 1) for x in (1, 2, 3)] == [(10, False), (99, True), (50, False)]
+
+
+def test_replace_map_and_timing():
+    w, h = 40, 2                                                    # two words per line
+    pix = list(range(1, 81))
+    img = packets(pix, [40, 40])
+    # Word 1 (pixels 32 to 39 of line 0), bit 3: pixel (35, 0) = 36, between 35 and 37
+    items = [("A", 100, [("W", RPL_MAP_ADDR, 1, 0xF), ("W", RPL_MAP_DATA, 1 << 3, 0xF),
+                         ("C", RPL_MAP_ADDR, None, 0xF)])] + img
+    out, _, annot, ex = replace(items, w, h, 12, 2)
+    assert [o[1] for o in out] == pix                               # linear: the interpolation gives the pixel
+    assert ex["regs"][0][1][2][2] == 2
+    # q(x) follows p(x + 2): after pixel 5 of line 0 (item 6) the outputs 0 to 3
+    assert annot[6][0] == 4 and annot[40][0] == 40
+    # A double error on map word 0 (data bits 0 and 1) marks pixels 0 and 1: replaced from pixel 2
+    pos = ecc_data_positions(32)
+    items = [("J", 100, (1 << pos[0]) | (1 << pos[1])), ("A", 101, [("W", RPL_MAP_DATA, 0, 0xF),
+                                                                     ("C", RPL_STATUS, None, 0xF)])] + img
+    out, _, _, ex = replace(items, w, h, 12, 2)
+    assert [o[1] for o in out][:3] == [3, 3, 3] and ex["ded"] == 1 and ex["sec"] == 0
+    # A write during the image to a word three words ahead applies in the image; the word in use was read before
+    # the write and applies from the next image. Pixels (7, 0) and (33, 1) differ from their neighbours.
+    pix2 = list(pix)
+    pix2[7] = pix2[73] = 999
+    img2 = packets(pix2, [40, 40])
+    items = img2[:5] + [("A", 100, [("W", RPL_MAP_DATA, 1 << 7, 0xF), ("W", RPL_MAP_ADDR, 3, 0xF),
+                                    ("W", RPL_MAP_DATA, 1 << 1, 0xF)])] + img2[5:] + img2
+    vals = [o[1] for o in replace(items, w, h, 12, 2)[0]]
+    assert vals[7] == 999 and vals[73] == (73 + 75 + 1) // 2
+    assert vals[80 + 7] == (7 + 9 + 1) // 2 and vals[80 + 73] == 74
 
