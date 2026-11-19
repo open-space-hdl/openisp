@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 by Julian Schneider
+# Authors: Julian Schneider
+# ---------------------------------------------------------------------------------------------------
+# Register map of isp_replace: the single description from which tools/regmap.py generates the VHDL package
+# hdl/isp_replace/src/isp_replace_regs_pkg.vhd, the documentation hdl/isp_replace/docs/register_map.md and the C
+# header sw/isp_replace_regs.h. tools/regmap.py --check compares it with the register table of the specification.
+#
+# Access per field: RO read only, RW read and write, WO write only (reads as zero), W1 write one (command, reads as
+# zero), W1C sticky flag (write one to clear). A reset value written as text depends on generics.
+
+id: 0x52504C01
+addr_bits: 8
+title: "Registers of the pixel replacement: identification, dimensions, the defect map and its status."
+
+registers:
+  - name: ID
+    offset: 0x00
+    description: Identification
+    fields:
+      - {name: ID, bits: "31:0", access: RO, reset: 0x52504C01, description: "0x52504C (RPL) and register map version 1"}
+  - name: IMAGE
+    offset: 0x04
+    description: Dimensions of the image
+    fields:
+      - {name: WIDTH_M1, bits: "15:0", access: RO, reset: "ImageWidth_g - 1", description: "Pixels per line, minus one"}
+      - {name: HEIGHT_M1, bits: "31:16", access: RO, reset: "ImageHeight_g - 1", description: "Lines per image, minus one"}
+  - name: PARAM
+    offset: 0x08
+    description: Parameters of the replacement
+    fields:
+      - {name: MAX_GAP, bits: "3:0", access: RO, reset: MaxGap_g, description: "G, the largest distance to an operational pixel"}
+      - {name: PIXEL_BITS, bits: "12:8", access: RO, reset: PixelBits_g, description: "Bits per pixel"}
+  - name: MAP_LINE
+    offset: 0x0C
+    description: Words of the defect map per line
+    fields:
+      - {name: WORDS, bits: "15:0", access: RO, reset: "ceil(W / 32)", description: "Words of the defect map per line"}
+  - name: MAP_WORDS
+    offset: 0x10
+    description: Words of the defect map
+    fields:
+      - {name: WORDS, bits: "31:0", access: RO, reset: "H x ceil(W / 32)", description: "Words of the defect map"}
+  - name: CTRL
+    offset: 0x14
+    description: Commands
+    fields:
+      - {name: CLEAR, bits: "0", access: W1, reset: 0, description: "Write one: writes 0 to every word of the defect map; reads as zero"}
+  - name: STATUS
+    offset: 0x18
+    description: Status
+    fields:
+      - {name: IMAGE_OPEN, bits: "0", access: RO, reset: 0, description: "An input image is open (Stat_ImageOpen)"}
+      - {name: BUSY, bits: "1", access: RO, reset: 0, description: "A clear of the defect map is in progress"}
+      - {name: ERR_FRAMING, bits: "8", access: W1C, reset: 0, description: "Set by every pulse of Err_Framing"}
+      - {name: UNREPLACED, bits: "10", access: W1C, reset: 0, description: "Set by every pulse of Stat_Unreplaced"}
+      - {name: ECC_SEC, bits: "16", access: W1C, reset: 0, description: "Set by every corrected single bit error of the defect map (read or scrubber)"}
+      - {name: ECC_DED, bits: "17", access: W1C, reset: 0, description: "Set by every detected double bit error of the defect map (read or scrubber)"}
+  - name: MAP_ADDR
+    offset: 0x1C
+    description: Address of the word that the next write to MAP_DATA changes
+    fields:
+      - {name: ADDR, bits: "31:0", access: RW, reset: 0, description: "Counts up by one with every write to MAP_DATA that changes the map; all 32 bits are stored and read back"}
+  - name: MAP_DATA
+    offset: 0x20
+    description: Data of the defect map
+    fields:
+      - {name: DATA, bits: "31:0", access: WO, reset: "-", description: "Writes the word MAP_ADDR of the defect map"}

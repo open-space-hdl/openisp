@@ -123,6 +123,22 @@ CONFIGS += [
     ("cnv_mtf5_rt", "isp_conv_synth", cnv(12, 5, 5, 16, True, 12)),
 ]
 
+
+def rpl(w, h, bits, g, lat=1, ecc=0, period_ms=0):
+    """Generics of the wrapper isp_replace_synth (lint/isp_replace_synth.vhd)."""
+    return {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "PixelBits_g": str(bits), "MaxGap_g": str(g),
+            "RamRdLatency_g": str(lat), "EccPipeline_g": str(ecc), "ClkFreqHz_g": "150000000",
+            "ScrubPeriodMs_g": str(period_ms)}
+
+
+# isp_replace (TC-RPL-12): the bounds of every numeric generic, the scrubber free running and paced (1 ms)
+CONFIGS += [
+    ("rpl_default", "isp_replace_synth", rpl(2048, 1024, 12, 2)),
+    ("rpl_min", "isp_replace_synth", rpl(3, 1, 1, 1)),
+    ("rpl_max", "isp_replace_synth", rpl(65536, 1, 24, 7, 3, 2, 1)),
+    ("rpl_h_max", "isp_replace_synth", rpl(15, 65536, 12, 7, 2, 1)),
+]
+
 # Configurations outside the declared ranges and the message their elaboration stops with
 FSY_OK = {"ImageWidth_g": "8", "ImageHeight_g": "4", "PixelBits_g": "12"}
 NEGATIVE = [
@@ -183,6 +199,22 @@ NEGATIVE += [
     ("cnv_coef_more", "isp_conv_synth", dict(CNV_OK, CoefCount_g="1"), "isp_conv: Coef_g must have"),
     ("cnv_coef_low", "isp_conv_synth", dict(CNV_OK, CoefOffset_g="-1"), "isp_conv: Coef_g values must be"),
     ("cnv_coef_high", "isp_conv_synth", dict(CNV_OK, CoefOffset_g="65536"), "isp_conv: Coef_g values must be"),
+]
+
+RPL_OK = rpl(40, 6, 12, 2)
+NEGATIVE += [
+    ("rpl_gap_0", "isp_replace_synth", dict(RPL_OK, MaxGap_g="0"), "isp_replace: MaxGap_g must be 1 to 7"),
+    ("rpl_gap_8", "isp_replace_synth", dict(RPL_OK, MaxGap_g="8"), "isp_replace: MaxGap_g must be 1 to 7"),
+    ("rpl_width_2g", "isp_replace_synth", dict(RPL_OK, ImageWidth_g="4"),
+     "isp_replace: ImageWidth_g must be 2 x MaxGap_g + 1 to 65536"),
+    ("rpl_width_65537", "isp_replace_synth", dict(RPL_OK, ImageWidth_g="65537"),
+     "isp_replace: ImageWidth_g must be 2 x MaxGap_g + 1 to 65536"),
+    ("rpl_height_65537", "isp_replace_synth", dict(RPL_OK, ImageHeight_g="65537"),
+     "isp_replace: ImageHeight_g must be 1 to 65536"),
+    ("rpl_bits_25", "isp_replace_synth", dict(RPL_OK, PixelBits_g="25"), "isp_replace: PixelBits_g must be 1 to 24"),
+    ("rpl_lat_4", "isp_replace_synth", dict(RPL_OK, RamRdLatency_g="4"),
+     "isp_replace: RamRdLatency_g must be 1 to 3"),
+    ("rpl_ecc_3", "isp_replace_synth", dict(RPL_OK, EccPipeline_g="3"), "isp_replace: EccPipeline_g must be 0 to 2"),
 ]
 
 PNT_OK = pnt(8, 6, 12, 12, 16, 28, 2, True)

@@ -7,8 +7,9 @@ marked pixel is replaced by an interpolation between the nearest operational pix
 the same line. All other pixels pass unchanged.
 
 The defect map is a table in an ECC-protected, scrubbed RAM of Open Logic that the software writes through an
-AXI4-Lite slave (section 7). It marks no pixel when the device is configured. The largest distance at which the
-interpolation looks for an operational pixel is the generic `MaxGap_g`.
+AXI4-Lite slave (section 7). Open Logic does not initialise this RAM, so the software clears the map with
+`CTRL.CLEAR` or writes it completely after power-up. The largest distance at which the interpolation looks for
+an operational pixel is the generic `MaxGap_g`.
 
 The module is built from the general parts of the suite: an
 [`isp_frame_sync`](../../isp_frame_sync/docs/specification.md) at the input, an
@@ -36,7 +37,7 @@ and their marks, and an interpolation kernel behind it.
 | RPL-IF-01 | The module shall take pixels of `PixelBits_g` bits on a pixel stream (`In_Valid`, `In_Ready`, `In_Data`, `In_Last`, `In_User`). | ISP-STR-01, ISP-STR-02 |
 | RPL-IF-02 | The module shall output pixels of `PixelBits_g` bits on a pixel stream (`Out_Valid`, `Out_Ready`, `Out_Data`, `Out_Last`, `Out_User`). | ISP-STR-01, ISP-STR-02 |
 | RPL-IF-03 | The module shall have an AXI4-Lite slave (`S_AxiLite_*`, 32 data bits, 8 address bits, clock `Clk`) for the registers of section 7. | ISP-CFG-03 |
-| RPL-IF-04 | The module shall output the status of its `isp_frame_sync` (`Err_Framing`, `Stat_ImageOpen`), pulse `Stat_Unreplaced` for one clock cycle for every non-operational pixel that it cannot replace, and pulse `Stat_EccSec` and `Stat_EccDed` for a corrected single bit error and a detected double bit error of the defect map. | ISP-STR-08, ISP-STR-10, ISP-FT-01 |
+| RPL-IF-04 | The module shall output the status of its `isp_frame_sync` (`Err_Framing`, `Stat_ImageOpen`), pulse `Stat_Unreplaced` for one clock cycle for every non-operational pixel that it cannot replace, after the pixel left the output (a pixel lost by a reset reports nothing), and pulse `Stat_EccSec` and `Stat_EccDed` for a corrected single bit error and a detected double bit error of a word of the defect map that the image uses, when the word comes in use; a word read ahead and not used reports nothing. | ISP-STR-08, ISP-STR-10, ISP-FT-01 |
 | RPL-IF-05 | The module shall pass `ErrInj_BitFlip` and `ErrInj_Valid` to the RAM of the defect map with the semantics of Open Logic, and output the scrubber status of Open Logic (`Scrub_Enable` input, `Scrub_EccSec`, `Scrub_EccDed`, `Scrub_PassDone`, `Scrub_Overrun`). | ISP-FT-02, ISP-FT-03 |
 | RPL-IF-06 | The module shall have one clock `Clk` and a synchronous, high-active reset `Rst`. | ISP-GEN-01 |
 
@@ -47,8 +48,8 @@ and their marks, and an interpolation kernel behind it.
 | RPL-FN-01 | For every operational pixel the module shall output q = p, for every non-operational pixel the replacement of section 1.1, at the same position. | ISP-RPL-01, ISP-RPL-03 |
 | RPL-FN-02 | The module shall use only pixels of the same line and of the same image for a replacement; a pixel outside the image is not an operational pixel. | ISP-RPL-01 |
 | RPL-FN-03 | The module shall take its input through `isp_frame_sync` with the dimensions of the image and output the image with the same dimensions as one stream packet per line with the sequence flags of the line. | ISP-STR-03, ISP-STR-04, ISP-STR-05, ISP-STR-06, ISP-STR-08 |
-| RPL-FN-04 | The mark of a pixel shall be the bit of the defect map at the time the module reads the word of the pixel; a write to the defect map shall take effect for all pixels whose word is read after it. | ISP-RPL-02, ISP-CFG-02 |
-| RPL-FN-05 | The defect map shall mark no pixel after the configuration of the device and after the command `CTRL.CLEAR`; the reset `Rst` shall not change it. | ISP-RPL-02 |
+| RPL-FN-04 | A write to the defect map that completes before the module accepts the first pixel of an image shall apply to the whole image. A write that completes during an image shall apply in that image at the latest from the third word after the word of the last pixel the module accepted. | ISP-RPL-02, ISP-CFG-02 |
+| RPL-FN-05 | The defect map shall mark no pixel after the command `CTRL.CLEAR`; the reset `Rst` shall not change it. | ISP-RPL-02 |
 | RPL-FN-06 | The output shall not depend on the timing of the stream handshakes, and an image start may follow the last pixel of an image without a gap. | ISP-STR-07 |
 | RPL-FN-07 | The module shall be built from `isp_frame_sync`, `isp_window` (one line of 2 x G + 1 pixels, each with its mark, border mode zero) and an interpolation kernel. | ISP-GEN-02 |
 
@@ -56,9 +57,9 @@ and their marks, and an interpolation kernel behind it.
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| RPL-PF-01 | Within a line, with `In_Valid` and `Out_Ready` high, the module shall accept one pixel per clock cycle. | ISP-STR-09 |
-| RPL-PF-02 | With back-to-back input and `Out_Ready` high, the interval between the starts of two consecutive images shall not exceed H x (W + G) + 16 clock cycles. | ISP-STR-09 |
-| RPL-PF-03 | With `Out_Ready` high, the pixel q(x, y) shall be at the output at most 14 clock cycles after the module accepted the pixel p(x + G, y), where that pixel is inside the image. | ISP-STR-09 |
+| RPL-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most G clock cycles between the acceptance of the first pixels of two consecutive lines of an image; between the first pixels of lines 0 and 1 the input waits for word 0 of the defect map instead, max(G, `RamRdLatency_g` + `EccPipeline_g` + 1) clock cycles at most. | ISP-STR-09 |
+| RPL-PF-02 | With back-to-back input and `Out_Ready` high, the interval between the starts of two consecutive images shall not exceed H x (W + G) + `RamRdLatency_g` + `EccPipeline_g` + 16 clock cycles. | ISP-STR-09 |
+| RPL-PF-03 | With `Out_Ready` high, the pixel q(x, y) shall be at the output at most 13 + `RamRdLatency_g` + `EccPipeline_g` clock cycles after the module accepted the pixel p(x + G, y), where that pixel is inside the image. | ISP-STR-09 |
 
 ### 2.4 Error handling
 
@@ -67,7 +68,7 @@ and their marks, and an interpolation kernel behind it.
 | RPL-ER-01 | Every output image shall be complete whatever the input; the pixels that `isp_frame_sync` generated for missing pixels are pixels of the image like the others. | ISP-STR-08 |
 | RPL-ER-02 | A non-operational pixel without an operational pixel within G on either side shall be output unchanged and reported (E5). | ISP-RPL-03 |
 | RPL-ER-03 | A word of the defect map read with a double bit error shall be used as read and reported (E6). | ISP-FT-01 |
-| RPL-ER-04 | A write to `MAP_DATA` during a clear of the map or with `MAP_ADDR` outside the map shall have no effect. | ISP-CFG-03 |
+| RPL-ER-04 | A write to `MAP_DATA` during a clear of the map or with `MAP_ADDR` outside the map shall change neither the map nor `MAP_ADDR`. | ISP-CFG-03 |
 
 ### 2.5 Fault tolerance
 
@@ -89,7 +90,10 @@ The consumer of the output may hold `Out_Ready` low at any beat. The AXI4-Lite m
 bridge of the system on the clock `Clk`; a register bus in another clock domain needs a clock crossing in the system.
 
 The software writes the defect map word by word. A map that is written while images pass applies to an image in
-part; the software writes it between images where that matters, or accepts one image with a mixed map.
+part; the software writes it between images where that matters, or accepts one image with a mixed map. After
+power-up it clears the map with `CTRL.CLEAR` or writes every word before the first image, since the content of
+the RAM after configuration depends on the device; it repeats `CTRL.CLEAR` after a reset during a clear, which
+ends the clear.
 
 ## 3. Error conditions
 
@@ -101,7 +105,9 @@ The errors E1 to E4 of `isp_frame_sync` apply to the input stream; `Err_Framing`
 | E6 | Double bit error in a word of the defect map | ECC decoder of the RAM | The word is used as read; it stays so until the software writes the word or clears the map | `Stat_EccDed`, `STATUS.ECC_DED` |
 
 A single bit error in a word of the defect map is corrected and reported with `Stat_EccSec`; the scrubber writes
-the corrected word back.
+the corrected word back. The read errors of a word are reported when the word comes in use; a word that the
+lookup read ahead and a reset dropped reports nothing. The scrubber reports the errors of every word on its own
+outputs, also of the content of the RAM after power-up until the software clears or writes the map.
 
 ## 4. Configuration parameters
 
@@ -140,6 +146,12 @@ within G; the pixels in its middle stay unchanged (E5).
   and takes its value.
 - Each line has its own words of the defect map, so the software addresses the word of a pixel without a division
   by the image width.
+- The module reads the map ahead of the pixels within an image (RPL-FN-04), but not across the start of an image:
+  a map that the software completes between two images applies to the whole next image. The first pixel of an
+  image waits for its word, which adds the read latency of the map to the image period and to the latency of
+  the first pixels (RPL-PF-02, RPL-PF-03).
+- `MAP_ADDR` keeps all 32 bits, so that an address outside the map stays outside and a write to it has no effect
+  (RPL-ER-04).
 - The map is a table of one bit per pixel. A list of the positions of the non-operational pixels would need less
   memory for a detector with few defects; the register interface of this module leaves room for it in a later
   version.
@@ -166,7 +178,7 @@ return 0, writes to other addresses and to read-only fields have no effect; ever
 | | | 10 | `UNREPLACED` | W1C | 0 | Set by every pulse of `Stat_Unreplaced` |
 | | | 16 | `ECC_SEC` | W1C | 0 | Set by every corrected single bit error of the defect map (read or scrubber) |
 | | | 17 | `ECC_DED` | W1C | 0 | Set by every detected double bit error of the defect map (read or scrubber) |
-| 0x1C | `MAP_ADDR` | 31:0 | `ADDR` | RW | 0 | Address of the word that the next write to `MAP_DATA` changes; it counts up by one with every such write |
+| 0x1C | `MAP_ADDR` | 31:0 | `ADDR` | RW | 0 | Address of the word that the next write to `MAP_DATA` changes; it counts up by one with every such write; all 32 bits are stored and read back |
 | 0x20 | `MAP_DATA` | 31:0 | `DATA` | WO | - | Writes the word `MAP_ADDR` of the defect map |
 
 | ID | Requirement | Core requirement |
@@ -174,4 +186,4 @@ return 0, writes to other addresses and to read-only fields have no effect; ever
 | RPL-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
 | RPL-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
 | RPL-RG-03 | A write to `MAP_DATA` shall write all 32 bits of the word `MAP_ADDR` and then increase `MAP_ADDR` by one. | ISP-RPL-02 |
-| RPL-RG-04 | `CTRL.CLEAR` shall write 0 to every word of the defect map, with `STATUS.BUSY` high from the command to the last word. | ISP-RPL-02 |
+| RPL-RG-04 | `CTRL.CLEAR` shall write 0 to every word of the defect map, with `STATUS.BUSY` high from the command to the last word; a `CTRL.CLEAR` while `STATUS.BUSY` is high shall have no effect. | ISP-RPL-02 |

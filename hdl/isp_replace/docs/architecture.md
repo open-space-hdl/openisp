@@ -47,7 +47,7 @@ zero, a place of the window outside the image holds the pixel 0 with the flag 0:
 the right border of the image therefore need no case of their own in the interpolation (RPL-FN-02).
 
 RP-3 contains a frame sync of its own. RP-1 and RP-2 deliver complete images, so it only acts after an upset between
-the blocks.
+the blocks; its `Err_Framing` joins that of RP-1, so that such an upset is reported.
 
 ## 5. Map lookup (RP-2)
 
@@ -55,14 +55,28 @@ The defect map is read in the order of the pixels. Every line has its own words,
 counter that counts up through the image: by one after every 32 pixels of a line and at the end of every line. It
 returns to 0 with pixel (0, 0).
 
-- The lookup holds the word of the current 32 pixels and reads the next word ahead, as soon as the current one is in
-  use. The read latency of the RAM and of its ECC decoder (`RamRdLatency_g` + `EccPipeline_g` cycles) lies inside
-  the 32 pixels of a word.
-- A pixel waits in the lookup only when its word has not arrived: after the reset, and for lines of fewer pixels
-  than the read latency.
+- The lookup holds the word of the current pixels and the two words after it in a queue of three words: when a word
+  comes in use, the read of the word two places after it starts. Two words ahead cover the read latency of the RAM
+  and of its ECC decoder (`RamRdLatency_g` + `EccPipeline_g`, at most 5 cycles) also when the last word of a line
+  holds a single pixel: two lines take at least 2 x (3 x G + 1) cycles.
+- The read-ahead stops at the last word of the image. Pixel (0, 0) starts the reads of words 0, 1 and 2 and waits
+  for word 0, so that a map written between two images applies to the whole next image (RPL-FN-04).
+- The reads of an image start in the cycle in which pixel (0, 0) reaches the lookup; reads of the image before
+  that are still under way are dropped when they arrive. A word that arrives with no read pending is dropped as
+  well; this cannot happen without an upset of the counter, since every read-valid stage of the RAM clears with the
+  reset, and is a defence against such an upset (RPL-FT-02). The guard also keeps the counter in its range in
+  simulation: the read valid of the RAM rises to '1' for zero time (one delta cycle) when a read of the scrubber
+  returns, and the combinational logic of the lookup sees it with no read pending; no clock edge sees it. A pixel
+  waits in the lookup only for the first word of an image.
+- When no word can come for a pixel (only after an upset of the counters), the pixel passes as operational until
+  the next image start realigns the lookup (RPL-FT-02).
+- The RAM has max(2, H x ceil(W / 32)) words, as `olo_ft_ram_sdp_scrub` needs at least 2; the extra word of a map of
+  one word is not used.
 - The read port of the RAM is busy once in 32 pixels; the scrubber uses the other cycles (RPL-FT-01).
 - The write port belongs to RP-5: a write of `MAP_DATA`, or the clear sequence. The datapath never writes.
-- `Stat_EccSec` and `Stat_EccDed` pulse with the read of a word; a word with a double error is used as read (E6).
+- The error flags of a read travel with the word through the queue; `Stat_EccSec` and `Stat_EccDed` pulse when
+  the word comes in use, with the first pixel of the word (RPL-IF-04). A word read ahead and dropped by a reset
+  reports nothing. A word with a double error is used as read (E6).
 
 ## 6. Interpolation (RP-4)
 
@@ -74,7 +88,7 @@ output.
 | 1 | Two priority searches over the flags: dl, the distance of the nearest operational pixel on the left, and dr on the right, each 1 to G or none; the two pixels L and R are selected by them. |
 | 2 | N = L x dr + R x dl + floor(d / 2) with d = dl + dr: two multiplications of a pixel with a number of at most three bits, built from shifts and adders. |
 | 3 | Q = floor(N / d) by a multiplication with a constant: N x ceil(2^K / d) / 2^K with K = `PixelBits_g` + 8, the constant from a table of the 13 possible divisors 2 to 14. |
-| 4 | Output register: the pixel itself when it is operational or when neither side has an operational pixel (`Stat_Unreplaced`, E5); L or R when only one side has one; Q otherwise. |
+| 4 | Output register: the pixel itself when it is operational or when neither side has an operational pixel (E5; `Stat_Unreplaced` pulses in the cycle after the pixel left the output); L or R when only one side has one; Q otherwise. |
 
 The division in stage 3 is exact: for a divisor d of at most 14 and a numerator below 2^(`PixelBits_g` + 4), the
 error of the rounded constant, at most d - 1 parts in 2^K per unit of the numerator, stays below one unit of the
@@ -88,21 +102,24 @@ enable: they advance when the output register is empty or its beat transfers.
 | Register | Implementation |
 | --- | --- |
 | `ID`, `IMAGE`, `PARAM`, `MAP_LINE`, `MAP_WORDS` | Constants from the generics |
-| `MAP_ADDR` | Counter with the width of the map address; written by the software, counted up by every write of `MAP_DATA` |
+| `MAP_ADDR` | 32-bit counter; written by the software, counted up by every write of `MAP_DATA` that changes the map |
 | `MAP_DATA` | Write strobe of the RAM with the address `MAP_ADDR`; no effect during a clear or with an address outside the map |
 | `CTRL.CLEAR` | Starts the clear sequence: a counter writes 0 to every word, one per clock cycle; `STATUS.BUSY` is high meanwhile |
 | `STATUS` | `Stat_ImageOpen`, the busy flag, and sticky flags set by `Err_Framing`, `Stat_Unreplaced` and the error flags of the reads and of the scrubber; cleared by a write of one, the event wins |
 
-The RAM is initialised with zeros when the device is configured, so the map marks no pixel then. The reset does not
-touch the RAM; the software clears the map with `CTRL.CLEAR` where a reset shall start from an empty map.
+Open Logic does not initialise the RAM (its codewords cannot carry initial values); whether a device starts with
+zeros depends on the device. The software therefore clears the map with `CTRL.CLEAR` or writes it completely
+after power-up. The simulation model of the RAM starts with zeros, which are valid codewords of an empty map;
+the tests clear or write the map before they use it. The reset does not touch the RAM; a reset during a clear
+ends the clear, and the software repeats the command.
 
 ## 8. Timing and throughput
 
 | Property | Value | Requirement |
 | --- | --- | --- |
-| Pixel rate | One pixel per clock cycle within a line | RPL-PF-01 |
-| Image period | H x (W + G) cycles: the window generates G virtual columns after every line; plus the registers of the blocks | RPL-PF-02 |
-| Latency | 2 clock cycles in RP-1, 1 in the lookup, 3 in the window, 4 in the interpolation: 10 clock cycles after the pixel G columns to the right | RPL-PF-03 |
+| Pixel rate | One pixel per clock cycle within a line; the input waits for the G virtual columns of the window after every line, which the buffers between the input and the window (the two frame syncs and the lookup register) shift into the next line; in line 0 it waits for word 0 of the map instead, `RamRdLatency_g` + `EccPipeline_g` + 1 cycles after an idle module, max(G, `RamRdLatency_g` + `EccPipeline_g` + 1) after an image, whose last G virtual columns run beside the wait | RPL-PF-01 |
+| Image period | H x (W + G) + max(0, `RamRdLatency_g` + `EccPipeline_g` + 1 - G) cycles: the window generates G virtual columns after every line, and the wait for word 0 adds the part that does not run beside the virtual columns of the image before; the first interval after an idle module is H x W + (H - 1) x G + `RamRdLatency_g` + `EccPipeline_g` + 1 | RPL-PF-02 |
+| Latency | 2 clock cycles in RP-1, 1 in the lookup, 3 in the window, 4 in the interpolation: 10 clock cycles after the pixel G columns to the right; up to 2 more for a pixel taken while the input was held; up to `RamRdLatency_g` + `EccPipeline_g` + 1 more for the first pixels of an image | RPL-PF-03 |
 
 Paths: the priority searches over at most seven flags and the selection of L and R (stage 1), and the
 multiplication with the constant in stage 3, at most 28 x 32 bits, which the synthesis tool maps to DSP blocks
