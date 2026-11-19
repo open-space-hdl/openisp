@@ -193,6 +193,7 @@ requirements of a mission is shown by a radiation test with the modules in opera
 | The register bus is in the clock domain of the module, or the system provides a clock crossing | The AXI4-Lite slaves have no crossing of their own |
 | The software reacts to `STATUS.ERR_CONFIG` by writing the parameter registers again | An upset of a parameter register persists until it is written (section 4.3) |
 | The defect map is written between images where an image must not see a partial update | The map is read in step with the pixels (section 4.4) |
+| A chain is reset together with its source, or between images | A reset inside a first or only packet of an image makes the rest of that packet an image start: one wrong image with `Err_Framing`, the next one correct (`isp_frame_sync` specification, section 6) |
 
 ## 8. Resources and performance
 
