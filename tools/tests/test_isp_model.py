@@ -13,6 +13,7 @@ from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, 
                        PNT_OFFSET_HI, PNT_OFFSET_LO, PNT_SHIFT, crop, ecc_codeword_width, ecc_data_positions,
                        ecc_decode, frame_sync, point, point_op, window, conv, conv_full_bits, CNV_COEF,
                        CNV_CTRL, CNV_INJECT, CNV_STATUS)
+from isp_model import RPL_MAP_ADDR, RPL_MAP_DATA, RPL_STATUS, replace, replace_pixel  # noqa: E402
 from isp_tbgen import packets  # noqa: E402
 
 
@@ -350,4 +351,61 @@ def test_window_ecc_unused_delay():
     out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
     assert ex["ded"] == 0 and ex["sec"] == 0
     assert [o[1] for o in out] == [o[1] for o in window(packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
+
+
+def test_replace_pixel():
+    assert replace_pixel([10, 20, 30, 40, 50], [1, 1, 0, 1, 1], 2, 2) == (30, False)
+    line, flags = [10, 99, 99, 40, 50], [1, 0, 0, 1, 1]
+    assert replace_pixel(line, flags, 1, 2) == (20, False)        # (10 x 2 + 40 x 1 + 1) / 3
+    assert replace_pixel(line, flags, 2, 2) == (30, False)        # (10 x 1 + 40 x 2 + 1) / 3
+    assert replace_pixel([99, 20, 30], [0, 1, 1], 0, 1) == (20, False)   # left border: from the right
+    line, flags = [10, 98, 99, 97, 50], [1, 0, 0, 0, 1]
+    assert [replace_pixel(line, flags, x, 1) for x in (1, 2, 3)] == [(10, False), (99, True), (50, False)]
+
+
+def test_replace_map_and_timing():
+    w, h = 40, 2                                                    # two words per line
+    pix = list(range(1, 81))
+    img = packets(pix, [40, 40])
+    # Word 1 (pixels 32 to 39 of line 0), bit 3: pixel (35, 0) = 36, between 35 and 37
+    items = [("A", 100, [("W", RPL_MAP_ADDR, 1, 0xF), ("W", RPL_MAP_DATA, 1 << 3, 0xF),
+                         ("C", RPL_MAP_ADDR, None, 0xF)])] + img
+    out, _, annot, ex = replace(items, w, h, 12, 2)
+    assert [o[1] for o in out] == pix                               # linear: the interpolation gives the pixel
+    assert ex["regs"][0][1][2][2] == 2
+    # q(x) follows p(x + 2): after pixel 5 of line 0 (item 6) the outputs 0 to 3; q(x) comes from beat x + 2 of
+    # its line, the last two pixels of a line from none
+    assert annot[6][0] == 4 and annot[40][0] == 40
+    assert ex["timing"][:3] == [2, 3, 4] and ex["timing"][38:42] == [-1, -1, 42, 43]
+    # A double error on map word 0 (data bits 0 and 1) marks pixels 0 and 1: replaced from pixel 2
+    pos = ecc_data_positions(32)
+    items = [("J", 100, (1 << pos[0]) | (1 << pos[1])), ("A", 101, [("W", RPL_MAP_DATA, 0, 0xF),
+                                                                     ("C", RPL_STATUS, None, 0xF)])] + img
+    out, _, _, ex = replace(items, w, h, 12, 2)
+    assert [o[1] for o in out][:3] == [3, 3, 3] and ex["ded"] == 1 and ex["sec"] == 0
+    # A write during the image to a word three words ahead applies in the image; the word in use was read before
+    # the write and applies from the next image. Pixels (7, 0) and (33, 1) differ from their neighbours.
+    pix2 = list(pix)
+    pix2[7] = pix2[73] = 999
+    img2 = packets(pix2, [40, 40])
+    items = img2[:5] + [("A", 100, [("W", RPL_MAP_DATA, 1 << 7, 0xF), ("W", RPL_MAP_ADDR, 3, 0xF),
+                                    ("W", RPL_MAP_DATA, 1 << 1, 0xF)])] + img2[5:] + img2
+    vals = [o[1] for o in replace(items, w, h, 12, 2)[0]]
+    assert vals[7] == 999 and vals[73] == (73 + 75 + 1) // 2
+    assert vals[80 + 7] == (7 + 9 + 1) // 2 and vals[80 + 73] == 74
+
+
+def test_replace_ecc_only_used_words():
+    # 40 x 3: words 0 to 5. A single error on word 2 (line 1) is read ahead with pixel (0, 0); a reset during word 0
+    # drops it before it comes in use: no report. In the next image word 2 comes in use: one report (RPL-IF-04).
+    w, h = 40, 3
+    pix = list(range(1, 121))
+    pos = ecc_data_positions(32)
+    items = [("A", 100, [("W", RPL_MAP_ADDR, 2, 0xF)]), ("J", 101, 1 << pos[5]),
+             ("A", 102, [("W", RPL_MAP_DATA, 0, 0xF)])]
+    items += packets(pix[:10], [10], last=False) + [("R", 0, 0, 1)]
+    out, _, _, ex = replace(items, w, h, 12, 2)
+    assert ex["sec"] == 0
+    out, _, _, ex = replace(items + packets(pix, [40, 40, 40]), w, h, 12, 2)
+    assert ex["sec"] == 1 and [o[1] for o in out if o[0] == "B"][-120:] == pix
 

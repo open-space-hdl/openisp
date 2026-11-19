@@ -58,6 +58,10 @@ CONFIGS = {
                              "Coef_g": [1] * 256, "RuntimeCoef_g": True}, False),
     "cnv_bin4": ("isp_conv", {"PixelBits_g": 12, "WinX_g": 1, "WinY_g": 4, "CoefBits_g": 2, "Coef_g": [1] * 4,
                               "RuntimeCoef_g": False}, False),
+    # isp_replace TC-RPL-13: the default configuration (a map of 65536 words) and the widest one
+    "rpl_default": ("isp_replace", {"ImageWidth_g": 2048, "ImageHeight_g": 1024, "PixelBits_g": 12, "MaxGap_g": 2},
+                    False),
+    "rpl_g7": ("isp_replace", {"ImageWidth_g": 2048, "ImageHeight_g": 1024, "PixelBits_g": 24, "MaxGap_g": 7}, False),
 }
 
 

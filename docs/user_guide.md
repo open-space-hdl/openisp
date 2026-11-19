@@ -138,7 +138,9 @@ The defect map has one bit per pixel, 1 for a non-operational pixel, in words of
 `MAP_LINE` words. The software writes it word by word: `MAP_ADDR` with the first address, then `MAP_DATA` once per
 word, which counts `MAP_ADDR` up. `CTRL.CLEAR` writes 0 to every word (`STATUS.BUSY` meanwhile). A map written while
 images pass applies to an image in part; write it between images where that matters. The map is protected by its
-ECC and scrubbed; `STATUS.ECC_DED` reports a word that the software has to write again.
+ECC and scrubbed; `STATUS.ECC_DED` reports a word that the software has to write again. Open Logic does not
+initialise the RAM of the map: after power-up the software issues `CTRL.CLEAR` or writes every word before the
+first image, and clears the `STATUS` flags that the scrubber set for the content before.
 
 ## 5. Building a chain
 
@@ -193,6 +195,7 @@ requirements of a mission is shown by a radiation test with the modules in opera
 | The register bus is in the clock domain of the module, or the system provides a clock crossing | The AXI4-Lite slaves have no crossing of their own |
 | The software reacts to `STATUS.ERR_CONFIG` by writing the parameter registers again | An upset of a parameter register persists until it is written (section 4.3) |
 | The defect map is written between images where an image must not see a partial update | The map is read in step with the pixels (section 4.4) |
+| After power-up the software clears the defect map (`CTRL.CLEAR`) or writes it completely before the first image, and repeats `CTRL.CLEAR` after a reset during a clear | The content of the RAM after configuration depends on the device; Open Logic does not initialise it |
 | A chain is reset together with its source, or between images | A reset inside a first or only packet of an image makes the rest of that packet an image start: one wrong image with `Err_Framing`, the next one correct (`isp_frame_sync` specification, section 6) |
 
 ## 8. Resources and performance
