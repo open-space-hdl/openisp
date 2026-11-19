@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 
 from isp_model import SEQ_CONT, SEQ_FIRST, SEQ_LAST, SEQ_ONLY, frame_sync  # noqa: E402
 from isp_tbgen import (image_beats, packets, random_image, raw_packet, rng_for, seed_for, split,  # noqa: E402
-                       write_test)
+                       watchdog_us, write_test)
 
 MODULE = "isp_frame_sync"
 ALL = ["test_images", "test_short_images", "test_excess_pixels", "test_end_flags", "test_reset", "test_status",
@@ -251,4 +251,4 @@ def configure(lib, out_dir):
                 "ImageWidth_g": w, "ImageHeight_g": h, "PixelBits_g": bits,
                 "StimFile_g": stim.as_posix(), "ExpFile_g": exp.as_posix(),
                 "GapPct_g": gap, "StallPct_g": stall, "Seed_g": seed_for(MODULE, name, test),
-                "ExpFraming_g": errors})
+                "ExpFraming_g": errors, "WatchdogUs_g": watchdog_us(stim, exp)})

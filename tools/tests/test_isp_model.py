@@ -81,7 +81,8 @@ def crop_pixels(out):
 def test_crop_static():
     # 4 x 3 image, region (1, 1) of 2 x 2: pixels 6, 7 and 10, 11
     pix = list(range(1, 13))
-    out, ferr, _, cerr, _ = crop(packets(pix, [12]), 4, 3, 1, 1, 2, 2, False)
+    out, ferr, _, ex = crop(packets(pix, [12]), 4, 3, 1, 1, 2, 2, False)
+    cerr = ex["config"]
     assert ferr == 0 and cerr == 0
     assert crop_pixels(out) == [6, 7, 10, 11]
     assert [o[2] for o in out] == [0, 1, 0, 1]                  # Last at the last column of the region
@@ -93,7 +94,8 @@ def test_crop_runtime_position_and_invalid():
     img = packets(pix, [4, 4, 4])
     items = img + [("A", 100, [("W", CRP_ROI_POS, (0 << 16) | 2, 0xF)])] + img \
         + [("A", 101, [("W", CRP_ROI_POS, (2 << 16) | 3, 0xF), ("C", CRP_ROI_POS, None, 0xF)])] + img
-    out, _, _, cerr, regs = crop(items, 4, 3, 1, 1, 2, 2, True)
+    out, _, _, ex = crop(items, 4, 3, 1, 1, 2, 2, True)
+    cerr, regs = ex["config"], ex["regs"]
     # Generics, then (2, 0), then (3, 2) is invalid (3 + 2 > 4): generics again with one Err_Config
     assert crop_pixels(out) == [6, 7, 10, 11, 3, 4, 7, 8, 6, 7, 10, 11]
     assert cerr == 1
@@ -107,7 +109,8 @@ def test_crop_parity_and_strobes():
     items += img + [("A", 101, [("W", CRP_INJECT, 1, 0xF)])] + img + img
     items += [("A", 102, [("W", CRP_INJECT, 1, 0xF)])] + img        # a second injection restores the parity
     items += [("A", 103, [("C", CRP_STATUS, None, 0xF)])]
-    out, _, _, cerr, regs = crop(items, 4, 3, 1, 1, 2, 2, True)
+    out, _, _, ex = crop(items, 4, 3, 1, 1, 2, 2, True)
+    cerr, regs = ex["config"], ex["regs"]
     assert crop_pixels(out) == [7, 8, 11, 12, 6, 7, 10, 11, 6, 7, 10, 11, 7, 8, 11, 12]
     assert cerr == 2
     assert regs[-1][1][0][2] == 0x200                              # STATUS.ERR_CONFIG, image closed
@@ -117,8 +120,14 @@ def test_crop_reset_restores_generics():
     pix = list(range(1, 13))
     img = packets(pix, [12])
     items = [("A", 100, [("W", CRP_ROI_POS, 0x2, 0xF)])] + img + [("R", 0, 0, 2)] + img
-    out, _, _, _, _ = crop(items, 4, 3, 1, 1, 2, 2, True)
+    out, _, _, _ = crop(items, 4, 3, 1, 1, 2, 2, True)
     assert crop_pixels([o for o in out]) == [3, 4, 7, 8, 6, 7, 10, 11]
+
+
+def test_crop_timing():
+    # 4 x 3, region (1, 1) of 2 x 2: the output pixels come from the input beats 5, 6, 9 and 10
+    out, _, _, ex = crop(packets(list(range(1, 13)), [4, 4, 4]), 4, 3, 1, 1, 2, 2, False)
+    assert ex["timing"] == [5, 6, 9, 10]
 
 
 def test_point_op():
@@ -146,7 +155,8 @@ def test_point_hold_and_parity():
     items += [("A", 104, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_INJECT, 4, 0xF)])] + img   # held: no check
     items += [("A", 105, [("W", PNT_INJECT, 4, 0xF), ("W", PNT_CTRL, 0, 0xF)])] + img   # bad again, taken: error
     items += [("A", 106, [("W", PNT_GAIN, 5, 0xF)])] + img                    # written: gain 5
-    out, _, _, cerr, _ = run_point(items)
+    out, _, _, ex = run_point(items)
+    cerr = ex["config"]
     assert [o[1] for o in out] == [20, 40, 20, 40, 30, 60, 10, 20, 10, 20, 10, 20, 10, 20, 50, 100]
     assert cerr == 3
 
@@ -157,7 +167,7 @@ def test_point_readback():
                          ("W", PNT_OFFSET_LO, 0x00001FFF, 0xF), ("C", PNT_OFFSET_LO, None, 0xF),
                          ("W", PNT_SHIFT, 0x7F, 0xF), ("C", PNT_SHIFT, None, 0xF),
                          ("W", PNT_GAIN, 0xFFFFFFFF, 0x1), ("C", PNT_GAIN, None, 0xF)])]
-    _, _, _, _, regs = run_point(items)
+    regs = run_point(items)[3]["regs"]
     reads = [e[2] for e in regs[0][1] if e[0] == "C"]
     # 13-bit offset: -16 sign-extended; 0x1FFF is -1; SHIFT keeps 7 bits; GAIN: only byte 0 written
     assert reads == [0xFFFFFFF0, 0xFFFFFFFF, 0xFFFFFFFF, 0x7F, 0xFF]
@@ -166,6 +176,6 @@ def test_point_readback():
 def test_point_shift_limited():
     img = packets([1024, 0], [2])
     items = [("A", 100, [("W", PNT_SHIFT, 127, 0xF)])] + img
-    out, _, _, _, _ = run_point(items, max_shift=8)
+    out = run_point(items, max_shift=8)[0]
     assert [o[1] for o in out] == [4, 0]                                       # 1024 >> 8
 

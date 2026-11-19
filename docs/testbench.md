@@ -125,6 +125,10 @@ an extra beat. The drain time is a tolerance derived from the design:
 
 The drain time is L + 21 cycles; a beat in it after the last expected beat is an error.
 
+A watchdog (`test_runner_watchdog` of VUnit) ends a test that does not end, for example because the module stops
+delivering beats: its time is 1 ms plus 0.5 µs per entry of the stimulus and the expected file (`watchdog_us` of
+`tools/isp_tbgen.py`), more than ten times what an entry takes with gaps, stalls and pauses.
+
 ## 7. Register script
 
 A module with registers gets a third file per test, `<test>.regs`, with its register accesses. The procedure

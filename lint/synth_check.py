@@ -35,6 +35,26 @@ CONFIGS = [
      {"ImageWidth_g": "65536", "ImageHeight_g": "65536", "PixelBits_g": "64"}),
 ]
 
+
+def crp(w, h, bits, x, y, rw, rh, runtime):
+    """Generics of isp_crop."""
+    return {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "PixelBits_g": str(bits), "RoiX_g": str(x),
+            "RoiY_g": str(y), "RoiWidth_g": str(rw), "RoiHeight_g": str(rh), "RuntimeRoi_g": str(runtime).lower()}
+
+
+# isp_crop (TC-CRP-10): the bounds of every generic with both values of RuntimeRoi_g
+CONFIGS += [
+    ("crp_w1_h1_p1", "isp_crop", crp(1, 1, 1, 0, 0, 1, 1, False)),
+    ("crp_w1_h1_p1_rt", "isp_crop", crp(1, 1, 1, 0, 0, 1, 1, True)),
+    ("crp_w4096_h4096_p12_rt", "isp_crop", crp(4096, 4096, 12, 512, 512, 1024, 1024, True)),
+    ("crp_w4096_h4096_p12", "isp_crop", crp(4096, 4096, 12, 512, 512, 1024, 1024, False)),
+    ("crp_w65536_h65536_p64_whole", "isp_crop", crp(65536, 65536, 64, 0, 0, 65536, 65536, False)),
+    ("crp_w65536_h65536_p64_whole_rt", "isp_crop", crp(65536, 65536, 64, 0, 0, 65536, 65536, True)),
+    ("crp_w65536_h65536_p64_corner_rt", "isp_crop", crp(65536, 65536, 64, 65535, 65535, 1, 1, True)),
+    ("crp_w65536_h1_p12_line_rt", "isp_crop", crp(65536, 1, 12, 0, 0, 65536, 1, True)),
+    ("crp_w1_h65536_p12_column_rt", "isp_crop", crp(1, 65536, 12, 0, 0, 1, 65536, True)),
+]
+
 # Configurations outside the declared ranges and the message their elaboration stops with
 FSY_OK = {"ImageWidth_g": "8", "ImageHeight_g": "4", "PixelBits_g": "12"}
 NEGATIVE = [
@@ -46,6 +66,19 @@ NEGATIVE = [
      "isp_frame_sync: ImageHeight_g must be 1 to 65536"),
     ("fsy_bits_0", "isp_frame_sync", dict(FSY_OK, PixelBits_g="0"), 'generic "PixelBits_g" is out of bounds'),
     ("fsy_bits_65", "isp_frame_sync", dict(FSY_OK, PixelBits_g="65"), "isp_frame_sync: PixelBits_g must be 1 to 64"),
+]
+
+CRP_OK = crp(8, 6, 12, 2, 1, 4, 3, True)
+NEGATIVE += [
+    ("crp_width_65537", "isp_crop", dict(CRP_OK, ImageWidth_g="65537"), "ImageWidth_g must be 1 to 65536"),
+    ("crp_height_65537", "isp_crop", dict(CRP_OK, ImageHeight_g="65537"), "ImageHeight_g must be 1 to 65536"),
+    ("crp_bits_65", "isp_crop", dict(CRP_OK, PixelBits_g="65"), "PixelBits_g must be 1 to 64"),
+    ("crp_roi_width_0", "isp_crop", dict(CRP_OK, RoiWidth_g="0"), 'generic "RoiWidth_g" is out of bounds'),
+    ("crp_roi_height_0", "isp_crop", dict(CRP_OK, RoiHeight_g="0"), 'generic "RoiHeight_g" is out of bounds'),
+    ("crp_roi_x_8", "isp_crop", dict(CRP_OK, RoiX_g="8", RoiWidth_g="1"), "isp_crop: RoiX_g must be 0 to"),
+    ("crp_roi_y_6", "isp_crop", dict(CRP_OK, RoiY_g="6", RoiHeight_g="1"), "isp_crop: RoiY_g must be 0 to"),
+    ("crp_roi_width_7", "isp_crop", dict(CRP_OK, RoiWidth_g="7"), "isp_crop: RoiWidth_g must be 1 to"),
+    ("crp_roi_height_6", "isp_crop", dict(CRP_OK, RoiHeight_g="6"), "isp_crop: RoiHeight_g must be 1 to"),
 ]
 
 
