@@ -54,7 +54,7 @@ The module has no memory. It counts the pixels from every image start; the count
 | --- | --- | --- |
 | FSY-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall accept one pixel per clock cycle, also across the lines and from one image to the next. | ISP-STR-09 |
 | FSY-PF-02 | With `Out_Ready` high, a pixel shall be at the output at most 2 clock cycles after the module accepted it. | ISP-STR-09 |
-| FSY-PF-03 | With `Out_Ready` high, the module shall generate missing pixels at one per clock cycle: after an image start that finds m pixels of the open image missing, the module shall accept the pixel of the image start at most m + 4 clock cycles after it was offered. | ISP-STR-08 |
+| FSY-PF-03 | With `Out_Ready` high, the module shall generate missing pixels at one per clock cycle: after an image start that finds m pixels of the open image missing, the first pixel of the new image shall be at the output at most m + 4 clock cycles after the module accepted it. | ISP-STR-08 |
 | FSY-PF-04 | The module shall discard pixels that belong to no image at one per clock cycle, whatever `Out_Ready`. | ISP-STR-07 |
 
 ### 2.4 Error handling

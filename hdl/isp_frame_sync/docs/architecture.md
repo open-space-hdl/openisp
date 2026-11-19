@@ -97,7 +97,7 @@ The output never depends on `In_Last` or `In_User` of the pixel, only on its pos
 | --- | --- | --- |
 | Pixel rate | One pixel per clock cycle: the input stage and the output register each transfer in every cycle while `In_Valid` and `Out_Ready` are high, also across lines and images | FSY-PF-01 |
 | Latency | 2 clock cycles from the acceptance at the input to `Out_Valid`: one for the input stage, one for the output register | FSY-PF-02 |
-| Missing pixels | An image start reaches the control one cycle after the input took it; the control enters `Pad_s` in the next cycle, outputs m missing pixels in m cycles and takes the image start one cycle later: m + 3 cycles | FSY-PF-03 |
+| Missing pixels | An image start reaches the control one cycle after the input took it; the control enters `Pad_s` in the next cycle and loads the m missing pixels into the output register in m cycles; it takes the image start in the cycle after, which puts it at the output m + 3 cycles after the input took it | FSY-PF-03 |
 | Discarded pixels | One per clock cycle in `Idle_s`, independent of `Out_Ready` | FSY-PF-04 |
 
 Paths: `Out_Ready` reaches the enable of the output register, the counters and the ready input of the input stage

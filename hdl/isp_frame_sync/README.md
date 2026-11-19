@@ -10,5 +10,6 @@ normalises the stream in front of a chain. It has no memory.
 | --- | --- |
 | [Specification](docs/specification.md) | Requirements, error conditions, generics |
 | [Architecture](docs/architecture.md) | Blocks, ports, state machine, timing |
+| [Verification plan](docs/verification_plan.md) | Bench, configurations, test cases, timing bounds, mutations |
 
-The verification plan and the verification report follow with the development of the module.
+The verification report follows with the development of the module.

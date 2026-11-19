@@ -255,8 +255,7 @@ checked:
   150 MHz with Vivado on the Versal device of the reference systems, recorded in the verification report of the
   module. A simulation does not show timing.
 
-The
-[compliance matrix](compliance.md), generated from this table, the module specifications and the verification
+The [compliance matrix](compliance.md), generated from this table, the module specifications and the verification
 plans, lists the module requirements and test cases of every core requirement.
 
 | Core requirement | Title | Owner | Also involved | First verified at |
