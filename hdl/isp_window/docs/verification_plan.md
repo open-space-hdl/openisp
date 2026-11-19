@@ -101,7 +101,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `test_rate` (TC-WIN-06) | Configurations `rate_*`: images back to back with `In_Valid` and `Out_Ready` high. The hold cycles of the input between the first pixels of two lines (at most Rr; none in the mode valid), the interval between two image starts (bound of WIN-PF-02, design value (H + Rb) x (W + Rr), H x W in the mode valid) and the latency of every window from the acceptance of its completing pixel (bound 6, design value 3 to 5) | WIN-PF-01, WIN-PF-02, WIN-PF-03 |
 | TC-WIN-07 (review) | `when others` of the event state machine leads to `Pix_s`, pixel (0, 0) restarts the counters | WIN-FT-03 |
 | TC-WIN-08 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2.3 and every border mode and resource; elaboration stops with the message naming the generic for: `WinX_g` 17, `WinY_g` 17, `ImageWidth_g` below `WinX_g`, `ImageHeight_g` below `WinY_g`, `ImageWidth_g` 65537, `PixelBits_g` 33, `AnchorX_g` = `WinX_g`, `AnchorY_g` = `WinY_g`, `StrideX_g` 17, `StrideY_g` 17, an unknown border mode, mirror with an even window, mirror with an anchor beside the middle (both directions), `Resource_g` BRAM with `ImageWidth_g` 2 + `EccPipeline_g` | WIN-CF-01, WIN-CF-02, WIN-CF-03, WIN-CF-05 |
-| TC-WIN-09 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the Versal device of the reference systems, on the build machine: 3 x 3 replicate, 12 bits, 4096 pixels per line (the default); 5 x 5 mirror, 16 bits, 4096; 16 x 16 zero, 32 bits, 4096 | WIN-CF-04 |
+| TC-WIN-09 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the device of the Timing level (architecture, section 10): 3 x 3 replicate, 12 bits, 4096 pixels per line (the default); 5 x 5 mirror, 16 bits, 4096; 16 x 16 zero, 32 bits, 4096 | WIN-CF-04 |
 
 ## 4. Requirement coverage
 
@@ -128,13 +128,13 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 
 | Bound | Design value | Derivation |
 | --- | --- | --- |
-| Hold cycles between the first pixels of two lines: at most Rr (WIN-PF-01) | Rr; 0 in the mode valid | One HCOL event per column right of the reference pixel; the input stage of `isp_frame_sync` moves the hold by up to two pixels, not its length |
-| Image period (H + Rb) x (W + Rr) + 8, H x W + 8 in the mode valid (WIN-PF-02) | (H + Rb) x (W + Rr); H x W | One event per cycle; W + Rr events per line, Rb virtual lines (architecture, section 9) |
+| Hold cycles between the first pixels of two lines: at most Rr (WIN-PF-01) | Rr; 0 in the mode valid; between the first two lines of an image that follows an image, Rb x (W + Rr) + Rr | One HCOL event per column right of the reference pixel; the input stage of `isp_frame_sync` moves the hold by up to two pixels, not its length, and takes the first pixels of an image during the virtual lines of the image before |
+| Image period (H + Rb) x (W + Rr) + 8, H x W + 8 in the mode valid (WIN-PF-02) | (H + Rb) x (W + Rr); H x W; the first interval after an idle module is shorter | One event per cycle; W + Rr events per line, Rb virtual lines (architecture, section 9); the input stage takes the next image start before the virtual lines of the image before |
 | Latency at most 6 (WIN-PF-03) | 3, up to 5 | 2 cycles in `isp_frame_sync`, one into the window register; a pixel that the input stage of `isp_frame_sync` took while the module held the input waits behind at most two pixels |
 
 The bench checks the design values: Rr hold cycles, the exact image period, a latency between 3 and 5. A measured
-value outside the derivation means that the derivation is wrong; it is corrected in the architecture before the test
-passes.
+value outside the derivation is a finding: the cause is found (the RTL or the derivation), recorded in the findings of
+the verification report, and the wrong one is corrected. A derivation is never adjusted to fit a measurement.
 
 ## 6. Negative tests and mutations
 

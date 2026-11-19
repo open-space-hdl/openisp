@@ -21,6 +21,8 @@ Output items: ('B', pixel, last, user, x, y) and ('R', mode). The annotation of 
 "timing" (per output beat the index of the input beat that completes it, or -1).
 """
 
+from collections import deque
+
 SEQ_CONT, SEQ_FIRST, SEQ_LAST, SEQ_ONLY = 0, 1, 2, 3
 
 
@@ -453,7 +455,7 @@ class Window:
         self.reset()
 
     def reset(self):
-        self.delays = [[(0, 0)] * self.w for _ in range(self.wy - 1)]
+        self.delays = [deque([(0, 0)] * self.w) for _ in range(self.wy - 1)]
         self.pending = 0
         self.cols = {}
 
@@ -480,7 +482,7 @@ class Window:
         value = pixel
         for t in range(self.wy - 1):
             queue = self.delays[t]
-            stored, flips = queue.pop(0)
+            stored, flips = queue.popleft()
             mask, s, d = ecc_decode(flips, self.bits)
             read = stored ^ mask
             sec, ded = sec or s, ded or d
