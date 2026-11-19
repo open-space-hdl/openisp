@@ -9,7 +9,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from isp_model import CRP_INJECT, CRP_ROI_POS, CRP_STATUS, crop, frame_sync  # noqa: E402
+from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, PNT_INJECT,  # noqa: E402
+                       PNT_OFFSET_HI, PNT_OFFSET_LO, PNT_SHIFT, crop, frame_sync, point, point_op)
 from isp_tbgen import packets  # noqa: E402
 
 
@@ -127,4 +128,66 @@ def test_crop_timing():
     # 4 x 3, region (1, 1) of 2 x 2: the output pixels come from the input beats 5, 6, 9 and 10
     out, _, _, ex = crop(packets(list(range(1, 13)), [4, 4, 4]), 4, 3, 1, 1, 2, 2, False)
     assert ex["timing"] == [5, 6, 9, 10]
+
+
+def test_point_op():
+    # Dark level 100, gain 1229 / 1024
+    assert point_op(200, -100, 1229, 10, 0, 4095) == 120          # 122900 / 1024 = 120.02
+    assert point_op(50, -100, 1229, 10, 0, 4095) == 0             # floor(-60.01) = -61, clamped to 0
+    assert point_op(50, -100, 1229, 10, -1000, 4095) == -61       # the arithmetic shift rounds toward minus infinity
+    assert point_op(4095, 0, 7, 0, 0, 4095) == 4095               # upper clamp
+    assert point_op(10, 0, 1, 0, 200, 100) == 100                 # Low above High: first Low, then High
+
+
+def run_point(items, **kw):
+    args = dict(width=2, height=1, in_bits=12, out_bits=12, gain_bits=16, max_shift=28, offset_g=0, gain_g=1,
+                shift_g=0, low_g=0, high_g=-1, runtime=True)
+    args.update(kw)
+    return point(items, **args)
+
+
+def test_point_hold_and_parity():
+    img = packets([10, 20], [2])
+    items = [("A", 100, [("W", PNT_GAIN, 2, 0xF)])] + img                       # gain 2
+    items += [("A", 101, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 3, 0xF)])] + img   # held: still 2
+    items += [("A", 102, [("W", PNT_CTRL, 0, 0xF)])] + img                    # gain 3
+    items += [("A", 103, [("W", PNT_INJECT, 4, 0xF)])] + img + img            # parity of GAIN: generics twice
+    items += [("A", 104, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_INJECT, 4, 0xF)])] + img   # held: no check
+    items += [("A", 105, [("W", PNT_INJECT, 4, 0xF), ("W", PNT_CTRL, 0, 0xF)])] + img   # bad again, taken: error
+    items += [("A", 106, [("W", PNT_GAIN, 5, 0xF)])] + img                    # written: gain 5
+    out, _, _, ex = run_point(items)
+    cerr = ex["config"]
+    assert [o[1] for o in out] == [20, 40, 20, 40, 30, 60, 10, 20, 10, 20, 10, 20, 10, 20, 50, 100]
+    assert cerr == 3
+
+
+def test_point_ctrl_parity():
+    img = packets([10, 20], [2])
+    items = [("A", 100, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 3, 0xF)])] + img      # held: gain 1
+    items += [("A", 101, [("W", PNT_INJECT, 1 << 6, 0xF)])] + img + img                # CTRL bad: gain 3, 2 errors
+    items += [("A", 102, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 5, 0xF)])] + img    # restored, held: gain 3
+    items += [("A", 103, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_INJECT, (1 << 6) | (1 << 2), 0xF)])] + img
+    # CTRL and GAIN bad at the same image start: the generics, one Err_Config
+    out, _, _, ex = run_point(items)
+    assert [o[1] for o in out] == [10, 20, 30, 60, 30, 60, 30, 60, 10, 20]
+    assert ex["config"] == 3
+
+
+def test_point_readback():
+    items = [("A", 100, [("W", PNT_OFFSET_LO, 0xFFFFFFF0, 0xF), ("C", PNT_OFFSET_LO, None, 0xF),
+                         ("C", PNT_OFFSET_HI, None, 0xF),
+                         ("W", PNT_OFFSET_LO, 0x00001FFF, 0xF), ("C", PNT_OFFSET_LO, None, 0xF),
+                         ("W", PNT_SHIFT, 0x7F, 0xF), ("C", PNT_SHIFT, None, 0xF),
+                         ("W", PNT_GAIN, 0xFFFFFFFF, 0x1), ("C", PNT_GAIN, None, 0xF)])]
+    regs = run_point(items)[3]["regs"]
+    reads = [e[2] for e in regs[0][1] if e[0] == "C"]
+    # 13-bit offset: -16 sign-extended; 0x1FFF is -1; SHIFT keeps 7 bits; GAIN: only byte 0 written
+    assert reads == [0xFFFFFFF0, 0xFFFFFFFF, 0xFFFFFFFF, 0x7F, 0xFF]
+
+
+def test_point_shift_limited():
+    img = packets([1024, 0], [2])
+    items = [("A", 100, [("W", PNT_SHIFT, 127, 0xF)])] + img
+    out = run_point(items, max_shift=8)[0]
+    assert [o[1] for o in out] == [4, 0]                                       # 1024 >> 8
 

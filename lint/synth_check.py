@@ -55,6 +55,27 @@ CONFIGS += [
     ("crp_w1_h65536_p12_column_rt", "isp_crop", crp(1, 65536, 12, 0, 0, 1, 65536, True)),
 ]
 
+
+def pnt(w, h, inb, outb, gainb, maxs, ms, runtime, offset=0, gain=1, shift=0, low=0, high=-1):
+    """Generics of isp_point."""
+    return {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "InBits_g": str(inb), "OutBits_g": str(outb),
+            "GainBits_g": str(gainb), "MaxShift_g": str(maxs), "MultStages_g": str(ms),
+            "Runtime_g": str(runtime).lower(), "Offset_g": str(offset), "Gain_g": str(gain), "Shift_g": str(shift),
+            "Low_g": str(low), "High_g": str(high)}
+
+
+# isp_point (TC-PNT-11): the bounds of every width, every MultStages_g, both values of Runtime_g and the bounds of the
+# parameters of the generics
+CONFIGS += [
+    ("pnt_default_rt", "isp_point", pnt(4096, 4096, 16, 12, 16, 32, 2, True)),
+    ("pnt_min", "isp_point", pnt(1, 1, 1, 1, 1, 0, 1, False)),
+    ("pnt_min_rt", "isp_point", pnt(1, 1, 1, 1, 1, 3, 1, True)),
+    ("pnt_max_rt", "isp_point", pnt(65536, 65536, 64, 32, 18, 83, 4, True)),
+    ("pnt_max", "isp_point", pnt(65536, 65536, 64, 32, 18, 83, 3, False, -2 ** 31, 2 ** 18 - 1, 83, 2 ** 31 - 1)),
+    ("pnt_params", "isp_point", pnt(64, 64, 32, 32, 18, 50, 2, False, -2 ** 31, 2 ** 18 - 1, 50, 2 ** 31 - 1, -1)),
+    ("pnt_params_rt", "isp_point", pnt(64, 64, 32, 32, 18, 50, 2, True, 2 ** 31 - 1, 0, 0, 0, 0)),
+]
+
 # Configurations outside the declared ranges and the message their elaboration stops with
 FSY_OK = {"ImageWidth_g": "8", "ImageHeight_g": "4", "PixelBits_g": "12"}
 NEGATIVE = [
@@ -79,6 +100,23 @@ NEGATIVE += [
     ("crp_roi_y_6", "isp_crop", dict(CRP_OK, RoiY_g="6", RoiHeight_g="1"), "isp_crop: RoiY_g must be 0 to"),
     ("crp_roi_width_7", "isp_crop", dict(CRP_OK, RoiWidth_g="7"), "isp_crop: RoiWidth_g must be 1 to"),
     ("crp_roi_height_6", "isp_crop", dict(CRP_OK, RoiHeight_g="6"), "isp_crop: RoiHeight_g must be 1 to"),
+]
+
+PNT_OK = pnt(8, 6, 12, 12, 16, 28, 2, True)
+NEGATIVE += [
+    ("pnt_in_bits_65", "isp_point", dict(PNT_OK, InBits_g="65"), "Bits_g must be 1 to 64"),
+    ("pnt_out_bits_33", "isp_point", dict(PNT_OK, OutBits_g="33"), "isp_point: OutBits_g must be 1 to 32"),
+    ("pnt_gain_bits_19", "isp_point", dict(PNT_OK, GainBits_g="19"), "isp_point: GainBits_g must be 1 to 18"),
+    ("pnt_max_shift_30", "isp_point", dict(PNT_OK, MaxShift_g="30"), "isp_point: MaxShift_g must be 0 to"),
+    ("pnt_mult_stages_5", "isp_point", dict(PNT_OK, MultStages_g="5"), "isp_point: MultStages_g must be 1 to 4"),
+    ("pnt_mult_stages_0", "isp_point", dict(PNT_OK, MultStages_g="0"), 'generic "MultStages_g" is out of bounds'),
+    ("pnt_gain_65536", "isp_point", dict(PNT_OK, Gain_g="65536"), "isp_point: Gain_g must be 0 to"),
+    ("pnt_low_4096", "isp_point", dict(PNT_OK, Low_g="4096"), "isp_point: Low_g must be 0 to"),
+    ("pnt_high_4096", "isp_point", dict(PNT_OK, High_g="4096"), "isp_point: High_g must be -1 or"),
+    ("pnt_high_minus_2", "isp_point", dict(PNT_OK, High_g="-2"), "isp_point: High_g must be -1 or"),
+    ("pnt_shift_29", "isp_point", dict(PNT_OK, Shift_g="29"), "isp_point: Shift_g must be 0 to MaxShift_g"),
+    ("pnt_offset_4096", "isp_point", dict(PNT_OK, Offset_g="4096"), "isp_point: Offset_g must lie in the range"),
+    ("pnt_offset_minus_4097", "isp_point", dict(PNT_OK, Offset_g="-4097"), "isp_point: Offset_g must lie in the range"),
 ]
 
 
