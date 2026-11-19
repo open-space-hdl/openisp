@@ -78,7 +78,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `test_rate` (TC-BIN-05) | Configurations `rate_*`: hold cycles of the input between the first pixels of two lines (at most `BinX_g` - 1 with replicate, none with valid) and the interval between two image starts against the bounds of BIN-PF-02; the latency after the last pixel of a bin is recorded (architecture, section 5) | BIN-PF-01, BIN-PF-02 |
 | TC-BIN-06 (review) | The RTL consists of the two filters with the generics of the specification (section 4) and leaves out a filter of factor 1 | BIN-FN-04 |
 | TC-BIN-07 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2.3 and every border mode; elaboration stops with the message naming the generic for: `BinX_g` 17, `BinY_g` 17, `PixelBits_g` 29, the border mode mirror, `ImageWidth_g` below `BinX_g`, `Resource_g` BRAM with Wo below 3 + `EccPipeline_g` | BIN-CF-01, BIN-CF-02 |
-| TC-BIN-08 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the Versal device of the reference systems, on the build machine: 2 x 2 valid, 12-bit pixels, 4096 pixels per line (the default); 4 x 4 replicate | BIN-CF-03 |
+| TC-BIN-08 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the device of the Timing level (architecture, section 10): 2 x 2 valid, 12-bit pixels, 4096 pixels per line (the default); 4 x 4 replicate | BIN-CF-03 |
 
 ## 4. Requirement coverage
 
@@ -101,6 +101,10 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | --- | --- | --- |
 | Hold cycles between the first pixels of two lines: at most `BinX_g` - 1, none in the mode valid (BIN-PF-01) | `BinX_g` - 1; 0 | The virtual columns of the horizontal filter (Rr = `BinX_g` - 1 with the anchor 0); the vertical filter has no virtual columns (`WinX_g` = 1) and takes one pixel in `BinX_g` cycles |
 | Image period (BIN-PF-02) | H x W, H x (W + `BinX_g` - 1) + (`BinY_g` - 1) x Wo, plus the registers of the two filters | Specification, section 2.3 and architecture, section 5 |
+
+The bench checks the design values. A measured value outside the derivation is a finding: the cause is found (the
+RTL or the derivation), recorded in the findings of the verification report, and the wrong one is corrected. A
+derivation is never adjusted to fit a measurement.
 
 ## 6. Negative tests and mutations
 

@@ -61,7 +61,7 @@ names in section 6); its model is the composition of two models `filter2d`.
 | `test_reset` (TC-FLT-05) | Resets during an image, during the virtual lines of the window and while the kernel holds windows; the next image complete and correct | FLT-IF-05, FLT-FT-01, FLT-ER-01 |
 | `test_rate` (TC-FLT-06) | Configurations `rate_*`: hold cycles of the input and image period as `isp_window` (design values of its plan), latency of every pixel from the acceptance of p(x + Rr, y + Rb): bound log2ceil(T) + 9, design value 6 + log2ceil(T) to 8 + log2ceil(T) (window 3 to 5, kernel 3 + log2ceil(T)) | FLT-PF-01, FLT-PF-02 |
 | TC-FLT-07 (`lint/synth_check.py`) | GHDL synthesis without latches of the configurations `mtf3`, `mtf5_mirror`, `valid`, `strided`, `bin_h` and of `mtf3` with constant coefficients; a generic out of range (`WinX_g` 17, `CoefBits_g` 19, an unknown border mode, a `Coef_g` of T - 1 values) stops the elaboration with the message of the part that checks it | FLT-CF-01, FLT-CF-02 |
-| TC-FLT-08 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the Versal device of the reference systems, on the build machine: 5 x 5 mirror, 12-bit pixels, 16-bit run-time coefficients, 4096 pixels per line (the MTF compensation) | FLT-CF-03 |
+| TC-FLT-08 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the device of the Timing level (architecture, section 10): 5 x 5 mirror, 12-bit pixels, 16-bit run-time coefficients, 4096 pixels per line (the MTF compensation) | FLT-CF-03 |
 
 ## 4. Requirement coverage
 
@@ -86,6 +86,11 @@ names in section 6); its model is the composition of two models `filter2d`.
 | Hold cycles and image period as `isp_window` (FLT-PF-01) | The design values of the plan of `isp_window` | The kernel takes one window per cycle and adds no hold (plan of `isp_conv`) |
 | Latency log2ceil(T) + 9 (FLT-PF-02) | 6 + log2ceil(T), up to 8 + log2ceil(T) | Window 3, up to 5 after a hold of the input; kernel 3 + log2ceil(T) |
 
+The bench checks the design values: the hold cycles and the image period of the plan of `isp_window`, a latency
+between 6 + log2ceil(T) and 8 + log2ceil(T). A measured value outside the derivation is a finding: the cause is found
+(the RTL or the derivation), recorded in the findings of the verification report, and the wrong one is corrected. A
+derivation is never adjusted to fit a measurement.
+
 ## 6. Negative tests and mutations
 
 | Mutation | Expected to fail |
@@ -94,6 +99,8 @@ names in section 6); its model is the composition of two models `filter2d`.
 | The window elements reversed in order at the connection | TC-FLT-01 (asymmetric kernels of `strided`, `max`) |
 | `ErrInj_Valid` not connected | TC-FLT-04 |
 | `Err_Config` of the kernel not connected | TC-FLT-04 |
+| `Stat_EccSec` and `Stat_EccDed` of the window exchanged | TC-FLT-04 |
+| `Stat_ImageOpen` of the window not connected | TC-FLT-02 (the probes of the source) |
 | The register slave of the kernel not connected (reads 0) | TC-FLT-03 |
 
 ## 7. Expected coverage exclusions

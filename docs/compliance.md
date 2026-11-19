@@ -66,4 +66,4 @@ requirement included).
 | `isp_replace` | 30 | 30 | - |
 | `isp_window` | 27 | 27 | - |
 
-Requirements: 201; without a test case: 0; test cases of the plans not run by a testbench: 1.
+Requirements: 201; without a test case: 0; test cases of the plans not run by a testbench: 0.
