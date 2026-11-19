@@ -13,8 +13,41 @@ implements it, and with the test cases that verify these module requirements.
 
 | Core requirement | Title | Owner | Module requirements | Test cases | Status |
 | --- | --- | --- | --- | --- | --- |
+| ISP-STR-01 | AXI4-Stream handshake | `isp_frame_sync` | BIN-IF-01, BIN-IF-02, CNV-IF-01, CNV-IF-02, CRP-IF-01, CRP-IF-02, FLT-IF-01, FLT-IF-02, FSY-IF-01, FSY-IF-02, PNT-IF-01, PNT-IF-02, RPL-IF-01, RPL-IF-02, WIN-IF-01, WIN-IF-02 | - | In development |
+| ISP-STR-02 | Raster order, packets, sequence flags | `isp_frame_sync` | BIN-IF-01, BIN-IF-02, CNV-IF-02, CRP-IF-01, CRP-IF-02, FLT-IF-01, FLT-IF-02, FSY-IF-01, FSY-IF-02, PNT-IF-01, PNT-IF-02, RPL-IF-01, RPL-IF-02, WIN-IF-01 | - | In development |
+| ISP-STR-03 | Dimensions and pixel width by generics | `isp_crop` | BIN-FN-03, CRP-FN-01, FLT-FN-02, PNT-FN-01, RPL-FN-03, WIN-FN-02 | - | In development |
+| ISP-STR-04 | Any division into packets | `isp_frame_sync` | BIN-FN-04, CRP-FN-02, FLT-FN-03, FSY-FN-02, FSY-PB-01, PNT-FN-02, RPL-FN-03, WIN-FN-03 | - | In development |
+| ISP-STR-05 | One packet per line at the output | `isp_frame_sync` | BIN-FN-03, CNV-FN-02, CRP-FN-03, FLT-FN-02, FSY-FN-03, PNT-FN-02, RPL-FN-03, WIN-IF-03 | - | In development |
+| ISP-STR-06 | Output is a legal input | `isp_frame_sync` | BIN-FN-03, CNV-FN-02, CRP-FN-03, FLT-FN-02, FSY-FN-03, PNT-FN-02, RPL-FN-03, WIN-IF-03 | - | In development |
+| ISP-STR-07 | Back-pressure and gaps, images back to back | `isp_frame_sync` | BIN-FN-04, CNV-FN-05, CRP-FN-04, CRP-FN-05, CRP-PF-03, FLT-FN-03, FSY-FN-04, FSY-FN-05, FSY-PB-01, FSY-PF-04, PNT-FN-06, RPL-FN-06, WIN-FN-04, WIN-FN-05, WIN-FN-06 | - | In development |
+| ISP-STR-08 | Pixel count, malformed streams | `isp_frame_sync` | BIN-ER-01, BIN-FN-04, BIN-IF-03, CRP-ER-01, CRP-ER-02, CRP-FN-02, CRP-IF-03, FLT-ER-01, FLT-FN-03, FLT-IF-04, FSY-ER-01, FSY-ER-02, FSY-ER-03, FSY-ER-04, FSY-ER-05, FSY-ER-06, FSY-FN-01, FSY-FN-02, FSY-FN-06, FSY-IF-03, FSY-IF-04, FSY-PF-03, PNT-ER-01, PNT-ER-02, PNT-FN-02, PNT-IF-04, RPL-ER-01, RPL-FN-03, RPL-IF-04, WIN-ER-01, WIN-ER-02, WIN-FN-03, WIN-IF-04 | - | In development |
+| ISP-STR-09 | One pixel per clock cycle | `isp_frame_sync` | BIN-PF-01, BIN-PF-02, CNV-PF-01, CNV-PF-02, CRP-PF-01, CRP-PF-02, FLT-PF-01, FLT-PF-02, FSY-PF-01, FSY-PF-02, PNT-PF-01, PNT-PF-02, RPL-PF-01, RPL-PF-02, RPL-PF-03, WIN-PF-01, WIN-PF-02, WIN-PF-03 | - | In development |
+| ISP-STR-10 | Status of an open image | `isp_frame_sync` | BIN-IF-03, CRP-IF-03, FLT-IF-04, FSY-IF-05, PNT-IF-04, RPL-IF-04, WIN-IF-04 | - | In development |
+| ISP-CFG-01 | Structure by generics with checked ranges | `isp_frame_sync` | BIN-CF-01, CNV-CF-01, CRP-CF-01, FLT-CF-01, FSY-CF-01, PNT-CF-01, RPL-CF-01, WIN-CF-01, WIN-CF-02 | - | In development |
+| ISP-CFG-02 | Run-time parameters as registers | `isp_crop` | CNV-FN-04, CRP-ER-03, CRP-FN-06, CRP-IF-06, PNT-FN-04, RPL-FN-04 | - | In development |
+| ISP-CFG-03 | AXI4-Lite slave per module with registers | `isp_crop` | CNV-IF-03, CNV-RG-01, CNV-RG-02, CNV-RG-03, CRP-IF-05, CRP-RG-01, CRP-RG-02, CRP-RG-03, FLT-IF-03, PNT-IF-03, PNT-RG-01, PNT-RG-02, PNT-RG-03, RPL-ER-04, RPL-IF-03, RPL-RG-01, RPL-RG-02 | - | In development |
+| ISP-CRP-01 | Region of interest | `isp_crop` | CRP-FN-01, CRP-FN-06 | - | In development |
+| ISP-PNT-01 | Offset, gain, shift, clamp | `isp_point` | PNT-FN-01 | - | In development |
+| ISP-PNT-02 | Parameters by generics or at run time | `isp_point` | PNT-FN-03, PNT-FN-04, PNT-FN-05 | - | In development |
+| ISP-FLT-01 | Window with border modes | `isp_window` | FLT-FN-01, WIN-FN-01, WIN-FN-02, WIN-IF-02 | - | In development |
+| ISP-FLT-02 | Linear filter at full precision | `isp_conv` | CNV-FN-01, CNV-IF-01, FLT-FN-01 | - | In development |
+| ISP-FLT-03 | Window size by generics, coefficients at run time | `isp_conv` | CNV-FN-03, CNV-FN-04, FLT-FN-03 | - | In development |
+| ISP-FLT-04 | Stride | `isp_window` | FLT-FN-02, WIN-FN-02 | - | In development |
+| ISP-BIN-01 | Binning as a configuration of the filter | `isp_bin` | BIN-FN-01, BIN-FN-04 | - | In development |
+| ISP-BIN-02 | Incomplete bins by the border mode | `isp_bin` | BIN-FN-02 | - | In development |
+| ISP-RPL-01 | Replacement by interpolation in the line | `isp_replace` | RPL-FN-01, RPL-FN-02 | - | In development |
+| ISP-RPL-02 | Defect map of one bit per pixel | `isp_replace` | RPL-FN-04, RPL-FN-05, RPL-RG-03, RPL-RG-04 | - | In development |
+| ISP-RPL-03 | Largest distance by a generic | `isp_replace` | RPL-ER-02, RPL-FN-01 | - | In development |
+| ISP-FT-01 | Memories with SECDED and status | `isp_window` | BIN-FT-01, BIN-IF-03, FLT-FT-01, FLT-IF-04, RPL-ER-03, RPL-FT-01, RPL-IF-04, WIN-ER-03, WIN-FT-01, WIN-FT-02, WIN-IF-04 | - | In development |
+| ISP-FT-02 | Error injection | `isp_window` | BIN-IF-03, FLT-IF-04, RPL-IF-05, WIN-IF-05 | - | In development |
+| ISP-FT-03 | Scrubbing of long-lived tables | `isp_replace` | RPL-FT-01, RPL-IF-05 | - | In development |
+| ISP-FT-04 | Recovery from any state | `isp_frame_sync` | BIN-FT-01, CNV-FT-01, CNV-FT-03, CRP-FT-01, CRP-FT-02, FLT-FT-01, FSY-FN-06, FSY-FT-01, FSY-FT-02, PNT-FT-01, PNT-FT-03, RPL-FT-02, RPL-FT-03, WIN-FT-03, WIN-FT-04 | - | In development |
+| ISP-FT-05 | Parity of long-lived registers | `isp_crop` | CNV-ER-01, CNV-FT-02, CNV-IF-04, CNV-RG-03, CNV-RG-04, CRP-ER-04, CRP-FT-03, CRP-RG-03, CRP-RG-04, FLT-FT-01, FLT-IF-04, PNT-ER-03, PNT-FT-02, PNT-IF-04, PNT-RG-03, PNT-RG-04 | - | In development |
+| ISP-GEN-01 | VHDL-2008, GHDL synthesis, Open Logic | `isp_frame_sync` | BIN-CF-02, BIN-IF-04, CNV-CF-02, CNV-IF-05, CRP-CF-02, CRP-IF-04, FLT-CF-02, FLT-IF-05, FSY-CF-02, FSY-IF-06, PNT-CF-02, PNT-IF-05, RPL-CF-02, RPL-IF-06, WIN-CF-03, WIN-FT-01, WIN-IF-06 | - | In development |
+| ISP-GEN-02 | Specific functions as configurations | `isp_filter2d` | BIN-FN-04, FLT-FN-03, RPL-FN-07 | - | In development |
+| ISP-GEN-03 | 150 MHz | `isp_frame_sync` | BIN-CF-03, CNV-CF-03, CRP-CF-03, FLT-CF-03, FSY-CF-03, PNT-CF-03, RPL-CF-03, WIN-CF-04 | - | In development |
 
-Core requirements: 0; none.
+Core requirements: 33; in development: 33.
 
 ## 2. Module requirements
 

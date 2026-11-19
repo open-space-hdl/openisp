@@ -101,7 +101,7 @@ The errors E1 to E4 of `isp_frame_sync` apply to the input stream; `Err_Framing`
 | `Gain_g` | 1 | 0 to 2^`GainBits_g` - 1 | Gain; with `Runtime_g` the reset value of `GAIN` |
 | `Shift_g` | 0 | 0 to `MaxShift_g` | Shift; with `Runtime_g` the reset value of `SHIFT` |
 | `Low_g` | 0 | 0 to 2^`OutBits_g` - 1, within 0 to 2^31 - 1 | Lower threshold; with `Runtime_g` the reset value of `LOW` |
-| `High_g` | -1 | -1 (full scale, 2^`OutBits_g` - 1) or as `Low_g` | Upper threshold; with `Runtime_g` the reset value of `HIGH` |
+| `High_g` | -1 | -1, or 0 to 2^`OutBits_g` - 1 within 0 to 2^31 - 1 | Upper threshold; with `Runtime_g` the reset value of `HIGH`. The value -1 is a sentinel for full scale, 2^`OutBits_g` - 1, which an integer generic cannot hold for `OutBits_g` = 32 |
 | `Runtime_g` | false | false, true | Parameter set from the generics (false: the parameter registers are read only) or from the registers (true) |
 | `MultStages_g` | 2 | 1 to 4 | Register stages of the multiplier |
 
@@ -158,7 +158,7 @@ fields have no effect; every access is answered with OKAY. With `Runtime_g` fals
 | 0x20 | `GAIN` | 17:0 | `GAIN` | RW | `Gain_g` | Gain; the bits above `GainBits_g` - 1 are not used |
 | 0x24 | `SHIFT` | 6:0 | `SHIFT` | RW | `Shift_g` | Shift |
 | 0x28 | `LOW` | 31:0 | `LOW` | RW | `Low_g` | Lower threshold; the bits above `OutBits_g` - 1 are not used |
-| 0x2C | `HIGH` | 31:0 | `HIGH` | RW | `High_g` | Upper threshold; the bits above `OutBits_g` - 1 are not used |
+| 0x2C | `HIGH` | 31:0 | `HIGH` | RW | `High_g` (2^`OutBits_g` - 1 for the sentinel -1) | Upper threshold; the bits above `OutBits_g` - 1 are not used |
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |

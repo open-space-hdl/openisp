@@ -115,5 +115,7 @@ redundancy of the flip-flops is a choice of the integrator in the synthesis tool
 | 5 x 5, 12-bit pixels, 16-bit coefficients, run-time | 25 | about 2900 | |
 | 5 x 5, 12-bit pixels, constant coefficients | none or few | about 1300 | Shifts and adders in LUTs |
 | 1 x 4, 12-bit pixels, ones (binning) | none | about 150 | Adder tree only |
+| 16 x 16 (largest), 12-bit pixels, 16-bit coefficients, run-time | 256 | about 27000 | 2 x 256 x 17 coefficient and parity bits (8700), window 3100, products 7200, adder tree of eight levels 7700; a read multiplexer of 256 inputs for the coefficients |
+| 16 x 16, 12-bit pixels, constant coefficients | none or few | about 18000 | Shifts and adders in LUTs; the cost depends on the coefficients |
 
 Synthesis results replace these estimates in the verification report.
