@@ -16,7 +16,7 @@ dimensions; the pixel width changes from `InBits_g` to `OutBits_g`. The module h
 | Term | Definition |
 | --- | --- |
 | p, q | Input pixel (unsigned, `InBits_g` bits) and output pixel (unsigned, `OutBits_g` bits). |
-| Offset | Signed number of `InBits_g` + 1 bits. |
+| Offset | Signed number of min(`InBits_g` + 1, 64) bits. |
 | Gain | Unsigned number of `GainBits_g` bits. |
 | Shift | Number of bit positions, 0 to `MaxShift_g`. |
 | Low, High | Thresholds: unsigned numbers of `OutBits_g` bits. |
@@ -129,6 +129,9 @@ log2(n) for a power of two, otherwise `Gain_g` = round(2^k / n) with `Shift_g` =
 - The limit of the output width needs no step of its own: the upper threshold is at most 2^`OutBits_g` - 1.
 - `CTRL.HOLD` makes a change of several registers take effect together: the software sets it, writes the registers
   and clears it. Without it, an image start between two writes takes a mixed parameter set for one image.
+- With `InBits_g` = 64 the offset has 64 bits, not 65: a run-time offset lies between -2^63 and 2^63 - 1.
+- The parity of a register is computed over its stored bits; `INJECT` has one bit per parameter register, so that the
+  error path of every register is tested.
 - The shift does not round. A rounded shift by s is the same operation with an offset: the software adds 2^(s - 1) /
   Gain to the offset where that is a whole number.
 
@@ -152,17 +155,18 @@ fields have no effect; every access is answered with OKAY. With `Runtime_g` fals
 | 0x10 | `STATUS` | 0 | `IMAGE_OPEN` | RO | 0 | An input image is open (`Stat_ImageOpen`) |
 | | | 8 | `ERR_FRAMING` | W1C | 0 | Set by every pulse of `Err_Framing` |
 | | | 9 | `ERR_CONFIG` | W1C | 0 | Set by every pulse of `Err_Config` |
-| 0x14 | `INJECT` | 0 | `GAIN_PARITY` | W1 | 0 | Write one: inverts the parity bit of `GAIN` (test of the error handling); reads as zero |
-| 0x18 | `OFFSET_LO` | 31:0 | `OFFSET` | RW | `Offset_g` | Bits 31:0 of the offset (two's complement) |
-| 0x1C | `OFFSET_HI` | 31:0 | `OFFSET` | RW | Sign of `Offset_g` | Bits 63:32 of the offset; the bits above `InBits_g` are not used |
-| 0x20 | `GAIN` | 17:0 | `GAIN` | RW | `Gain_g` | Gain; the bits above `GainBits_g` - 1 are not used |
+| 0x14 | `INJECT` | 5:0 | `PARITY` | W1 | 0 | Write one to bit n: inverts the parity bit of `OFFSET_LO` (bit 0), `OFFSET_HI` (1), `GAIN` (2), `SHIFT` (3), `LOW` (4), `HIGH` (5) (test of the error handling); reads as zero |
+| 0x18 | `OFFSET_LO` | 31:0 | `OFFSET` | RW | `Offset_g` | Bits 31:0 of the offset (two's complement); the bits above the offset width are not stored and read as the sign |
+| 0x1C | `OFFSET_HI` | 31:0 | `OFFSET` | RW | Sign of `Offset_g` | Bits 63:32 of the offset; the bits above the offset width are not stored and read as the sign |
+| 0x20 | `GAIN` | 17:0 | `GAIN` | RW | `Gain_g` | Gain; the bits above `GainBits_g` - 1 are not stored and read as 0 |
 | 0x24 | `SHIFT` | 6:0 | `SHIFT` | RW | `Shift_g` | Shift |
-| 0x28 | `LOW` | 31:0 | `LOW` | RW | `Low_g` | Lower threshold; the bits above `OutBits_g` - 1 are not used |
-| 0x2C | `HIGH` | 31:0 | `HIGH` | RW | `High_g` (2^`OutBits_g` - 1 for the sentinel -1) | Upper threshold; the bits above `OutBits_g` - 1 are not used |
+| 0x28 | `LOW` | 31:0 | `LOW` | RW | `Low_g` | Lower threshold; the bits above `OutBits_g` - 1 are not stored and read as 0 |
+| 0x2C | `HIGH` | 31:0 | `HIGH` | RW | `High_g` (2^`OutBits_g` - 1 for the sentinel -1) | Upper threshold; the bits above `OutBits_g` - 1 are not stored and read as 0 |
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | PNT-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
 | PNT-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
 | PNT-RG-03 | A write to a parameter register shall change only the bytes that the write strobes select, and set the parity bit for the resulting value. | ISP-CFG-03, ISP-FT-05 |
-| PNT-RG-04 | A write of one to `INJECT.GAIN_PARITY` shall invert the parity bit of `GAIN`, so that the next image start that takes the registers finds a mismatch. | ISP-FT-05 |
+| PNT-RG-04 | A write of one to a bit of `INJECT` shall invert the parity bit of its parameter register, so that the next image start that takes the registers finds a mismatch. | ISP-FT-05 |
+| PNT-RG-05 | A read of a parameter register shall return the bits in use: `OFFSET_LO` and `OFFSET_HI` the offset sign-extended to 64 bits, `GAIN`, `LOW` and `HIGH` their bits zero-extended, `SHIFT` the 7 bits written. | ISP-CFG-03 |

@@ -79,7 +79,7 @@ register block answers a read in the following cycle and every access with OKAY.
 | `CTRL.HOLD` | One flip-flop |
 | `OFFSET_LO`, `OFFSET_HI`, `GAIN`, `SHIFT`, `LOW`, `HIGH` | Flip-flops for the bits in use, with the reset values of the generics, written byte by byte with the write strobes; one parity flip-flop per register that the reset and every write set for the resulting value (`Runtime_g` true); constants otherwise |
 | `STATUS` | `Stat_ImageOpen`; sticky flags set by `Err_Framing` and `Err_Config`, cleared by a write of one, the pulse wins |
-| `INJECT.GAIN_PARITY` | Command: inverts the parity flip-flop of `GAIN` |
+| `INJECT.PARITY` | Command: bit n inverts the parity flip-flop of parameter register n |
 
 ## 7. Timing and throughput
 
