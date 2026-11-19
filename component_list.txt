@@ -1,0 +1,1 @@
+# OpenISP modules in dependency order (compiled into the library openisp by run.py)
