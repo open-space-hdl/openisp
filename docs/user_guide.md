@@ -163,7 +163,7 @@ themselves and rely on TMR for all other logic:
 
 | Part | Protection | Indication and test |
 | --- | --- | --- |
-| Line buffers of `isp_window` (also in `isp_filter2d`, `isp_bin`, `isp_replace`) and the defect map of `isp_replace` | SECDED ECC of the Open Logic ft entities: a single error is corrected, a double error is detected; the pixel or the word is used as read. The defect map is scrubbed | `Stat_EccSec`, `Stat_EccDed`, `STATUS.ECC_SEC` and `ECC_DED` of `isp_replace`; error injection through the `ErrInj` ports |
+| Line buffers of `isp_window` (also in `isp_filter2d`, `isp_bin`, `isp_replace`) and the defect map of `isp_replace` | SECDED ECC of the Open Logic ft entities: a single error is corrected, a double error is detected; the pixel or the word is used as read. Only the line buffers whose pixels reach a window report: the rows that the border rule replaces do not count, so the content of the line buffers after power-up is never reported. The defect map is scrubbed | `Stat_EccSec`, `Stat_EccDed`, `STATUS.ECC_SEC` and `ECC_DED` of `isp_replace`; error injection through the `ErrInj` ports |
 | Parameter registers of `isp_crop`, `isp_point` and `isp_conv` | A parity bit per register, checked at every image start; the generics apply after an upset | `Err_Config`, `STATUS.ERR_CONFIG`; error injection through the register `INJECT` |
 | Clock domain crossings and reset synchronisers | None needed: every module has one clock domain | none |
 | State machines and counters | Recovery state through the `when others` branch and the reset; the counters restart with every image start | `Err_Framing` for the image in progress |

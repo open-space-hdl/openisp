@@ -76,6 +76,31 @@ CONFIGS += [
     ("pnt_params_rt", "isp_point", pnt(64, 64, 32, 32, 18, 50, 2, True, 2 ** 31 - 1, 0, 0, 0, 0)),
 ]
 
+
+def win(w, h, bits, wx, wy, border, ax=None, ay=None, sx=1, sy=1, ecc=1, resource="AUTO"):
+    """Generics of isp_window (the anchors default to the middle)."""
+    g = {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "PixelBits_g": str(bits), "WinX_g": str(wx),
+         "WinY_g": str(wy), "StrideX_g": str(sx), "StrideY_g": str(sy), "BorderMode_g": border,
+         "EccPipeline_g": str(ecc), "Resource_g": resource}
+    if ax is not None:
+        g["AnchorX_g"] = str(ax)
+    if ay is not None:
+        g["AnchorY_g"] = str(ay)
+    return g
+
+
+# isp_window (TC-WIN-08): the bounds of every numeric generic, every border mode and every resource
+CONFIGS += [
+    ("win_default", "isp_window", win(4096, 4096, 12, 3, 3, "replicate")),
+    ("win_min", "isp_window", win(1, 1, 1, 1, 1, "valid", sx=1, sy=1)),
+    ("win_max", "isp_window", win(65536, 16, 32, 16, 16, "zero", 0, 15, 16, 16, 0, "BRAM")),
+    ("win_tall", "isp_window", win(16, 65536, 32, 16, 16, "valid", 15, 0, 1, 1, 1, "SRL")),
+    ("win_mirror", "isp_window", win(4096, 64, 16, 5, 5, "mirror", ecc=0, resource="BRAM")),
+    ("win_zero", "isp_window", win(64, 64, 8, 4, 2, "zero", 1, 0, 3, 2)),
+    ("win_row", "isp_window", win(64, 8, 12, 9, 1, "replicate")),
+    ("win_bram_min", "isp_window", win(4, 8, 12, 3, 3, "replicate", ecc=1, resource="BRAM")),
+]
+
 # Configurations outside the declared ranges and the message their elaboration stops with
 FSY_OK = {"ImageWidth_g": "8", "ImageHeight_g": "4", "PixelBits_g": "12"}
 NEGATIVE = [
@@ -100,6 +125,28 @@ NEGATIVE += [
     ("crp_roi_y_6", "isp_crop", dict(CRP_OK, RoiY_g="6", RoiHeight_g="1"), "isp_crop: RoiY_g must be 0 to"),
     ("crp_roi_width_7", "isp_crop", dict(CRP_OK, RoiWidth_g="7"), "isp_crop: RoiWidth_g must be 1 to"),
     ("crp_roi_height_6", "isp_crop", dict(CRP_OK, RoiHeight_g="6"), "isp_crop: RoiHeight_g must be 1 to"),
+]
+
+WIN_OK = win(8, 6, 12, 3, 3, "replicate")
+NEGATIVE += [
+    ("win_x_17", "isp_window", dict(WIN_OK, WinX_g="17", ImageWidth_g="20"), "isp_window: WinX_g must be 1 to 16"),
+    ("win_y_17", "isp_window", dict(WIN_OK, WinY_g="17", ImageHeight_g="20"), "isp_window: WinY_g must be 1 to 16"),
+    ("win_width_below", "isp_window", dict(WIN_OK, ImageWidth_g="2"), "isp_window: ImageWidth_g must be WinX_g to"),
+    ("win_height_below", "isp_window", dict(WIN_OK, ImageHeight_g="2"), "isp_window: ImageHeight_g must be WinY_g"),
+    ("win_width_65537", "isp_window", dict(WIN_OK, ImageWidth_g="65537"), "ImageWidth_g must be"),
+    ("win_bits_33", "isp_window", dict(WIN_OK, PixelBits_g="33"), "isp_window: PixelBits_g must be 1 to 32"),
+    ("win_anchor_x", "isp_window", dict(WIN_OK, AnchorX_g="3"), "isp_window: AnchorX_g must be 0 to"),
+    ("win_anchor_y", "isp_window", dict(WIN_OK, AnchorY_g="3"), "isp_window: AnchorY_g must be 0 to"),
+    ("win_stride_x_17", "isp_window", dict(WIN_OK, StrideX_g="17"), "isp_window: StrideX_g must be 1 to 16"),
+    ("win_stride_y_17", "isp_window", dict(WIN_OK, StrideY_g="17"), "isp_window: StrideY_g must be 1 to 16"),
+    ("win_border", "isp_window", dict(WIN_OK, BorderMode_g="wrap"), "isp_window: BorderMode_g must be"),
+    ("win_mirror_even", "isp_window", dict(WIN_OK, BorderMode_g="mirror", WinX_g="4"), "mirror needs an odd WinX_g"),
+    ("win_mirror_anchor_x", "isp_window", dict(WIN_OK, BorderMode_g="mirror", AnchorX_g="0"),
+     "mirror needs an odd WinX_g"),
+    ("win_mirror_anchor_y", "isp_window", dict(WIN_OK, BorderMode_g="mirror", AnchorY_g="2"),
+     "mirror needs an odd WinY_g"),
+    ("win_bram_narrow", "isp_window", dict(WIN_OK, Resource_g="BRAM", ImageWidth_g="3"),
+     "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g"),
 ]
 
 PNT_OK = pnt(8, 6, 12, 12, 16, 28, 2, True)

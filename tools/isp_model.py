@@ -21,6 +21,8 @@ Output items: ('B', pixel, last, user, x, y) and ('R', mode). The annotation of 
 "timing" (per output beat the index of the input beat that completes it, or -1).
 """
 
+from collections import deque
+
 SEQ_CONT, SEQ_FIRST, SEQ_LAST, SEQ_ONLY = 0, 1, 2, 3
 
 
@@ -380,4 +382,198 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
             regs.append((marker, resolved))
         annot.append((count, fs.open))
     return out, fs.errors, annot, {"config": config_errors, "regs": regs, "timing": timing}
+
+
+# ECC of Open Logic (olo_ft_pkg_ecc): bit 0 the overall parity, bits 1 to n the Hamming codeword with the parity bits
+# at the powers of two and the data bits at the other positions, in order.
+
+def ecc_parity_bits(bits):
+    """Hamming parity bits of a codeword for `bits` data bits (eccParityBits)."""
+    p = 1
+    while 2 ** p < bits + p + 1:
+        p += 1
+    return p
+
+
+def ecc_codeword_width(bits):
+    """Width of the codeword (eccCodewordWidth)."""
+    return bits + ecc_parity_bits(bits) + 1
+
+
+def ecc_data_positions(bits):
+    """Codeword bit of every data bit: data bit k is codeword bit ecc_data_positions(bits)[k]."""
+    length = bits + ecc_parity_bits(bits)
+    return [i for i in range(1, length + 1) if i & (i - 1) != 0]
+
+
+def ecc_decode(pattern, bits):
+    """Effect of the flip pattern `pattern` on a codeword as the decoder of Open Logic sees it: returns (data mask,
+    sec, ded). The code is linear, so the syndrome of the received word is the syndrome of the pattern."""
+    length = bits + ecc_parity_bits(bits)
+    syndrome = 0
+    for i in range(1, length + 1):
+        if pattern >> i & 1:
+            syndrome ^= i
+    odd = bin(pattern).count("1") % 2 == 1
+    corrected = pattern
+    if odd and 0 < syndrome <= length:
+        corrected ^= 1 << syndrome
+    mask = 0
+    for k, pos in enumerate(ecc_data_positions(bits)):
+        if corrected >> pos & 1:
+            mask |= 1 << k
+    return mask, odd, syndrome != 0 and not odd
+
+
+class Window:
+    """isp_window over the images of the frame sync (specification, sections 1.1 and 6).
+
+    The events follow the architecture (section 5): a PIX event per pixel, Rr HCOL events after every line and Rb
+    virtual lines of W VPIX events after every image, except in the border mode valid. In the event of line ye the
+    pixel of line ye - d comes from delay d (WIN-FT-01); the delays are modelled as queues of W codewords, so that an
+    injected pattern is read W pixel events after it was written and a double error travels on through the chain.
+    """
+
+    def __init__(self, width, height, bits, win_x, win_y, anchor_x, anchor_y, stride_x, stride_y, border):
+        assert border in ("valid", "zero", "replicate", "mirror")
+        self.w, self.h, self.bits = width, height, bits
+        self.wx, self.wy, self.ax, self.ay = win_x, win_y, anchor_x, anchor_y
+        self.sx, self.sy, self.border = stride_x, stride_y, border
+        self.rr, self.rb = win_x - 1 - anchor_x, win_y - 1 - anchor_y
+        if border == "valid":
+            self.x0, self.y0 = anchor_x, anchor_y
+            self.wo = (width - win_x) // stride_x + 1
+            self.ho = (height - win_y) // stride_y + 1
+        else:
+            self.x0, self.y0 = 0, 0
+            self.wo = -(-width // stride_x)
+            self.ho = -(-height // stride_y)
+        self.xl = self.x0 + (self.wo - 1) * stride_x
+        self.yl = self.y0 + (self.ho - 1) * stride_y
+        self.cw = ecc_codeword_width(bits)
+        self.sec = self.ded = 0
+        self.reset()
+
+    def reset(self):
+        self.delays = [deque([(0, 0)] * self.w) for _ in range(self.wy - 1)]
+        self.pending = 0
+        self.cols = {}
+
+    def inject(self, pattern):
+        self.pending = pattern
+
+    def _map(self, c, n):
+        """Coordinate c of the extended image mapped into 0 to n - 1, or None for the value 0."""
+        if 0 <= c < n:
+            return c
+        if self.border == "zero" or self.border == "valid":
+            return None
+        if self.border == "replicate":
+            return min(max(c, 0), n - 1)
+        r = -c if c < 0 else 2 * (n - 1) - c
+        assert 0 <= r < n, "mirror leaves the image"
+        return r
+
+    def _shift(self, pixel, xe, ye):
+        """Pixel event (PIX or VPIX) at (xe, ye): shifts the delays and stores the column of xe."""
+        pattern, self.pending = self.pending, 0
+        lines = [pixel]
+        sec = ded = False
+        value = pixel
+        # The delays that the row selection of line ye uses (the border rule replaces the others, WIN-FT-02)
+        used = set()
+        for j in range(self.wy):
+            line = self._map(ye - (self.wy - 1) + j, self.h)
+            if line is not None and 0 <= ye - line < self.wy:
+                used.add(ye - line)
+        for t in range(self.wy - 1):
+            queue = self.delays[t]
+            stored, flips = queue.popleft()
+            mask, s, d = ecc_decode(flips, self.bits)
+            read = stored ^ mask
+            if t + 1 in used:
+                sec, ded = sec or s, ded or d
+            queue.append((value, pattern >> (t * self.cw) & ((1 << self.cw) - 1)))
+            lines.append(read)
+            value = read
+        self.sec += sec
+        self.ded += ded
+        self.cols[xe] = lines
+
+    def _window(self, xe, ye, src, out):
+        """Window completed by the event at (xe, ye), if its pixel is a reference pixel."""
+        x, y = xe - self.rr, ye - self.rb
+        if not (self.x0 <= x <= self.xl and (x - self.x0) % self.sx == 0):
+            return
+        if not (self.y0 <= y <= self.yl and (y - self.y0) % self.sy == 0):
+            return
+        # Row j is line ye - (WinY - 1) + j, mapped by the border mode, from delay ye - line of the column
+        delay = []
+        for j in range(self.wy):
+            line = self._map(ye - (self.wy - 1) + j, self.h)
+            if line is not None:
+                assert 0 <= ye - line < self.wy, "a row outside the column"
+            delay.append(None if line is None else ye - line)
+        data = 0
+        for j in range(self.wy):
+            for i in range(self.wx):
+                col = self._map(x - self.ax + i, self.w)
+                value = 0 if col is None or delay[j] is None else self.cols[col][delay[j]]
+                data |= value << ((j * self.wx + i) * self.bits)
+        m = (y - self.y0) // self.sy
+        out.append(("B", data, 1 if x == self.xl else 0, line_flags(m, self.ho), x, y, src))
+
+    def pixel(self, pixel, xe, ye, src):
+        """Events of one pixel of the frame sync; `src` is the index of the input beat or -1. Returns the windows."""
+        out = []
+        self._shift(pixel, xe, ye)
+        self._window(xe, ye, src, out)
+        if xe == self.w - 1 and self.border != "valid":
+            for xh in range(self.w, self.w + self.rr):
+                self._window(xh, ye, -1, out)
+            if ye == self.h - 1:
+                for yv in range(self.h, self.h + self.rb):
+                    for xv in range(self.w):
+                        self._shift(0, xv, yv)
+                        self._window(xv, yv, -1, out)
+                    for xh in range(self.w, self.w + self.rr):
+                        self._window(xh, yv, -1, out)
+        return out
+
+
+def window(items, width, height, bits, win_x, win_y, anchor_x=None, anchor_y=None, stride_x=1, stride_y=1,
+           border="replicate"):
+    """isp_window. Returns (out, framing errors, annot, {"sec", "ded", "timing"}); the data of an output beat is the
+    window, element k = j x WinX + i in bits (k + 1) x bits - 1 downto k x bits."""
+    anchor_x = (win_x - 1) // 2 if anchor_x is None else anchor_x
+    anchor_y = (win_y - 1) // 2 if anchor_y is None else anchor_y
+    fs = FrameSync(width, height)
+    win = Window(width, height, bits, win_x, win_y, anchor_x, anchor_y, stride_x, stride_y, border)
+    out, annot, timing = [], [], []
+    count = 0
+    beat = 0
+    for it in items:
+        if it[0] == "B":
+            beats = fs.feed(it[1], it[2], it[3])
+            for k, b in enumerate(beats):
+                # The pixel of this input beat is the last of the beats it causes; the others are padding
+                src = beat if k == len(beats) - 1 else -1
+                for o in win.pixel(b[1], b[4], b[5], src):
+                    out.append(o[:6])
+                    timing.append(o[6])
+                    count += 1
+            beat += 1
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            del timing[len(timing) - drop:]
+            count -= drop
+            out.append(("R", mode))
+            fs.reset()
+            win.reset()
+        elif it[0] == "J":
+            win.inject(it[2])
+        annot.append((count, fs.open))
+    return out, fs.errors, annot, {"sec": win.sec, "ded": win.ded, "timing": timing}
 

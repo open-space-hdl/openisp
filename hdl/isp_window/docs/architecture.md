@@ -91,7 +91,9 @@ are the `WinY_g` pixels of the column.
 - A line has exactly W shifts (PIX or VPIX), whatever the timing of the input: the delay counts pixels, not clock
   cycles.
 - The error flags of the delays are sampled in the event: `Stat_EccSec` and `Stat_EccDed` are the OR over the
-  delays (WIN-FT-02).
+  delays that the row selection of the event uses (WIN-FT-02). The delays above the first lines of an image hold the
+  image before, or after power-up whatever the RAM holds; their data never reaches a window, and neither do their
+  flags.
 - `EccPipeline_g` 1 (default) registers the corrected output of every delay, so that the path from one delay to the
   encoder of the next and to the window register starts at a register.
 
@@ -143,9 +145,9 @@ Y0, follow the stride. The packet signals come from the position, without a coun
 
 | Property | Value | Requirement |
 | --- | --- | --- |
-| Pixel rate | One event per clock cycle; within a line every event is a PIX event | WIN-PF-01 |
+| Pixel rate | One event per clock cycle; within a line every event is a PIX event; the input waits for the Rr HCOL events of every line, which the input stage of WN-1 shifts by up to two pixels into the next line | WIN-PF-01 |
 | Image period | (H + Rb) x (W + Rr) events in the border modes zero, replicate, mirror, H x W in the border mode valid, plus the registers of WN-1 at the image boundary | WIN-PF-02 |
-| Latency | 2 clock cycles in WN-1, one for the event into the window register: 3 clock cycles | WIN-PF-03 |
+| Latency | 2 clock cycles in WN-1, one for the event into the window register: 3 clock cycles; up to 2 more for a pixel that WN-1 took while the module held its input: at most 5 clock cycles | WIN-PF-03 |
 
 Paths: from the output registers of the delays through the row select and the border multiplexer of a column into
 the window register (two to three LUT levels for windows up to 9 lines); `Out_Ready` to the enable of the window

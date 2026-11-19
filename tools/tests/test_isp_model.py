@@ -10,7 +10,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, PNT_INJECT,  # noqa: E402
-                       PNT_OFFSET_HI, PNT_OFFSET_LO, PNT_SHIFT, crop, frame_sync, point, point_op)
+                       PNT_OFFSET_HI, PNT_OFFSET_LO, PNT_SHIFT, crop, ecc_codeword_width, ecc_data_positions,
+                       ecc_decode, frame_sync, point, point_op, window)
 from isp_tbgen import packets  # noqa: E402
 
 
@@ -190,4 +191,116 @@ def test_point_shift_limited():
     items = [("A", 100, [("W", PNT_SHIFT, 127, 0xF)])] + img
     out = run_point(items, max_shift=8)[0]
     assert [o[1] for o in out] == [4, 0]                                       # 1024 >> 8
+
+
+def elements(data, count, bits):
+    """Elements of a window, element k first."""
+    return [data >> (k * bits) & ((1 << bits) - 1) for k in range(count)]
+
+
+def image(w, h):
+    """Pixel value 10 x (y + 1) + x + 1: p(x, y) can be read from the value."""
+    return [10 * (y + 1) + x + 1 for y in range(h) for x in range(w)]
+
+
+def test_ecc_code():
+    # 12 data bits: 5 Hamming parity bits, 18 bits; data bit 0 at position 3, bit 1 at 5, bit 11 at 17
+    assert ecc_codeword_width(12) == 18
+    pos = ecc_data_positions(12)
+    assert pos[:4] == [3, 5, 6, 7] and pos[-1] == 17 and len(pos) == 12
+    assert ecc_decode(1 << 3, 12) == (0, True, False)              # data bit: corrected
+    assert ecc_decode(1 << 0, 12) == (0, True, False)              # overall parity bit
+    assert ecc_decode(1 << 4, 12) == (0, True, False)              # Hamming parity bit
+    assert ecc_decode((1 << 3) | (1 << 5), 12) == (3, False, True)  # two data bits: data as read
+    assert ecc_decode((1 << 3) | (1 << 0), 12) == (1, False, True)  # data and overall parity bit
+    assert ecc_decode((1 << 1) | (1 << 2), 12) == (0, False, True)  # two parity bits
+    assert ecc_codeword_width(1) == 4 and ecc_codeword_width(32) == 39
+
+
+def test_window_replicate_and_mirror_corner():
+    pix = image(3, 3)                                               # p(x, y) = 10 (y + 1) + x + 1
+    out = window(packets(pix, [9]), 3, 3, 8, 3, 3, border="replicate")[0]
+    assert len(out) == 9 and [o[2] for o in out] == [0, 0, 1] * 3
+    assert [o[3] for o in out] == [1, 1, 1, 0, 0, 0, 2, 2, 2]
+    # Window of (0, 0): rows of the lines 0, 0, 1 and columns 0, 0, 1
+    assert elements(out[0][1], 9, 8) == [11, 11, 12, 11, 11, 12, 21, 21, 22]
+    # Window of (2, 2): rows 1, 2, 2 and columns 1, 2, 2
+    assert elements(out[8][1], 9, 8) == [22, 23, 23, 32, 33, 33, 32, 33, 33]
+    out = window(packets(pix, [9]), 3, 3, 8, 3, 3, border="mirror")[0]
+    # Mirror: line -1 is line 1, column -1 is column 1
+    assert elements(out[0][1], 9, 8) == [22, 21, 22, 12, 11, 12, 22, 21, 22]
+    assert elements(out[8][1], 9, 8) == [22, 23, 22, 32, 33, 32, 22, 23, 22]
+
+
+def test_window_valid_and_zero():
+    pix = image(4, 3)
+    out = window(packets(pix, [12]), 4, 3, 8, 3, 3, border="valid")[0]
+    assert [(o[4], o[5], o[2], o[3]) for o in out] == [(1, 1, 0, 3), (2, 1, 1, 3)]   # one line: flags "11"
+    assert elements(out[1][1], 9, 8) == [12, 13, 14, 22, 23, 24, 32, 33, 34]
+    out = window(packets(pix, [12]), 4, 3, 8, 3, 3, border="zero")[0]
+    assert elements(out[0][1], 9, 8) == [0, 0, 0, 0, 11, 12, 0, 21, 22]
+    assert elements(out[11][1], 9, 8) == [23, 24, 0, 33, 34, 0, 0, 0, 0]
+
+
+def test_window_binning():
+    pix = image(5, 3)
+    out = window(packets(pix, [15]), 5, 3, 8, 2, 2, 0, 0, 2, 2, border="valid")[0]
+    assert [(o[4], o[5]) for o in out] == [(0, 0), (2, 0)]          # the incomplete windows are dropped
+    assert elements(out[1][1], 4, 8) == [13, 14, 23, 24]
+    out = window(packets(pix, [15]), 5, 3, 8, 2, 2, 0, 0, 2, 2, border="zero")[0]
+    assert [(o[4], o[5], o[2], o[3]) for o in out] == [(0, 0, 0, 1), (2, 0, 0, 1), (4, 0, 1, 1),
+                                                        (0, 2, 0, 2), (2, 2, 0, 2), (4, 2, 1, 2)]
+    assert elements(out[5][1], 4, 8) == [35, 0, 0, 0]
+
+
+def test_window_timing_and_count():
+    # 3 x 3 replicate on 4 x 3: the window of (x, y) is completed by p(x + 1, y + 1)
+    pix = image(4, 3)
+    items = packets(pix, [4, 4, 4])
+    out, _, annot, ex = window(items, 4, 3, 8, 3, 3, border="replicate")
+    # Pixel index 5 = p(1, 1) completes the window (0, 0); index 7 = p(3, 1) completes (2, 0), then HCOL (3, 0)
+    assert ex["timing"][:4] == [5, 6, 7, -1]
+    assert annot[4][0] == 0 and annot[5][0] == 1 and annot[7][0] == 4
+    assert annot[11][0] == 12 and ex["timing"][4:8] == [9, 10, 11, -1] and ex["timing"][8:] == [-1] * 4
+
+
+def test_window_ecc():
+    # 1 x 3 window (one column, two delays) on a 3 x 4 image of 12-bit pixels, replicate
+    pix = image(3, 4)
+    cw = ecc_codeword_width(12)
+    pos = ecc_data_positions(12)
+    double = (1 << pos[0]) | (1 << pos[1])                          # data bits 0 and 1: mask 3
+    # Inject into delay 1 before p(1, 1): the codeword of p(1, 1) in delay 1 carries the double error
+    items = packets(pix[:4], [4], last=False) + [("J", 100, double)] + packets(pix[4:], [8], first=False)
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    assert ex["ded"] == 1 and ex["sec"] == 0
+    vals = [elements(o[1], 3, 12) for o in out]
+    # Window of (x, y) = rows y - 1, y, y + 1 of column x; p(1, 1) = 22 changes to 22 ^ 3 = 21 from delay 1 on:
+    # in the window of (1, 1) (row 1, read from delay 1) and of (1, 2) (row 0, from delay 2)
+    assert vals[4] == [12, 21, 32] and vals[7] == [21, 32, 42]
+    assert vals[10] == [32, 42, 42]                                 # (1, 3): unchanged
+    # The same into delay 2: the codeword that delay 2 writes in that event is p(1, 0); visible in (1, 1) only
+    items = packets(pix[:4], [4], last=False) + [("J", 100, double << cw)] + packets(pix[4:], [8], first=False)
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    vals = [elements(o[1], 3, 12) for o in out]
+    assert ex["ded"] == 1 and vals[4] == [12 ^ 3, 22, 32] and vals[1] == [12, 12, 22]
+    # Single errors in both delays in one event: corrected, one pulse
+    items = packets(pix[:4], [4], last=False) + [("J", 100, (1 << pos[3]) | (1 << (cw + 0)))] \
+        + packets(pix[4:], [8], first=False)
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    assert ex["sec"] == 1 and ex["ded"] == 0
+    assert [elements(o[1], 3, 12) for o in out] == [elements(o[1], 3, 12) for o in window(
+        packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
+
+
+def test_window_ecc_unused_delay():
+    # 1 x 3 replicate on 3 x 4: a double error written into delay 2 in line 0 is read in line 1, where the rows above
+    # the image replicate line 0 and delay 2 is not used: no pulse, no change (WIN-FT-02)
+    pix = image(3, 4)
+    cw = ecc_codeword_width(12)
+    pos = ecc_data_positions(12)
+    items = [("J", 100, ((1 << pos[0]) | (1 << pos[1])) << cw)] + packets(pix, [12])
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    assert ex["ded"] == 0 and ex["sec"] == 0
+    assert [o[1] for o in out] == [o[1] for o in window(packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
 
