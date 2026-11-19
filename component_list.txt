@@ -3,3 +3,4 @@ hdl/isp_frame_sync
 hdl/isp_crop
 hdl/isp_point
 hdl/isp_window
+hdl/isp_conv
