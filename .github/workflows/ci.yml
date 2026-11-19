@@ -1,9 +1,14 @@
 name: CI
 
+# Two tiers: a pull request into develop runs the tests of pr_tests.txt (a smoke test; the merge evidence of a module
+# is the full local regression and the mutation run). The full regression runs on every push to develop, main and
+# release/*, on pull requests into main and on a manual start (workflow_dispatch), which can check any branch in full.
 on:
   push:
     branches:
       - main
+      - develop
+      - "release/**"
   pull_request:
   workflow_dispatch:
 
@@ -33,7 +38,14 @@ jobs:
         run: |
           python run.py --compile-order
           git diff --exit-code compile_order.txt
-      - name: Run regression
+      - name: Pull-request test list complete
+        if: github.event_name == 'pull_request' && github.base_ref != 'main'
+        run: python tools/ci_subset.py --check
+      - name: Run regression (pull-request tests)
+        if: github.event_name == 'pull_request' && github.base_ref != 'main'
+        run: python run.py -p 4 --subset pr_tests.txt --xunit-xml results.xml
+      - name: Run regression (full)
+        if: github.event_name != 'pull_request' || github.base_ref == 'main'
         run: python run.py -p 4 --xunit-xml results.xml
       - name: Publish test results
         if: always()
