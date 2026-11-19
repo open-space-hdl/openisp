@@ -332,6 +332,7 @@ begin
         variable RefY_v  : boolean;
         variable Next_v  : natural;
         variable Sel_v   : RowSel_t;
+        variable Used_v  : boolean;
         variable XStr_v  : natural range 0 to StrideX_g - 1;
         variable YStr_v  : natural range 0 to StrideY_g - 1;
     begin
@@ -452,13 +453,27 @@ begin
             end loop;
 
             -- ECC status of the line buffers, sampled in the pixel events (WIN-FT-02)
+            -- Only the line buffers that the row selection of the event uses count: the lines above the image hold the
+            -- image before (or after power-up any content), which never reaches a window (WIN-FT-02)
             if Shift_v then
-                if DlySec /= (DlySec'range => '0') then
-                    v.EccSec := '1';
-                end if;
-                if DlyDed /= (DlyDed'range => '0') then
-                    v.EccDed := '1';
-                end if;
+
+                for d in 1 to WinY_g - 1 loop
+                    Used_v := false;
+
+                    for j in 0 to WinY_g - 1 loop
+                        if Sel_v(j) = d then
+                            Used_v := true;
+                        end if;
+                    end loop;
+
+                    if Used_v and DlySec(d) = '1' then
+                        v.EccSec := '1';
+                    end if;
+                    if Used_v and DlyDed(d) = '1' then
+                        v.EccDed := '1';
+                    end if;
+                end loop;
+
             end if;
 
             -- WN-4: left and right border

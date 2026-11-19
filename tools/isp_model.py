@@ -480,12 +480,19 @@ class Window:
         lines = [pixel]
         sec = ded = False
         value = pixel
+        # The delays that the row selection of line ye uses (the border rule replaces the others, WIN-FT-02)
+        used = set()
+        for j in range(self.wy):
+            line = self._map(ye - (self.wy - 1) + j, self.h)
+            if line is not None and 0 <= ye - line < self.wy:
+                used.add(ye - line)
         for t in range(self.wy - 1):
             queue = self.delays[t]
             stored, flips = queue.popleft()
             mask, s, d = ecc_decode(flips, self.bits)
             read = stored ^ mask
-            sec, ded = sec or s, ded or d
+            if t + 1 in used:
+                sec, ded = sec or s, ded or d
             queue.append((value, pattern >> (t * self.cw) & ((1 << self.cw) - 1)))
             lines.append(read)
             value = read

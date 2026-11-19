@@ -3,7 +3,7 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4`, 301 of 301 tests passed (126 of them `isp_window`), 0 skipped. QuestaSim runs with the release
+`python run.py -p 4`, 303 of 303 tests passed (128 of them `isp_window`), 0 skipped. QuestaSim runs with the release
 regression (with and without code coverage).
 
 | Test | Configurations | Passed |
@@ -11,7 +11,7 @@ regression (with and without code coverage).
 | `test_static` (TC-WIN-01) | 83 (with the sweeps) | 83 |
 | `test_input_stream` (TC-WIN-02) | 11 | 11 |
 | `test_handshake` (TC-WIN-03) | 11 | 11 |
-| `test_ecc` (TC-WIN-04) | 6 | 6 |
+| `test_ecc` (TC-WIN-04) | 8 | 8 |
 | `test_reset` (TC-WIN-05) | 11 | 11 |
 | `test_rate` (TC-WIN-06) | 4 | 4 |
 | TC-WIN-07 (review) | Section 6 | Passed |
@@ -37,8 +37,11 @@ every test, and no window carried a metavalue.
 - ECC: per line buffer single errors on a data bit, a Hamming parity bit and the overall parity bit (corrected, one
   `Stat_EccSec` in the event that reads the word), double errors on two data bits and on a data and a parity bit (the
   pixel as read, in every element from that line buffer on, one `Stat_EccDed`), errors in two line buffers in one
-  event (one pulse) and a single and a double error in one event (one pulse each), an injection in the last line of an
-  image; with SRL and block RAM line buffers, with and without the ECC pipeline, and in the window of 16 x 16.
+  event (one pulse) and a single and a double error in one event (one pulse each); an injection in the last line of an
+  image, reported in the windows of the lower border where the line is used and, with `AnchorY_g` = `WinY_g` - 1
+  (`ecc_bottom`, `ecc_bottom_zero`), read in the first line of the next image where it is not used and not reported;
+  injections into a line buffer whose row the border rule replaces (not reported, WIN-FT-02); with SRL and block RAM
+  line buffers, with and without the ECC pipeline, and in the window of 16 x 16.
 - Resets idle, held and running, during a line, at the end of an image and while the windows of the borders are
   output: the next images are correct, also their first lines.
 - The control outputs carry no metavalue after the first reset, and `Out_Valid`, `Err_Framing`, `Stat_ImageOpen` and
@@ -72,34 +75,35 @@ further interval equals the design value.
 
 ## 4. Mutations
 
-Run on 2026-11-19 on commit a882181 in a worktree of its own (`git diff --quiet` before and after every mutant), with
-the 17 tests of the configurations `rep3`, `zero3` and the ECC, rate and sweep configurations named in the plan. Every
-mutant of the plan (section 6) fails at least one test.
+Run on 2026-11-19 on commit 9195a3c in a worktree of its own (`git diff --quiet` before and after every mutant), with
+the 21 tests of the configurations `rep3`, `zero3` and the ECC, rate and sweep configurations named in the plan, among
+them `col5` and `anchor_0_2_zero` (`AnchorY_g` > Rb) and `ecc_bottom` and `ecc_bottom_zero` (`AnchorY_g` = `WinY_g` -
+1). Every mutant of the plan (section 6) fails at least one test.
 
-The mutant that takes the rows above the image from the line buffers instead of 0 survived the first run. In the mode
-zero the line buffers above the first line of an image hold the virtual lines of the image before, which are 0, so
-the mutant is equivalent wherever the rows above the image reach no further than those lines (AnchorY_g <= Rb, all
-configurations of the first run). It differs where AnchorY_g > Rb; the regression has such configurations (`col5`,
-the anchor sweep), and a second run of this mutant on the same commit with `col5` and `anchor_0_2_zero` added (19
-tests, reference passed) killed it.
+The mutant that takes the rows above the image from the line buffers instead of 0 needs a configuration with
+`AnchorY_g` > Rb. In the mode zero the line buffers above the first line of an image hold the virtual lines of the
+image before, which are 0, so the mutant is equivalent wherever the rows above the image reach no further than those
+lines (`AnchorY_g` <= Rb). A first run on a882181 without `col5` and `anchor_0_2_zero` kept it alive; the set of tests
+has them since.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
-| None (reference) | passes (17 tests) | - |
-| Left border of the mode replicate not loaded | killed by 8 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
-| Mirror at the right border one column off (2m instead of 2m - 1) | killed by 2 of 17 tests | test_static |
-| Row selection of the lower border one line too far (replicate) | killed by 8 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
-| Rows outside the image not cleared in the mode zero (line 0 instead) | killed by 4 of 17 tests | test_handshake, test_input_stream, test_reset, test_static |
-| One virtual column too few for Rr = 1 | killed by 12 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
-| One virtual pixel too few per virtual line | killed by 14 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
-| Stride counter not counting | killed by 2 of 17 tests | test_static |
-| Out_Last at the last column instead of the last reference pixel | killed by 3 of 17 tests | test_static |
-| Out_User 01 instead of 11 for an output image of one line | killed by 1 of 17 tests | test_static |
-| Elements in column-major order | killed by 17 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
-| ECC flags of the line buffers sampled in every event | killed by 1 of 17 tests | test_ecc |
-| Injection patterns of the delays in reverse order | killed by 2 of 17 tests | test_ecc |
-| An event that does not wait for Out_Ready | killed by 13 of 17 tests | test_handshake, test_input_stream, test_reset, test_static |
-| Rows above the image taken from the line buffers (the image before) instead of 0 | killed by 2 of 19 tests (second run, section 4) | test_static |
+| None (reference) | passes (21 tests) | - |
+| Left border of the mode replicate not loaded | killed by 9 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| Mirror at the right border one column off (2m instead of 2m - 1) | killed by 2 of 21 tests | test_static |
+| Row selection of the lower border one line too far (replicate) | killed by 8 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| Rows outside the image not cleared in the mode zero (line 0 instead) | killed by 7 of 21 tests | test_ecc, test_handshake, test_input_stream, test_reset, test_static |
+| One virtual column too few for Rr = 1 | killed by 14 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| One virtual pixel too few per virtual line | killed by 14 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| Stride counter not counting | killed by 2 of 21 tests | test_static |
+| Out_Last at the last column instead of the last reference pixel | killed by 3 of 21 tests | test_static |
+| Out_User 01 instead of 11 for an output image of one line | killed by 1 of 21 tests | test_static |
+| Elements in column-major order | killed by 20 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| ECC flags of the line buffers sampled in every event | killed by 3 of 21 tests | test_ecc |
+| ECC flags of every delay counted, also of the delays the row selection does not use | killed by 4 of 21 tests | test_ecc |
+| Injection patterns of the delays in reverse order | killed by 4 of 21 tests | test_ecc |
+| An event that does not wait for Out_Ready | killed by 15 of 21 tests | test_handshake, test_input_stream, test_reset, test_static |
+| Rows above the image taken from the line buffers (the image before) instead of 0 | killed by 3 of 21 tests | test_ecc, test_static |
 
 ## 5. Synthesis and timing
 
@@ -138,4 +142,5 @@ border mode and every line buffer resource, without latches; it gives no timing.
 | The first rate test measured 101 cycles between the first two image starts where the plan derived (H + Rb) x (W + Rr) = 119. The RTL is right: the input stage of `isp_frame_sync` takes the first pixel of the next image during the virtual lines of the image before, so the first interval after an idle module is shorter; from the second interval on the input waits for those virtual lines and the period is exact | The derivation of the plan and the interpretation of the specification state the first interval; the bench checks it against the bound and every further interval against the period |
 | For the same reason the hold cycles between the first pixels of the first two lines of an image that follows an image include the virtual lines of the image before (18 and 46 cycles, Rb x (W + Rr) + Rr exactly); WIN-PF-01 as written in phase C bounded them by Rr | WIN-PF-01 bounds these cycles separately; the plan and the bench follow |
 | test_handshake, as first built, held the sink right after an image and then sent two pixels of the next image; with pixels of the image still in the input stage, the source waited on a beat that could not enter and never released the sink | The builder holds the sink only with no input pending and sends the first pixels of the next image from an idle module |
+| Review of the pull request: `Stat_EccSec` and `Stat_EccDed` were the OR over all line buffers in every pixel event, so the rows that the border rule replaces reported errors although their pixels never reach a window: the image before, and after power-up any content of a RAM that the device does not initialise | The flags of a line buffer count only when the row selection of the event uses it (WIN-FT-02, WIN-IF-04); `test_ecc` injects into replaced rows, the configurations `ecc_bottom` and `ecc_bottom_zero` read a last-line injection in the first line of the next image, and the plan has a mutant without the gate |
 | The anchors out of range failed at a derived constant before the check that names the generic; the comparisons of the virtual columns used `VCols_c - 1`, which is -1 without virtual columns | The derived constants are limited to 0 and the comparison is an integer comparison; the positions have one value more |
