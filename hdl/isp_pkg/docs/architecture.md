@@ -9,9 +9,10 @@
 | --- | --- | --- | --- |
 | `SeqCont_c`, `SeqFirst_c`, `SeqLast_c`, `SeqOnly_c` | Constants, `std_logic_vector(1 downto 0)` | "00", "01", "10", "11" | PKG-01 |
 | `ispPosWidth` | Function (`positive`) return `positive` | `maximum(log2ceil(n), 1)` | PKG-02 |
-| `ispIsImageStart` | Function (`std_logic`, `std_logic_vector(1 downto 0)`) return `boolean` | `first = '1' and user(0) = '1'`, compared with `=` so that metavalues give false | PKG-03 |
+| `ispIsImageStart` | Function (`std_logic`, `std_logic_vector(1 downto 0)`) return `boolean` | `first = '1' and (user = SeqFirst_c or user = SeqOnly_c)`, compared with `=` so that a metavalue in any bit gives false | PKG-03 |
 
-The flags "01" and "11" are the two values with bit 0 set, so the image start needs one bit of `user`.
+The flags "01" and "11" are the two values with bit 0 set. The function still compares both bits, so that a
+metavalue in bit 1 cannot start an image.
 
 ## 2. Use
 

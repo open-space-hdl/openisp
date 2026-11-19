@@ -43,10 +43,12 @@ Text files, one entry per line, numbers in hexadecimal for data and sidebands an
 | `P <value>` | stimulus | Check the probe input of the source (a status output of the module) against the value |
 | `H <0, 1>` | stimulus | Hold the sink (`Out_Ready` low) or release it |
 | `M <n>` | stimulus | Set the marker output of the source to n (phases of a timing test) |
-| `R <n>` | both | Stimulus: wait until the sink has received n beats, then request a reset of the module for two cycles. Expected file: the sink holds `Out_Ready` low until the reset, then continues; its contract checker starts again |
+| `R <n> <mode> <cycles>` | stimulus | Wait until the sink has compared n beats, then request a reset of the module for the given number of cycles (1 or more). Mode 0 (held): the sink has held `Out_Ready` low since beat n. Mode 1 (running): the sink keeps taking beats with its random stalls, so the reset falls while beats transfer |
+| `R <mode>` | expected | Mode 0: after the beats before it, the sink holds `Out_Ready` low until the reset. Mode 1: the sink takes the beats that arrive until the reset without comparing them (their number depends on the timing). In both modes the comparison and the contract checker start again after the reset |
 
 A reset entry is placed where the result does not depend on the timing: the n beats are produced by the input sent
-before it, and no error event lies among the beats that the reset may still find in the module.
+before it, all input before it can enter the module while the sink takes at most n beats, and no error event lies
+among the beats that the reset may still find in the module.
 
 ## 4. Source (`tb/isp_tb_source.vhd`)
 
@@ -61,10 +63,10 @@ before it, and no error event lies among the beats that the reset may still find
 | Port | Direction | Meaning |
 | --- | --- | --- |
 | `Clk` | in | Clock of the module |
-| `M_Valid`, `M_Ready`, `M_Data`, `M_Last`, `M_User` | out, in | Pixel stream to the module; `M_Data` is `'X'` while `M_Valid` is low |
-| `SinkCount` | in | Beats received by the sink (for `W` and `R`) |
+| `M_Valid`, `M_Ready`, `M_Data`, `M_Last`, `M_User` | out, in | Pixel stream to the module; `M_Data`, `M_Last` and `M_User` are `'X'` while `M_Valid` is low, so that a module that samples them without a beat puts metavalues into its state |
+| `SinkCount` | in | Beats compared by the sink (for `W` and `R`) |
 | `Probe` | in | Status output of the module checked by `P` |
-| `RstReq` | out | Reset request (`R`) |
+| `RstReq` | out | Reset request (`R`), high for the cycles of the entry |
 | `Hold` | out | Hold of the sink (`H`) |
 | `Marker` | out | Marker (`M`) |
 | `Done` | out | The stimulus file is at its end |
@@ -87,7 +89,7 @@ raises an error alert.
 | `Clk`, `Rst` | in | Clock and reset of the module (`Rst` ends an `R` entry) |
 | `S_Valid`, `S_Ready`, `S_Data`, `S_Last`, `S_User`, `S_Side` | in, out | Output of the module |
 | `Hold` | in | Holds `S_Ready` low |
-| `Count` | out | Beats received |
+| `Count` | out | Beats compared (beats taken during a running reset are not counted) |
 | `Done` | out | Every expected beat has been received |
 
 Checks:
@@ -110,4 +112,13 @@ Every testbench instantiates the module, one source, one sink and a clock. It ad
 - for modules with registers, the AXI4-Lite master of UVVM (`bitvis_vip_axilite`).
 
 The test ends when the source is done, the sink has received every expected beat and a drain time has passed without
-an extra beat.
+an extra beat. The drain time is a tolerance derived from the design:
+
+| Term | Cycles | Reason |
+| --- | --- | --- |
+| Latency of the module | L | From the last input beat to the last output beat; the verification plan of the module states it (2 for `isp_frame_sync`) |
+| Longest stall of the sink | 4 | The sink stalls at most 4 cycles before a beat |
+| Output register | 1 | A beat that the module loads in the last cycle of the stall |
+| Margin | 16 | Covers a module that is wrong by more than a few cycles; an extra beat later than that would come from input the source never sent |
+
+The drain time is L + 21 cycles; a beat in it after the last expected beat is an error.
