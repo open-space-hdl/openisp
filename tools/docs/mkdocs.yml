@@ -40,6 +40,8 @@ extra:
 
 nav:
   - Home: README.md
+  - Guide:
+      - Requirements: docs/requirements.md
   - Modules: hdl/*/
   - Verification:
       - Compliance matrix: docs/compliance.md
