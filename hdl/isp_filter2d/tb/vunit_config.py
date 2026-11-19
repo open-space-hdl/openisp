@@ -40,19 +40,19 @@ def rand_coef(seed, n, cb):
 
 
 def cfg(name, w, h, pb, cb, ob, wx, wy, coef, runtime, ax=None, ay=None, sx=1, sy=1, border="replicate", gap=20,
-        stall=20, tests=None, separable=False):
+        stall=20, tests=None, separable=False, ecc=1, resource="AUTO"):
     ax = (wx - 1) // 2 if ax is None else ax
     ay = (wy - 1) // 2 if ay is None else ay
     return dict(name=name, w=w, h=h, pb=pb, cb=cb, ob=ob, wx=wx, wy=wy, ax=ax, ay=ay, sx=sx, sy=sy, border=border,
                 coef=coef, runtime=runtime, gap=gap, stall=stall, tests=tests or ["test_static"],
-                separable=separable)
+                separable=separable, ecc=ecc, resource=resource)
 
 
 CONFIGS = [
     cfg("mtf3", 12, 8, 12, 16, 0, 3, 3, mtf3(), True,
         tests=["test_static", "test_input_stream", "test_runtime", "test_errors", "test_reset"]),
     cfg("mtf5_mirror", 14, 10, 12, 16, 0, 5, 5, mtf5(), True, border="mirror", gap=30, stall=40,
-        tests=["test_static", "test_runtime", "test_reset"]),
+        tests=["test_static", "test_runtime", "test_reset"], resource="BRAM"),
     cfg("mtf5_const", 14, 10, 16, 12, 16, 5, 5, mtf5(), False, border="zero",
         tests=["test_static", "test_input_stream"]),
     cfg("valid", 12, 8, 12, 16, 0, 3, 3, rand_coef("valid", 9, 16), False, border="valid",
@@ -66,6 +66,11 @@ CONFIGS = [
         tests=["test_static", "test_runtime"]),
     cfg("ecc", 10, 7, 12, 16, 0, 3, 3, mtf3(), True, gap=0, stall=0, tests=["test_static", "test_errors"]),
     cfg("rate_3", 16, 6, 12, 16, 0, 3, 3, mtf3(), True, gap=0, stall=0, tests=["test_static", "test_rate"]),
+    # The low bounds: a 1 x 1 image with a 1 x 1 window, 1-bit pixels, 2-bit coefficients, a 1-bit output; an image
+    # as large as its 3 x 3 window with 1-bit pixels, EccPipeline_g 0 and shift registers
+    cfg("min", 1, 1, 1, 2, 1, 1, 1, [1], True, border="valid", tests=["test_static", "test_runtime"]),
+    cfg("small", 3, 3, 1, 2, 0, 3, 3, [1, -2, 1, 0, 1, -1, -2, 1, 0], True, ecc=0, resource="SRL",
+        tests=["test_static", "test_errors", "test_reset"]),
     cfg("rate_5", 16, 6, 12, 16, 0, 5, 5, mtf5(), True, gap=0, stall=0, tests=["test_static", "test_rate"]),
 ]
 
@@ -199,12 +204,15 @@ def build_errors(rng, x):
 
     for t in range(1, wy):
         shift = (t - 1) * cw
-        d1, d2 = rng.sample(pos, 2)
+        d1 = rng.choice(pos)
+        others = [p for p in pos if p != d1]
         line = min(t, h - 1)
-        # A single error in a data bit (corrected: the output unchanged), a double error (the windows that contain
-        # the pixel and their output pixels change)
+        # A single error in a data bit (corrected: the output unchanged), a double error of two data bits, or of the
+        # data bit and the overall parity bit for 1-bit pixels (the windows that contain the pixel and their output
+        # pixels change)
         inject((1 << d1) << shift, line, rng.randrange(w))
-        inject(((1 << d1) | (1 << d2)) << shift, line, rng.randrange(1, w - 1))
+        second = 1 << rng.choice(others) if others else 1
+        inject(((1 << d1) | second) << shift, line, rng.randrange(1, w - 1))
     # One more single error, so that the counts of Stat_EccSec and Stat_EccDed differ (an exchange of the two shows)
     inject(1 << rng.choice(pos), min(1, h - 1), rng.randrange(w))
     # A parity error of a coefficient: the next image uses the coefficients of the generic and pulses Err_Config;
@@ -311,7 +319,8 @@ def configure(lib, out_dir):
             generics = {
                 "ImageWidth_g": c["w"], "ImageHeight_g": c["h"], "PixelBits_g": c["pb"], "WinX_g": c["wx"],
                 "WinY_g": c["wy"], "AnchorX_g": c["ax"], "AnchorY_g": c["ay"], "StrideX_g": c["sx"],
-                "StrideY_g": c["sy"], "BorderMode_g": c["border"], "CoefBits_g": c["cb"],
+                "StrideY_g": c["sy"], "BorderMode_g": c["border"], "EccPipeline_g": c["ecc"],
+                "Resource_g": c["resource"], "CoefBits_g": c["cb"],
                 "CoefStr_g": ",".join(str(v) for v in c["coef"]), "RuntimeCoef_g": c["runtime"], "OutBits_g": c["ob"],
                 "Separable_g": c["separable"], "OutWidth_g": out_w, "OutHeight_g": out_h,
                 "StimFile_g": files["stim"].as_posix(), "ExpFile_g": files["exp"].as_posix(),

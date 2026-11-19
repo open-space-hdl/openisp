@@ -34,6 +34,13 @@ testbench, as for `isp_conv`.
 | `max` | 18 x 17 | 32 / 18 / 0 | 16 x 16, middle, 1 | zero | Run time, random | 10 % / 10 % |
 | `ecc` | 10 x 7 | 12 / 16 / 0 | 3 x 3, middle, 1 | replicate | Run time | none |
 | `rate_3`, `rate_5` | 16 x 6 | 12 / 16 / 0 | 3 x 3 and 5 x 5, middle, 1 | replicate | Run time | none |
+| `min` | 1 x 1 | 1 / 2 / 1 | 1 x 1, 0, 1 | valid | Run time | 20 % / 20 % |
+| `small` | 3 x 3 | 1 / 2 / 0 | 3 x 3, middle, 1 | replicate | Run time | 20 % / 20 % |
+
+The line buffers are those of `isp_window` with `EccPipeline_g` 1 and `Resource_g` "AUTO", except `mtf5_mirror`
+("BRAM") and `small` (`EccPipeline_g` 0, "SRL"). `min` and `small` hold the low bounds of the generics: the image of
+one pixel and the image as large as its window, 1-bit pixels, 2-bit coefficients, a 1-bit output, a window of one
+pixel.
 
 The configuration `separable` instantiates two filters in series in the testbench (the use that the specification
 names in section 6); its model is the composition of two models `filter2d`.
