@@ -40,7 +40,7 @@ window, element k = j x `WinX_g` + i of the coefficient set.
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| FLT-PF-01 | Within a line, with `In_Valid` and `Out_Ready` high, the module shall accept one pixel per clock cycle, and its image period shall be that of `isp_window` (WIN-PF-02). | ISP-STR-09 |
+| FLT-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input as `isp_window` does (WIN-PF-01), and its image period shall be that of `isp_window` (WIN-PF-02). | ISP-STR-09 |
 | FLT-PF-02 | With `Out_Ready` high, the output pixel of the reference pixel (x, y) shall be at the output at most log2ceil(T) + 9 clock cycles after the module accepted the pixel p(x + Rr, y + Rb), where that pixel is inside the image. | ISP-STR-09 |
 
 ### 2.4 Error handling and fault tolerance
