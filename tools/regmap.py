@@ -22,6 +22,7 @@ import argparse
 import difflib
 import re
 import sys
+import textwrap
 from pathlib import Path
 
 import yaml
@@ -205,20 +206,16 @@ def vhdl(m):
 # Documentation
 # -----------------------------------------------------------------------------------------------------
 def markdown(m):
-    lines = [
-        f"# {m.name}: Register Map",
-        "",
-        m.generated.replace("tools/regmap.py", "`tools/regmap.py`").replace(m.rel, f"`{m.rel}`"),
-        f"The same description generates the VHDL package `{m.name}_regs_pkg` and the C header "
-        f"`sw/{m.name}_regs.h`; `tools/regmap.py --check` compares it with the register table of the "
-        "[specification](specification.md#7-register-map).",
-        "",
-        f"{m.title} Byte addresses of 32-bit registers on the AXI4-Lite slave ({m.addr_bits}-bit address); "
-        "unused addresses and bits read as zero, and every access is answered with OKAY.",
-        "",
-        "| Access | Meaning |",
-        "| --- | --- |",
-    ]
+    intro = (m.generated.replace("tools/regmap.py", "`tools/regmap.py`").replace(m.rel, f"`{m.rel}`") +
+             f" The same description generates the VHDL package `{m.name}_regs_pkg` and the C header "
+             f"`sw/{m.name}_regs.h`; `tools/regmap.py --check` compares it with the register table of the "
+             "[specification](specification.md#7-register-map).")
+    usage = (f"{m.title} Byte addresses of 32-bit registers on the AXI4-Lite slave ({m.addr_bits}-bit address); "
+             "unused addresses and bits read as zero, and every access is answered with OKAY.")
+    lines = [f"# {m.name}: Register Map", ""]
+    lines += textwrap.wrap(intro, 120, break_on_hyphens=False, break_long_words=False)
+    lines += [""] + textwrap.wrap(usage, 120, break_on_hyphens=False, break_long_words=False)
+    lines += ["", "| Access | Meaning |", "| --- | --- |"]
     lines += [f"| {k} | {v} |" for k, v in ACCESS.items() if any(f.access == k for r in m.all_regs for f in r.fields)]
     lines += ["", "## Registers", "", "| Address | Register | Description |", "| --- | --- | --- |"]
     lines += [f"| {addr_text(r)} | [{r.name}](#{r.name.lower().replace('_', '_')}) | {r.description} |"
