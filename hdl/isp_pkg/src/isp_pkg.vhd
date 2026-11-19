@@ -39,6 +39,19 @@ package isp_pkg is
         first : std_logic;
         user  : std_logic_vector(1 downto 0)) return boolean;
 
+    -- Full precision of the sum of a linear kernel: PixelBits + CoefBits - 1 + log2ceil(Taps) (PKG-05)
+    function ispConvFullBits (
+        pixel_bits : positive;
+        coef_bits  : positive;
+        taps       : positive) return positive;
+
+    -- Output width of a linear kernel: the full precision for out_bits 0, otherwise out_bits (PKG-05)
+    function ispConvOutBits (
+        pixel_bits : positive;
+        coef_bits  : positive;
+        taps       : positive;
+        out_bits   : natural) return positive;
+
 end package;
 
 ---------------------------------------------------------------------------------------------------
@@ -57,6 +70,26 @@ package body isp_pkg is
     begin
         -- "=" gives false for every metavalue, in either bit of the flags
         return first = '1' and (user = SeqFirst_c or user = SeqOnly_c);
+    end function;
+
+    function ispConvFullBits (
+        pixel_bits : positive;
+        coef_bits  : positive;
+        taps       : positive) return positive is
+    begin
+        return pixel_bits + coef_bits - 1 + log2ceil(taps);
+    end function;
+
+    function ispConvOutBits (
+        pixel_bits : positive;
+        coef_bits  : positive;
+        taps       : positive;
+        out_bits   : natural) return positive is
+    begin
+        if out_bits = 0 then
+            return ispConvFullBits(pixel_bits, coef_bits, taps);
+        end if;
+        return out_bits;
     end function;
 
 end package body;

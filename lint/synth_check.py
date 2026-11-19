@@ -10,8 +10,9 @@ Usage: python lint/synth_check.py [name ...]
 Uses the libraries compiled by the regression runner (run `python run.py --compile` first). Names select
 configurations; without names all run. Exit code 0 when every configuration synthesises without error and without
 inferred latch, and every configuration outside the ranges stops with its expected message.
-GHDL 6.0.0 cannot override real generics with -g: an entity with real generics is synthesised through a wrapper in
-lint/ that takes integer generics and converts them.
+GHDL 6.0.0 cannot override real or vector generics with -g: such an entity is synthesised through a wrapper
+lint/<entity>_synth.vhd that takes integer generics and converts them; the wrappers are analysed into the library
+before the synthesis.
 This is a technology-independent check of synthesizability; resources and timing need the FPGA tools.
 """
 
@@ -35,6 +36,93 @@ CONFIGS = [
      {"ImageWidth_g": "65536", "ImageHeight_g": "65536", "PixelBits_g": "64"}),
 ]
 
+
+def crp(w, h, bits, x, y, rw, rh, runtime):
+    """Generics of isp_crop."""
+    return {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "PixelBits_g": str(bits), "RoiX_g": str(x),
+            "RoiY_g": str(y), "RoiWidth_g": str(rw), "RoiHeight_g": str(rh), "RuntimeRoi_g": str(runtime).lower()}
+
+
+# isp_crop (TC-CRP-10): the bounds of every generic with both values of RuntimeRoi_g
+CONFIGS += [
+    ("crp_w1_h1_p1", "isp_crop", crp(1, 1, 1, 0, 0, 1, 1, False)),
+    ("crp_w1_h1_p1_rt", "isp_crop", crp(1, 1, 1, 0, 0, 1, 1, True)),
+    ("crp_w4096_h4096_p12_rt", "isp_crop", crp(4096, 4096, 12, 512, 512, 1024, 1024, True)),
+    ("crp_w4096_h4096_p12", "isp_crop", crp(4096, 4096, 12, 512, 512, 1024, 1024, False)),
+    ("crp_w65536_h65536_p64_whole", "isp_crop", crp(65536, 65536, 64, 0, 0, 65536, 65536, False)),
+    ("crp_w65536_h65536_p64_whole_rt", "isp_crop", crp(65536, 65536, 64, 0, 0, 65536, 65536, True)),
+    ("crp_w65536_h65536_p64_corner_rt", "isp_crop", crp(65536, 65536, 64, 65535, 65535, 1, 1, True)),
+    ("crp_w65536_h1_p12_line_rt", "isp_crop", crp(65536, 1, 12, 0, 0, 65536, 1, True)),
+    ("crp_w1_h65536_p12_column_rt", "isp_crop", crp(1, 65536, 12, 0, 0, 1, 65536, True)),
+]
+
+
+def pnt(w, h, inb, outb, gainb, maxs, ms, runtime, offset=0, gain=1, shift=0, low=0, high=-1):
+    """Generics of isp_point."""
+    return {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "InBits_g": str(inb), "OutBits_g": str(outb),
+            "GainBits_g": str(gainb), "MaxShift_g": str(maxs), "MultStages_g": str(ms),
+            "Runtime_g": str(runtime).lower(), "Offset_g": str(offset), "Gain_g": str(gain), "Shift_g": str(shift),
+            "Low_g": str(low), "High_g": str(high)}
+
+
+# isp_point (TC-PNT-11): the bounds of every width, every MultStages_g, both values of Runtime_g and the bounds of the
+# parameters of the generics
+CONFIGS += [
+    ("pnt_default_rt", "isp_point", pnt(4096, 4096, 16, 12, 16, 32, 2, True)),
+    ("pnt_min", "isp_point", pnt(1, 1, 1, 1, 1, 0, 1, False)),
+    ("pnt_min_rt", "isp_point", pnt(1, 1, 1, 1, 1, 3, 1, True)),
+    ("pnt_max_rt", "isp_point", pnt(65536, 65536, 64, 32, 18, 83, 4, True)),
+    ("pnt_max", "isp_point", pnt(65536, 65536, 64, 32, 18, 83, 3, False, -2 ** 31, 2 ** 18 - 1, 83, 2 ** 31 - 1)),
+    ("pnt_params", "isp_point", pnt(64, 64, 32, 32, 18, 50, 2, False, -2 ** 31, 2 ** 18 - 1, 50, 2 ** 31 - 1, -1)),
+    ("pnt_params_rt", "isp_point", pnt(64, 64, 32, 32, 18, 50, 2, True, 2 ** 31 - 1, 0, 0, 0, 0)),
+]
+
+
+def win(w, h, bits, wx, wy, border, ax=None, ay=None, sx=1, sy=1, ecc=1, resource="AUTO"):
+    """Generics of isp_window (the anchors default to the middle)."""
+    g = {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "PixelBits_g": str(bits), "WinX_g": str(wx),
+         "WinY_g": str(wy), "StrideX_g": str(sx), "StrideY_g": str(sy), "BorderMode_g": border,
+         "EccPipeline_g": str(ecc), "Resource_g": resource}
+    if ax is not None:
+        g["AnchorX_g"] = str(ax)
+    if ay is not None:
+        g["AnchorY_g"] = str(ay)
+    return g
+
+
+# isp_window (TC-WIN-08): the bounds of every numeric generic, every border mode and every resource
+CONFIGS += [
+    ("win_default", "isp_window", win(4096, 4096, 12, 3, 3, "replicate")),
+    ("win_min", "isp_window", win(1, 1, 1, 1, 1, "valid", sx=1, sy=1)),
+    ("win_max", "isp_window", win(65536, 16, 32, 16, 16, "zero", 0, 15, 16, 16, 0, "BRAM")),
+    ("win_tall", "isp_window", win(16, 65536, 32, 16, 16, "valid", 15, 0, 1, 1, 1, "SRL")),
+    ("win_mirror", "isp_window", win(4096, 64, 16, 5, 5, "mirror", ecc=0, resource="BRAM")),
+    ("win_zero", "isp_window", win(64, 64, 8, 4, 2, "zero", 1, 0, 3, 2)),
+    ("win_row", "isp_window", win(64, 8, 12, 9, 1, "replicate")),
+    ("win_bram_min", "isp_window", win(4, 8, 12, 3, 3, "replicate", ecc=1, resource="BRAM")),
+]
+
+
+def cnv(bits, wx, wy, cb, runtime, out_bits, coef_set=0, count=0, offset=0):
+    """Generics of the wrapper isp_conv_synth (lint/isp_conv_synth.vhd)."""
+    return {"PixelBits_g": str(bits), "WinX_g": str(wx), "WinY_g": str(wy), "CoefBits_g": str(cb),
+            "RuntimeCoef_g": str(runtime).lower(), "OutBits_g": str(out_bits), "CoefSet_g": str(coef_set),
+            "CoefCount_g": str(count), "CoefOffset_g": str(offset)}
+
+
+# isp_conv (TC-CNV-11): the bounds of every numeric generic with both values of RuntimeCoef_g, coefficients at their
+# bounds
+CONFIGS += [
+    ("cnv_default_rt", "isp_conv_synth", cnv(12, 3, 3, 16, True, 0)),
+    ("cnv_default", "isp_conv_synth", cnv(12, 3, 3, 16, False, 0)),
+    ("cnv_min_rt", "isp_conv_synth", cnv(1, 1, 1, 2, True, 1)),
+    ("cnv_min", "isp_conv_synth", cnv(1, 1, 1, 2, False, 0)),
+    ("cnv_max_rt", "isp_conv_synth", cnv(32, 16, 16, 18, True, 64)),
+    ("cnv_max", "isp_conv_synth", cnv(32, 16, 16, 18, False, 0)),
+    ("cnv_ones", "isp_conv_synth", cnv(12, 1, 4, 2, False, 0, coef_set=1)),
+    ("cnv_mtf5_rt", "isp_conv_synth", cnv(12, 5, 5, 16, True, 12)),
+]
+
 # Configurations outside the declared ranges and the message their elaboration stops with
 FSY_OK = {"ImageWidth_g": "8", "ImageHeight_g": "4", "PixelBits_g": "12"}
 NEGATIVE = [
@@ -46,6 +134,72 @@ NEGATIVE = [
      "isp_frame_sync: ImageHeight_g must be 1 to 65536"),
     ("fsy_bits_0", "isp_frame_sync", dict(FSY_OK, PixelBits_g="0"), 'generic "PixelBits_g" is out of bounds'),
     ("fsy_bits_65", "isp_frame_sync", dict(FSY_OK, PixelBits_g="65"), "isp_frame_sync: PixelBits_g must be 1 to 64"),
+]
+
+CRP_OK = crp(8, 6, 12, 2, 1, 4, 3, True)
+NEGATIVE += [
+    ("crp_width_65537", "isp_crop", dict(CRP_OK, ImageWidth_g="65537"), "ImageWidth_g must be 1 to 65536"),
+    ("crp_height_65537", "isp_crop", dict(CRP_OK, ImageHeight_g="65537"), "ImageHeight_g must be 1 to 65536"),
+    ("crp_bits_65", "isp_crop", dict(CRP_OK, PixelBits_g="65"), "PixelBits_g must be 1 to 64"),
+    ("crp_roi_width_0", "isp_crop", dict(CRP_OK, RoiWidth_g="0"), 'generic "RoiWidth_g" is out of bounds'),
+    ("crp_roi_height_0", "isp_crop", dict(CRP_OK, RoiHeight_g="0"), 'generic "RoiHeight_g" is out of bounds'),
+    ("crp_roi_x_8", "isp_crop", dict(CRP_OK, RoiX_g="8", RoiWidth_g="1"), "isp_crop: RoiX_g must be 0 to"),
+    ("crp_roi_y_6", "isp_crop", dict(CRP_OK, RoiY_g="6", RoiHeight_g="1"), "isp_crop: RoiY_g must be 0 to"),
+    ("crp_roi_width_7", "isp_crop", dict(CRP_OK, RoiWidth_g="7"), "isp_crop: RoiWidth_g must be 1 to"),
+    ("crp_roi_height_6", "isp_crop", dict(CRP_OK, RoiHeight_g="6"), "isp_crop: RoiHeight_g must be 1 to"),
+]
+
+WIN_OK = win(8, 6, 12, 3, 3, "replicate")
+NEGATIVE += [
+    ("win_x_17", "isp_window", dict(WIN_OK, WinX_g="17", ImageWidth_g="20"), "isp_window: WinX_g must be 1 to 16"),
+    ("win_y_17", "isp_window", dict(WIN_OK, WinY_g="17", ImageHeight_g="20"), "isp_window: WinY_g must be 1 to 16"),
+    ("win_width_below", "isp_window", dict(WIN_OK, ImageWidth_g="2"), "isp_window: ImageWidth_g must be WinX_g to"),
+    ("win_height_below", "isp_window", dict(WIN_OK, ImageHeight_g="2"), "isp_window: ImageHeight_g must be WinY_g"),
+    ("win_width_65537", "isp_window", dict(WIN_OK, ImageWidth_g="65537"), "ImageWidth_g must be"),
+    ("win_bits_33", "isp_window", dict(WIN_OK, PixelBits_g="33"), "isp_window: PixelBits_g must be 1 to 32"),
+    ("win_anchor_x", "isp_window", dict(WIN_OK, AnchorX_g="3"), "isp_window: AnchorX_g must be 0 to"),
+    ("win_anchor_y", "isp_window", dict(WIN_OK, AnchorY_g="3"), "isp_window: AnchorY_g must be 0 to"),
+    ("win_stride_x_17", "isp_window", dict(WIN_OK, StrideX_g="17"), "isp_window: StrideX_g must be 1 to 16"),
+    ("win_stride_y_17", "isp_window", dict(WIN_OK, StrideY_g="17"), "isp_window: StrideY_g must be 1 to 16"),
+    ("win_border", "isp_window", dict(WIN_OK, BorderMode_g="wrap"), "isp_window: BorderMode_g must be"),
+    ("win_mirror_even", "isp_window", dict(WIN_OK, BorderMode_g="mirror", WinX_g="4"), "mirror needs an odd WinX_g"),
+    ("win_mirror_anchor_x", "isp_window", dict(WIN_OK, BorderMode_g="mirror", AnchorX_g="0"),
+     "mirror needs an odd WinX_g"),
+    ("win_mirror_anchor_y", "isp_window", dict(WIN_OK, BorderMode_g="mirror", AnchorY_g="2"),
+     "mirror needs an odd WinY_g"),
+    ("win_bram_narrow", "isp_window", dict(WIN_OK, Resource_g="BRAM", ImageWidth_g="3"),
+     "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g"),
+]
+
+CNV_OK = cnv(12, 3, 3, 16, True, 0)
+NEGATIVE += [
+    ("cnv_bits_33", "isp_conv_synth", dict(CNV_OK, PixelBits_g="33"), "isp_conv: PixelBits_g must be 1 to 32"),
+    ("cnv_x_17", "isp_conv_synth", dict(CNV_OK, WinX_g="17"), "isp_conv: WinX_g must be 1 to 16"),
+    ("cnv_y_17", "isp_conv_synth", dict(CNV_OK, WinY_g="17"), "isp_conv: WinY_g must be 1 to 16"),
+    ("cnv_coef_bits_1", "isp_conv_synth", dict(CNV_OK, CoefBits_g="1"), "isp_conv: CoefBits_g must be 2 to 18"),
+    ("cnv_coef_bits_19", "isp_conv_synth", dict(CNV_OK, CoefBits_g="19"), "isp_conv: CoefBits_g must be 2 to 18"),
+    ("cnv_out_bits_65", "isp_conv_synth", dict(CNV_OK, OutBits_g="65"), "isp_conv: OutBits_g must be 0 or 1 to 64"),
+    ("cnv_coef_fewer", "isp_conv_synth", dict(CNV_OK, CoefCount_g="-1"), "isp_conv: Coef_g must have"),
+    ("cnv_coef_more", "isp_conv_synth", dict(CNV_OK, CoefCount_g="1"), "isp_conv: Coef_g must have"),
+    ("cnv_coef_low", "isp_conv_synth", dict(CNV_OK, CoefOffset_g="-1"), "isp_conv: Coef_g values must be"),
+    ("cnv_coef_high", "isp_conv_synth", dict(CNV_OK, CoefOffset_g="65536"), "isp_conv: Coef_g values must be"),
+]
+
+PNT_OK = pnt(8, 6, 12, 12, 16, 28, 2, True)
+NEGATIVE += [
+    ("pnt_in_bits_65", "isp_point", dict(PNT_OK, InBits_g="65"), "Bits_g must be 1 to 64"),
+    ("pnt_out_bits_33", "isp_point", dict(PNT_OK, OutBits_g="33"), "isp_point: OutBits_g must be 1 to 32"),
+    ("pnt_gain_bits_19", "isp_point", dict(PNT_OK, GainBits_g="19"), "isp_point: GainBits_g must be 1 to 18"),
+    ("pnt_max_shift_30", "isp_point", dict(PNT_OK, MaxShift_g="30"), "isp_point: MaxShift_g must be 0 to"),
+    ("pnt_mult_stages_5", "isp_point", dict(PNT_OK, MultStages_g="5"), "isp_point: MultStages_g must be 1 to 4"),
+    ("pnt_mult_stages_0", "isp_point", dict(PNT_OK, MultStages_g="0"), 'generic "MultStages_g" is out of bounds'),
+    ("pnt_gain_65536", "isp_point", dict(PNT_OK, Gain_g="65536"), "isp_point: Gain_g must be 0 to"),
+    ("pnt_low_4096", "isp_point", dict(PNT_OK, Low_g="4096"), "isp_point: Low_g must be 0 to"),
+    ("pnt_high_4096", "isp_point", dict(PNT_OK, High_g="4096"), "isp_point: High_g must be -1 or"),
+    ("pnt_high_minus_2", "isp_point", dict(PNT_OK, High_g="-2"), "isp_point: High_g must be -1 or"),
+    ("pnt_shift_29", "isp_point", dict(PNT_OK, Shift_g="29"), "isp_point: Shift_g must be 0 to MaxShift_g"),
+    ("pnt_offset_4096", "isp_point", dict(PNT_OK, Offset_g="4096"), "isp_point: Offset_g must lie in the range"),
+    ("pnt_offset_minus_4097", "isp_point", dict(PNT_OK, Offset_g="-4097"), "isp_point: Offset_g must lie in the range"),
 ]
 
 
@@ -88,6 +242,12 @@ def main():
     if not LIBS.exists():
         raise SystemExit("compiled libraries not found, run: python run.py --compile")
     names = set(sys.argv[1:])
+    # Wrappers of entities whose generics GHDL cannot set on the command line
+    for wrapper in sorted((ROOT / "lint").glob("*_synth.vhd")):
+        res = subprocess.run(["ghdl", "-a", "--std=08", "-frelaxed", f"-P{LIBS / 'olo'}", "--work=openisp",
+                              f"--workdir={LIBS / 'openisp'}", str(wrapper)], capture_output=True, text=True)
+        if res.returncode != 0:
+            raise SystemExit(f"{wrapper.name}: analysis failed\n{res.stderr}")
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         results = [synth(n, t, g, work) for n, t, g in CONFIGS if not names or n in names]

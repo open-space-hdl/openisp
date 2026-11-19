@@ -126,6 +126,12 @@ def test_crop_reset_restores_generics():
     assert crop_pixels([o for o in out]) == [3, 4, 7, 8, 6, 7, 10, 11]
 
 
+def test_crop_timing():
+    # 4 x 3, region (1, 1) of 2 x 2: the output pixels come from the input beats 5, 6, 9 and 10
+    out, _, _, ex = crop(packets(list(range(1, 13)), [4, 4, 4]), 4, 3, 1, 1, 2, 2, False)
+    assert ex["timing"] == [5, 6, 9, 10]
+
+
 def test_point_op():
     # Dark level 100, gain 1229 / 1024
     assert point_op(200, -100, 1229, 10, 0, 4095) == 120          # 122900 / 1024 = 120.02
@@ -155,6 +161,18 @@ def test_point_hold_and_parity():
     cerr = ex["config"]
     assert [o[1] for o in out] == [20, 40, 20, 40, 30, 60, 10, 20, 10, 20, 10, 20, 10, 20, 50, 100]
     assert cerr == 3
+
+
+def test_point_ctrl_parity():
+    img = packets([10, 20], [2])
+    items = [("A", 100, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 3, 0xF)])] + img      # held: gain 1
+    items += [("A", 101, [("W", PNT_INJECT, 1 << 6, 0xF)])] + img + img                # CTRL bad: gain 3, 2 errors
+    items += [("A", 102, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 5, 0xF)])] + img    # restored, held: gain 3
+    items += [("A", 103, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_INJECT, (1 << 6) | (1 << 2), 0xF)])] + img
+    # CTRL and GAIN bad at the same image start: the generics, one Err_Config
+    out, _, _, ex = run_point(items)
+    assert [o[1] for o in out] == [10, 20, 30, 60, 30, 60, 30, 60, 10, 20]
+    assert ex["config"] == 3
 
 
 def test_point_readback():
@@ -309,4 +327,27 @@ def test_conv_image_start_hold_and_inject():
     assert ex["config"] == 2
     reads = [e[2] for e in ex["regs"][-1][1] if e[0] == "C"]
     assert reads == [0xFFFFFFFE, 0x200]                             # -2 sign-extended, ERR_CONFIG
+
+
+def test_conv_ctrl_parity():
+    w = win_data([1, 2], 3)
+    img = packets([w, w], [2])
+    items = [("A", 100, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 3, 0xF)])] + img     # held: 1 x 1 + 1 x 2 = 3
+    items += [("A", 101, [("W", CNV_INJECT, 2, 0xF)])] + img + img                     # CTRL bad: 3 x 1 + 2 = 5
+    items += [("A", 102, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 0, 0xF)])] + img    # restored, held: 5
+    out, _, _, ex = conv(items, 3, 2, 1, 3, [1, 1], True, 0)
+    assert [o[1] for o in out] == [3, 3, 5, 5, 5, 5, 5, 5]
+    assert ex["config"] == 2 and ex["timing"] == list(range(8))
+
+
+def test_window_ecc_unused_delay():
+    # 1 x 3 replicate on 3 x 4: a double error written into delay 2 in line 0 is read in line 1, where the rows above
+    # the image replicate line 0 and delay 2 is not used: no pulse, no change (WIN-FT-02)
+    pix = image(3, 4)
+    cw = ecc_codeword_width(12)
+    pos = ecc_data_positions(12)
+    items = [("J", 100, ((1 << pos[0]) | (1 << pos[1])) << cw)] + packets(pix, [12])
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    assert ex["ded"] == 0 and ex["sec"] == 0
+    assert [o[1] for o in out] == [o[1] for o in window(packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
 

@@ -37,7 +37,7 @@ window to one pixel and passes the packet signals on, which gives a pixel stream
 | WIN-IF-01 | The module shall take pixels of `PixelBits_g` bits on a pixel stream (`In_Valid`, `In_Ready`, `In_Data`, `In_Last`, `In_User`). | ISP-STR-01, ISP-STR-02 |
 | WIN-IF-02 | The module shall output one window per beat on a valid / ready stream (`Out_Valid`, `Out_Ready`, `Out_Data` of `WinX_g` x `WinY_g` x `PixelBits_g` bits) with AXI4-Stream handshake semantics; element k of the window occupies bits (k + 1) x `PixelBits_g` - 1 downto k x `PixelBits_g`. | ISP-STR-01, ISP-FLT-01 |
 | WIN-IF-03 | The output stream shall carry the packets of the output image of Wo x Ho windows: `Out_Last` with the last window of every line and the sequence flags of the line on `Out_User`, as a pixel stream does. | ISP-STR-05, ISP-STR-06 |
-| WIN-IF-04 | The module shall output the status of its `isp_frame_sync` (`Err_Framing`, `Stat_ImageOpen`) and pulse `Stat_EccSec` and `Stat_EccDed` for one clock cycle for a corrected single bit error and a detected double bit error of the line buffers. | ISP-STR-08, ISP-STR-10, ISP-FT-01 |
+| WIN-IF-04 | The module shall output the status of its `isp_frame_sync` (`Err_Framing`, `Stat_ImageOpen`) and pulse `Stat_EccSec` and `Stat_EccDed` for one clock cycle for a corrected single bit error and a detected double bit error of the line buffers that the window uses (WIN-FT-02). | ISP-STR-08, ISP-STR-10, ISP-FT-01 |
 | WIN-IF-05 | The module shall pass `ErrInj_BitFlip` (one codeword per line buffer) and `ErrInj_Valid` to the line buffers with the semantics of Open Logic. | ISP-FT-02 |
 | WIN-IF-06 | The module shall have one clock `Clk` and a synchronous, high-active reset `Rst`. | ISP-GEN-01 |
 
@@ -56,7 +56,7 @@ window to one pixel and passes the packet signals on, which gives a pixel stream
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| WIN-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most Rr clock cycles between the acceptance of the first pixels of two consecutive lines of an image in the border modes zero, replicate and mirror, and for no clock cycle between the first and the last pixel of an image in the border mode valid. | ISP-STR-09 |
+| WIN-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most Rr clock cycles between the acceptance of the first pixels of two consecutive lines of an image in the border modes zero, replicate and mirror, and for no clock cycle between the first and the last pixel of an image in the border mode valid; between the first pixels of the first two lines of an image the input also waits for the windows of the lower border of the image before (WIN-PF-02), Rb x (W + Rr) clock cycles at most. | ISP-STR-09 |
 | WIN-PF-02 | With back-to-back input and `Out_Ready` high, the interval between the starts of two consecutive images shall not exceed (H + Rb) x (W + Rr) + 8 clock cycles in the border modes zero, replicate and mirror, and H x W + 8 clock cycles in the border mode valid: Rr cycles per line for the windows at the right border, Rb lines for the windows at the lower border, 8 cycles of registers. | ISP-STR-09 |
 | WIN-PF-03 | With `Out_Ready` high, the window of the reference pixel (x, y) shall be at the output at most 6 clock cycles after the module accepted the pixel p(x + Rr, y + Rb), where that pixel is inside the image. | ISP-STR-09 |
 
@@ -73,7 +73,7 @@ window to one pixel and passes the packet signals on, which gives a pixel stream
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | WIN-FT-01 | The line buffers shall be `olo_ft_delay` entities of one image line each, with one SECDED codeword per pixel; the module shall use the corrected data. With `WinY_g` = 1 there is no line buffer: the ECC status outputs stay 0 and the error injection inputs have no function. | ISP-FT-01, ISP-GEN-01 |
-| WIN-FT-02 | `Stat_EccSec` and `Stat_EccDed` shall pulse once for every pixel event in which at least one line buffer delivers a corrected or an uncorrectable pixel. | ISP-FT-01 |
+| WIN-FT-02 | `Stat_EccSec` and `Stat_EccDed` shall pulse once for every pixel event in which at least one line buffer that the event uses for a row of the window delivers a corrected or an uncorrectable pixel; a line buffer whose line the border rule replaces (a line above or below the image) does not count. | ISP-FT-01 |
 | WIN-FT-03 | Every state machine and counter of the module shall return to a defined state from any state; an upset of a register shall disturb at most the image in progress, and the module shall realign with the next image start. | ISP-FT-04 |
 | WIN-FT-04 | After the reset, `In_Ready`, `Out_Valid` and the status outputs shall be defined; with defined input pixels, every output window shall be free of metavalues: no element shall be taken from a line buffer position that the image in progress has not written. | ISP-FT-04 |
 
@@ -98,7 +98,10 @@ The errors E1 to E4 of `isp_frame_sync` apply to the input stream; `Err_Framing`
 | --- | --- | --- | --- | --- |
 | E5 | Double bit error in a pixel read from a line buffer | ECC decoder of the line buffer | The pixel is used as read | `Stat_EccDed` |
 
-A single bit error in a pixel read from a line buffer is corrected and reported with `Stat_EccSec`.
+A single bit error in a pixel read from a line buffer is corrected and reported with `Stat_EccSec`. An error in a
+line buffer whose line the border rule replaces (a line above or below the image) is not reported: that pixel
+does not reach a window. After power-up the line buffers can hold any content, which the first lines of the
+first image read only in such rows.
 
 ## 4. Configuration parameters
 
@@ -154,3 +157,7 @@ The border modes extend the input image beyond its borders:
 - The input stage of `isp_frame_sync` takes up to two pixels while the module holds its input for the right
   border, so the hold cycles of a line can fall after the first pixels of the next line: WIN-PF-01 counts them
   between the first pixels of two lines, and the latency of WIN-PF-03 leaves room for these two pixels.
+- For the same reason the input stage takes the first pixels of an image while the module still generates the
+  virtual lines of the image before. These hold cycles fall between the first pixels of the first two lines of the
+  image, and the first interval between two image starts after an idle module is shorter than the period of
+  WIN-PF-02.

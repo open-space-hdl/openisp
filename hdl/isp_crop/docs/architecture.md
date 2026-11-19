@@ -94,8 +94,10 @@ register block answers a read in the following cycle and every access with OKAY.
 | `STATUS.IMAGE_OPEN` | `Stat_ImageOpen` |
 | `STATUS.ERR_FRAMING`, `STATUS.ERR_CONFIG` | Sticky flags: set by the pulse, cleared by a write of one; the pulse wins when both come in the same cycle (CRP-RG-02) |
 
-The register description from which the VHDL package, the register documentation and the C header are generated
-follows with the RTL; the table of the specification is the reference until then.
+The register description `hdl/isp_crop/regs/isp_crop_regs.yml` generates the VHDL package `isp_crop_regs_pkg`
+(addresses, field positions, identification), the [register map](register_map.md) and the C header
+`sw/isp_crop_regs.h` with `tools/regmap.py`; `tools/regmap.py --check` also compares the description with the table
+of the specification.
 
 ## 8. Timing and throughput
 

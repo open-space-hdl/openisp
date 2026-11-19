@@ -76,10 +76,10 @@ register block answers a read in the following cycle and every access with OKAY.
 | Register | Implementation |
 | --- | --- |
 | `ID`, `IMAGE`, `PARAM` | Constants from the generics |
-| `CTRL.HOLD` | One flip-flop |
+| `CTRL.HOLD` | One flip-flop with a parity flip-flop that the reset and every write of `CTRL` set; a mismatch at the image start counts as `HOLD` 0 and pulses `Err_Config` (`Runtime_g` true) |
 | `OFFSET_LO`, `OFFSET_HI`, `GAIN`, `SHIFT`, `LOW`, `HIGH` | Flip-flops for the bits in use, with the reset values of the generics, written byte by byte with the write strobes; one parity flip-flop per register that the reset and every write set for the resulting value (`Runtime_g` true); constants otherwise |
 | `STATUS` | `Stat_ImageOpen`; sticky flags set by `Err_Framing` and `Err_Config`, cleared by a write of one, the pulse wins |
-| `INJECT.PARITY` | Command: bit n inverts the parity flip-flop of parameter register n |
+| `INJECT.PARITY` | Command: bit n inverts the parity flip-flop of parameter register n (0 to 5) or of `CTRL` (6) |
 
 ## 7. Timing and throughput
 

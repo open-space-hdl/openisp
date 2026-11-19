@@ -21,6 +21,8 @@ Output items: ('B', pixel, last, user, x, y) and ('R', mode). The annotation of 
 "timing" (per output beat the index of the input beat that completes it, or -1).
 """
 
+from collections import deque
+
 SEQ_CONT, SEQ_FIRST, SEQ_LAST, SEQ_ONLY = 0, 1, 2, 3
 
 
@@ -136,19 +138,19 @@ CRP_ID, CRP_IMAGE, CRP_ROI_SIZE, CRP_ROI_POS, CRP_STATUS, CRP_INJECT = 0x00, 0x0
 def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
     """isp_crop: the region of interest of every image of the frame sync. With `runtime`, the position is ROI_POS at
     the image start when it lies inside the image and its parity bit matches; otherwise the generics apply and
-    Err_Config pulses. Returns (out, framing errors, annot, {"config", "regs"})."""
+    Err_Config pulses. Returns (out, framing errors, annot, {"config", "regs", "timing"})."""
     fs = FrameSync(width, height)
     reg = (roi_y << 16) | roi_x                  # ROI_POS, reset value from the generics
     parity_ok = True
     status_framing = status_config = False
     config_errors = 0
     pos = (roi_x, roi_y)
-    out, annot, regs = [], [], []
-    count = 0
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
 
-    def select(beats):
+    def select(beats, src):
         nonlocal pos, config_errors, status_config, count
-        for b in beats:
+        for n, b in enumerate(beats):
             _, pixel, _last, _user, x, y = b
             if x == 0 and y == 0:
                 # Image start: the limits of this image
@@ -163,6 +165,8 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
             x0, y0 = pos
             if x0 <= x < x0 + roi_w and y0 <= y < y0 + roi_h:
                 out.append(("B", pixel, 1 if x == x0 + roi_w - 1 else 0, line_flags(y - y0, roi_h), x, y))
+                # The pixel of the input beat is the last of the beats it causes; the others are padding
+                timing.append(src if n == len(beats) - 1 else -1)
                 count += 1
 
     def read(addr):
@@ -181,13 +185,15 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
     for it in items:
         if it[0] == "B":
             before = fs.errors
-            select(fs.feed(it[1], it[2], it[3]))
+            select(fs.feed(it[1], it[2], it[3]), beat)
+            beat += 1
             if fs.errors > before:
                 status_framing = True
         elif it[0] == "R":
             _, drop, mode, _cycles = it
             assert drop <= count, "reset drops more beats than were produced"
             _drop(out, drop)
+            del timing[len(timing) - drop:]
             count -= drop
             out.append(("R", mode))
             fs.reset()
@@ -216,7 +222,7 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
                     resolved.append(("C", addr, read(addr), 0xF))
             regs.append((marker, resolved))
         annot.append((count, fs.open))
-    return out, fs.errors, annot, {"config": config_errors, "regs": regs}
+    return out, fs.errors, annot, {"config": config_errors, "regs": regs, "timing": timing}
 
 
 def _strobe(old, data, strobes):
@@ -243,7 +249,7 @@ def point_op(pixel, offset, gain, shift, low, high):
 
 def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_g, gain_g, shift_g, low_g, high_g,
           runtime):
-    """isp_point. Returns (out, framing errors, annot, {"config", "regs"})."""
+    """isp_point. Returns (out, framing errors, annot, {"config", "regs", "timing"})."""
     fs = FrameSync(width, height)
     ow = min(in_bits + 1, 64)                         # bits of the offset
     full = (1 << out_bits) - 1
@@ -259,15 +265,15 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
     def reset_regs():
         st["off"] = gen[0] & ((1 << ow) - 1)
         st["gain"], st["shift"], st["low"], st["high"] = gen[1], gen[2], gen[3], gen[4]
-        st["parity"] = [True] * 6
+        st["parity"] = [True] * 7                    # OFFSET_LO, OFFSET_HI, GAIN, SHIFT, LOW, HIGH, CTRL
         st["hold"] = False
 
     reset_regs()
     work = gen                                        # the parameter set in use, from the reset the generics
     status_framing = status_config = False
     config_errors = 0
-    out, annot, regs = [], [], []
-    count = 0
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
 
     def reg_set():
         return (to_signed(st["off"], ow), st["gain"], min(st["shift"], max_shift), st["low"], st["high"])
@@ -298,6 +304,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
                 status_config = False
         if addr == PNT_CTRL and strobes & 0x1:
             st["hold"] = bool(data & 1)
+            st["parity"][6] = True
         if not runtime:
             return
         off64 = to_signed(st["off"], ow) & ((1 << 64) - 1)
@@ -322,30 +329,41 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
             st["high"] = _strobe(st["high"], data, strobes) & full
             st["parity"][5] = True
         elif addr == PNT_INJECT and strobes & 0x1:
-            for n in range(6):
+            for n in range(7):
                 if data & (1 << n):
                     st["parity"][n] = not st["parity"][n]
 
     for it in items:
         if it[0] == "B":
             before = fs.errors
-            for b in fs.feed(it[1], it[2], it[3]):
+            beats = fs.feed(it[1], it[2], it[3])
+            for n, b in enumerate(beats):
                 _, pixel, last, user, x, y = b
-                if x == 0 and y == 0 and runtime and not st["hold"]:
-                    if all(st["parity"]):
-                        work = reg_set()
-                    else:
-                        work = gen
+                if x == 0 and y == 0 and runtime:
+                    # A CTRL with a wrong parity bit counts as HOLD 0 and is reported; one Err_Config per image start
+                    ctrl_bad = not st["parity"][6]
+                    error = ctrl_bad
+                    if not st["hold"] or ctrl_bad:
+                        if all(st["parity"][:6]):
+                            work = reg_set()
+                        else:
+                            work = gen
+                            error = True
+                    if error:
                         config_errors += 1
                         status_config = True
                 out.append(("B", point_op(pixel, *work), last, user, x, y))
+                # The pixel of the input beat is the last of the beats it causes; the others are padding
+                timing.append(beat if n == len(beats) - 1 else -1)
                 count += 1
+            beat += 1
             if fs.errors > before:
                 status_framing = True
         elif it[0] == "R":
             _, drop, mode, _cycles = it
             assert drop <= count, "reset drops more beats than were produced"
             _drop(out, drop)
+            del timing[len(timing) - drop:]
             count -= drop
             out.append(("R", mode))
             fs.reset()
@@ -363,7 +381,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
                     resolved.append(("C", addr, read(addr), 0xF))
             regs.append((marker, resolved))
         annot.append((count, fs.open))
-    return out, fs.errors, annot, {"config": config_errors, "regs": regs}
+    return out, fs.errors, annot, {"config": config_errors, "regs": regs, "timing": timing}
 
 
 # ECC of Open Logic (olo_ft_pkg_ecc): bit 0 the overall parity, bits 1 to n the Hamming codeword with the parity bits
@@ -437,7 +455,7 @@ class Window:
         self.reset()
 
     def reset(self):
-        self.delays = [[(0, 0)] * self.w for _ in range(self.wy - 1)]
+        self.delays = [deque([(0, 0)] * self.w) for _ in range(self.wy - 1)]
         self.pending = 0
         self.cols = {}
 
@@ -462,12 +480,19 @@ class Window:
         lines = [pixel]
         sec = ded = False
         value = pixel
+        # The delays that the row selection of line ye uses (the border rule replaces the others, WIN-FT-02)
+        used = set()
+        for j in range(self.wy):
+            line = self._map(ye - (self.wy - 1) + j, self.h)
+            if line is not None and 0 <= ye - line < self.wy:
+                used.add(ye - line)
         for t in range(self.wy - 1):
             queue = self.delays[t]
-            stored, flips = queue.pop(0)
+            stored, flips = queue.popleft()
             mask, s, d = ecc_decode(flips, self.bits)
             read = stored ^ mask
-            sec, ded = sec or s, ded or d
+            if t + 1 in used:
+                sec, ded = sec or s, ded or d
             queue.append((value, pattern >> (t * self.cw) & ((1 << self.cw) - 1)))
             lines.append(read)
             value = read
@@ -567,100 +592,118 @@ def conv_full_bits(pixel_bits, coef_bits, taps):
     return pixel_bits + coef_bits - 1 + log2ceil(taps)
 
 
-def conv(items, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
-    """isp_conv: every beat is a window; q = 0 for a negative sum, otherwise min(S, 2^B - 1). The image start is the
-    first beat of a packet with the flags "01" or "11". Returns (out, 0, annot, {"config", "regs"})."""
-    taps = win_x * win_y
-    assert len(coef) == taps
-    full = conv_full_bits(pixel_bits, coef_bits, taps)
-    out_b = full if out_bits == 0 else out_bits
-    cmask = (1 << coef_bits) - 1
+class ConvKernel:
+    """isp_conv: the kernel of one window and its registers (specification, sections 1.1 and 7)."""
 
-    def to_signed(value):
-        value &= cmask
-        return value - (1 << coef_bits) if value >> (coef_bits - 1) else value
+    def __init__(self, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
+        self.pb, self.wx, self.wy, self.cb = pixel_bits, win_x, win_y, coef_bits
+        self.taps = win_x * win_y
+        assert len(coef) == self.taps
+        self.coef, self.runtime = list(coef), runtime
+        full = conv_full_bits(pixel_bits, coef_bits, self.taps)
+        self.out_b = full if out_bits == 0 else out_bits
+        self.cmask = (1 << coef_bits) - 1
+        self.config_errors = 0
+        self.reset()
 
-    st = {}
+    def _signed(self, value):
+        value &= self.cmask
+        return value - (1 << self.cb) if value >> (self.cb - 1) else value
 
-    def reset_regs():
-        st["coef"] = [c & cmask for c in coef]
-        st["parity"] = [True] * taps
-        st["hold"] = False
+    def reset(self):
+        self.regs = [c & self.cmask for c in self.coef]
+        self.parity = [True] * self.taps
+        self.hold = False
+        self.ctrl_parity = True
+        self.work = list(self.coef)
+        self.status_config = False
+        self.first = True
 
-    reset_regs()
-    work = list(coef)
-    status_config = False
-    config_errors = 0
-    first = True
-    out, annot, regs = [], [], []
-    count = 0
+    def feed(self, data, last, user):
+        """One window; returns the output pixel."""
+        if self.first and user in (SEQ_FIRST, SEQ_ONLY) and self.runtime:
+            # A CTRL with a wrong parity bit counts as HOLD 0 and is reported; one Err_Config per image start
+            error = not self.ctrl_parity
+            if not self.hold or not self.ctrl_parity:
+                if all(self.parity):
+                    self.work = [self._signed(c) for c in self.regs]
+                else:
+                    self.work = list(self.coef)
+                    error = True
+            if error:
+                self.config_errors += 1
+                self.status_config = True
+        self.first = last == 1
+        pmask = (1 << self.pb) - 1
+        s = sum(self.work[k] * (data >> (k * self.pb) & pmask) for k in range(self.taps))
+        return 0 if s < 0 else min(s, (1 << self.out_b) - 1)
 
-    def read(addr):
+    def read(self, addr):
         if addr == CNV_ID:
             return 0x434E5601
         if addr == CNV_PARAM:
-            return (pixel_bits << 24) | (coef_bits << 16) | (win_y << 8) | win_x
+            return (self.pb << 24) | (self.cb << 16) | (self.wy << 8) | self.wx
         if addr == CNV_CTRL:
-            return 1 if st["hold"] else 0
+            return 1 if self.hold else 0
         if addr == CNV_STATUS:
-            return 0x200 if status_config else 0
-        if CNV_COEF <= addr < CNV_COEF + 4 * taps and addr % 4 == 0:
+            return 0x200 if self.status_config else 0
+        if CNV_COEF <= addr < CNV_COEF + 4 * self.taps and addr % 4 == 0:
             k = (addr - CNV_COEF) // 4
-            value = to_signed(st["coef"][k]) if runtime else coef[k]
+            value = self._signed(self.regs[k]) if self.runtime else self.coef[k]
             return value & 0xFFFFFFFF
         return 0
 
-    def write(addr, data, strobes):
-        nonlocal status_config
+    def write(self, addr, data, strobes):
         if addr == CNV_CTRL and strobes & 0x1:
-            st["hold"] = bool(data & 1)
+            self.hold = bool(data & 1)
+            self.ctrl_parity = True
         elif addr == CNV_STATUS and strobes & 0x2 and data & 0x200:
-            status_config = False
-        elif addr == CNV_INJECT and runtime and strobes & 0x1 and data & 1:
+            self.status_config = False
+        elif addr == CNV_INJECT and self.runtime and strobes & 0x1:
             k = (data >> 8) & 0xFF if strobes & 0x2 else 0
-            if k < taps:
-                st["parity"][k] = not st["parity"][k]
-        elif runtime and CNV_COEF <= addr < CNV_COEF + 4 * taps and addr % 4 == 0:
+            if data & 1 and k < self.taps:
+                self.parity[k] = not self.parity[k]
+            if data & 2:
+                self.ctrl_parity = not self.ctrl_parity
+        elif self.runtime and CNV_COEF <= addr < CNV_COEF + 4 * self.taps and addr % 4 == 0:
             k = (addr - CNV_COEF) // 4
-            st["coef"][k] = _strobe(to_signed(st["coef"][k]) & 0xFFFFFFFF, data, strobes) & cmask
-            st["parity"][k] = True
+            self.regs[k] = _strobe(self._signed(self.regs[k]) & 0xFFFFFFFF, data, strobes) & self.cmask
+            self.parity[k] = True
 
+    def accesses(self, entries):
+        """Register accesses of one marker; returns them with the expected read data."""
+        resolved = []
+        for op, addr, data, strobes in entries:
+            if op == "W":
+                self.write(addr, data, strobes)
+                resolved.append(("W", addr, data, strobes))
+            else:
+                resolved.append(("C", addr, self.read(addr), 0xF))
+        return resolved
+
+
+def conv(items, pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits):
+    """isp_conv: every beat is a window; q = 0 for a negative sum, otherwise min(S, 2^B - 1). The image start is the
+    first beat of a packet with the flags "01" or "11". Returns (out, 0, annot, {"config", "regs", "timing"}); the
+    output pixel of a window comes from the input beat of that window."""
+    k = ConvKernel(pixel_bits, win_x, win_y, coef_bits, coef, runtime, out_bits)
+    out, annot, regs, timing = [], [], [], []
+    count = beat = 0
     for it in items:
         if it[0] == "B":
-            _, data, last, user = it[:4]
-            if first and user in (SEQ_FIRST, SEQ_ONLY) and runtime and not st["hold"]:
-                if all(st["parity"]):
-                    work = [to_signed(c) for c in st["coef"]]
-                else:
-                    work = list(coef)
-                    config_errors += 1
-                    status_config = True
-            first = last == 1
-            pmask = (1 << pixel_bits) - 1
-            s = sum(work[k] * (data >> (k * pixel_bits) & pmask) for k in range(taps))
-            q = 0 if s < 0 else min(s, (1 << out_b) - 1)
-            out.append(("B", q, last, user, 0, 0))
+            out.append(("B", k.feed(it[1], it[2], it[3]), it[2], it[3], 0, 0))
+            timing.append(beat)
             count += 1
+            beat += 1
         elif it[0] == "R":
             _, drop, mode, _cycles = it
             assert drop <= count, "reset drops more beats than were produced"
             _drop(out, drop)
+            del timing[len(timing) - drop:]
             count -= drop
             out.append(("R", mode))
-            reset_regs()
-            work = list(coef)
-            status_config = False
-            first = True
+            k.reset()
         elif it[0] == "A":
-            _, marker, entries = it
-            resolved = []
-            for op, addr, data, strobes in entries:
-                if op == "W":
-                    write(addr, data, strobes)
-                    resolved.append(("W", addr, data, strobes))
-                else:
-                    resolved.append(("C", addr, read(addr), 0xF))
-            regs.append((marker, resolved))
+            regs.append((it[1], k.accesses(it[2])))
         annot.append((count, False))
-    return out, 0, annot, {"config": config_errors, "regs": regs}
-
+    return out, 0, annot, {"config": k.config_errors, "regs": regs, "timing": timing}

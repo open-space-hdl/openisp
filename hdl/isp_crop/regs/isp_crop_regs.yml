@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 by Julian Schneider
+# Authors: Julian Schneider
+# ---------------------------------------------------------------------------------------------------
+# Register map of isp_crop: the single description from which tools/regmap.py generates the VHDL package
+# hdl/isp_crop/src/isp_crop_regs_pkg.vhd, the documentation hdl/isp_crop/docs/register_map.md and the C header
+# sw/isp_crop_regs.h. tools/regmap.py --check compares it with the register table of the specification.
+#
+# Access per field: RO read only, RW read and write, W1 write one (command, reads as zero), W1C sticky flag (write
+# one to clear). A reset value written as text depends on generics.
+
+id: 0x43525001
+addr_bits: 8
+title: "Registers of the region of interest: identification, dimensions, position, status and error injection."
+
+registers:
+  - name: ID
+    offset: 0x00
+    description: Identification
+    fields:
+      - {name: ID, bits: "31:0", access: RO, reset: 0x43525001, description: "0x435250 (CRP) and register map version 1"}
+  - name: IMAGE
+    offset: 0x04
+    description: Dimensions of the input image
+    fields:
+      - {name: WIDTH_M1, bits: "15:0", access: RO, reset: "ImageWidth_g - 1", description: "Pixels per line of the input image, minus one"}
+      - {name: HEIGHT_M1, bits: "31:16", access: RO, reset: "ImageHeight_g - 1", description: "Lines of the input image, minus one"}
+  - name: ROI_SIZE
+    offset: 0x08
+    description: Size of the region of interest, the output image
+    fields:
+      - {name: WIDTH_M1, bits: "15:0", access: RO, reset: "RoiWidth_g - 1", description: "Pixels per line of the region, minus one"}
+      - {name: HEIGHT_M1, bits: "31:16", access: RO, reset: "RoiHeight_g - 1", description: "Lines of the region, minus one"}
+  - name: ROI_POS
+    offset: 0x0C
+    description: Position of the region, read with every image start (read only with RuntimeRoi_g false)
+    fields:
+      - {name: X, bits: "15:0", access: RW, reset: RoiX_g, description: "Column of the first pixel of the region"}
+      - {name: Y, bits: "31:16", access: RW, reset: RoiY_g, description: "Line of the first pixel of the region"}
+  - name: STATUS
+    offset: 0x10
+    description: Status
+    fields:
+      - {name: IMAGE_OPEN, bits: "0", access: RO, reset: 0, description: "An input image is open (Stat_ImageOpen)"}
+      - {name: ERR_FRAMING, bits: "8", access: W1C, reset: 0, description: "Set by every pulse of Err_Framing"}
+      - {name: ERR_CONFIG, bits: "9", access: W1C, reset: 0, description: "Set by every pulse of Err_Config"}
+  - name: INJECT
+    offset: 0x14
+    description: Error injection for the test of the error handling
+    fields:
+      - {name: ROI_POS_PARITY, bits: "0", access: W1, reset: 0, description: "Write one: inverts the parity bit of ROI_POS"}
