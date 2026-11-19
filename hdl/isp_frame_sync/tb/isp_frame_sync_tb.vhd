@@ -49,7 +49,9 @@ entity isp_frame_sync_tb is
         StallPct_g    : natural  := 0;
         Seed_g        : positive := 1;
         -- Number of Err_Framing pulses of the model
-        ExpFraming_g  : natural  := 0
+        ExpFraming_g  : natural  := 0;
+        -- Watchdog: the test fails when it has not ended after this time (docs/testbench.md, section 6)
+        WatchdogUs_g  : positive := 1000
     );
 end entity;
 
@@ -97,6 +99,8 @@ begin
 
     Clk <= not Clk after ClkPeriod_c / 2;
     Rst <= InitRst or RstReq;
+
+    test_runner_watchdog(runner, WatchdogUs_g * 1 us);
 
     i_dut : entity work.isp_frame_sync
         generic map (

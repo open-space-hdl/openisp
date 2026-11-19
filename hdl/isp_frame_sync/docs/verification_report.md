@@ -107,3 +107,4 @@ it gives no timing.
 | --- | --- |
 | FSY-PF-03 bounded the acceptance of the pixel of the image start. The input stage takes that pixel at once, so the bound measured nothing; the completion of a short image delays the output of the next image | FSY-PF-03 bounds the time until the first pixel of the next image is at the output (phase C) |
 | `ispIsImageStart` of `isp_pkg` looked only at bit 0 of the flags (isp_pkg verification report) | Corrected in `isp_pkg` before the first simulation |
+| A reset inside a packet with the flags "01" or "11" makes the rest of that packet an image start at a wrong position (lead review of the module); the behaviour was neither specified nor tested | Specified (section 6 of the specification, integration constraints of the user guide) and tested: test_reset has a held reset inside the "01" packet of the first line; the model gives the misaligned image, its `Err_Framing` pulses and the correct image after it |

@@ -140,3 +140,7 @@ the image; an image start is evaluated before every other condition of its pixel
   pause of the source from a lost packet. An image whose rest never arrives and that no image start follows stays
   open; `Stat_ImageOpen` lets a supervisor outside the module detect it.
 - The sequence flags of the beats after the first beat of a packet are not evaluated, except with pixel W x H - 1.
+- The first beat after the reset is the first beat of a packet. A reset inside a packet with the flags "01" or "11"
+  therefore makes the rest of that packet an image start at a wrong position: that image comes out wrong, with
+  `Err_Framing`, and the image after it is correct. Waiting for an `In_Last` after the reset instead would lose the
+  first image after every clean reset.

@@ -42,7 +42,7 @@ implements it, and with the test cases that verify these module requirements.
 | ISP-FT-02 | Error injection | `isp_window` | BIN-IF-03, FLT-IF-04, RPL-IF-05, WIN-IF-05 | TC-WIN-04 | Verified |
 | ISP-FT-03 | Scrubbing of long-lived tables | `isp_replace` | RPL-FT-01, RPL-IF-05 | - | In development |
 | ISP-FT-04 | Recovery from any state | `isp_frame_sync` | BIN-FT-01, CNV-FT-01, CNV-FT-03, CRP-FT-01, CRP-FT-02, FLT-FT-01, FSY-FN-06, FSY-FT-01, FSY-FT-02, PNT-FT-01, PNT-FT-03, RPL-FT-02, RPL-FT-03, WIN-FT-03, WIN-FT-04 | TC-CRP-05, TC-CRP-08, TC-FSY-03, TC-FSY-05, TC-FSY-06, TC-FSY-08, TC-PNT-05, TC-PNT-09, TC-WIN-01, TC-WIN-05, TC-WIN-07 | Verified |
-| ISP-FT-05 | Parity of long-lived registers | `isp_crop` | CNV-ER-01, CNV-FT-02, CNV-IF-04, CNV-RG-03, CNV-RG-04, CRP-ER-04, CRP-FT-03, CRP-RG-03, CRP-RG-04, FLT-FT-01, FLT-IF-04, PNT-ER-03, PNT-FT-02, PNT-IF-04, PNT-RG-03, PNT-RG-04 | TC-CRP-03, TC-CRP-05, TC-PNT-02, TC-PNT-03, TC-PNT-05, TC-PNT-06 | Verified |
+| ISP-FT-05 | Parity of long-lived registers | `isp_crop` | CNV-ER-01, CNV-FT-02, CNV-IF-04, CNV-RG-03, CNV-RG-04, CRP-ER-04, CRP-FT-03, CRP-RG-03, CRP-RG-04, FLT-FT-01, FLT-IF-04, PNT-ER-03, PNT-ER-04, PNT-FT-02, PNT-IF-04, PNT-RG-03, PNT-RG-04 | TC-CRP-03, TC-CRP-05, TC-PNT-02, TC-PNT-03, TC-PNT-05, TC-PNT-06 | Verified |
 | ISP-GEN-01 | VHDL-2008, GHDL synthesis, Open Logic | `isp_frame_sync` | BIN-CF-02, BIN-IF-04, CNV-CF-02, CNV-IF-05, CRP-CF-02, CRP-IF-04, FLT-CF-02, FLT-IF-05, FSY-CF-02, FSY-IF-06, PKG-04, PNT-CF-02, PNT-IF-05, RPL-CF-02, RPL-IF-06, WIN-CF-03, WIN-FT-01, WIN-IF-06 | TC-CRP-08, TC-CRP-10, TC-FSY-05, TC-FSY-09, TC-PKG-02, TC-PNT-09, TC-PNT-11, TC-WIN-04, TC-WIN-05, TC-WIN-08 | Verified |
 | ISP-GEN-02 | Specific functions as configurations | `isp_filter2d` | BIN-FN-04, FLT-FN-03, RPL-FN-07 | - | In development |
 | ISP-GEN-03 | 150 MHz | `isp_frame_sync` | BIN-CF-03, CNV-CF-03, CRP-CF-03, FLT-CF-03, FSY-CF-03, PNT-CF-03, RPL-CF-03, WIN-CF-04 | TC-CRP-11, TC-FSY-10, TC-PNT-12, TC-WIN-09 | Verified |
@@ -62,8 +62,8 @@ requirement included).
 | `isp_filter2d` | 15 | - | In development: no verification plan yet |
 | `isp_frame_sync` | 28 | 28 | - |
 | `isp_pkg` | 4 | 4 | - |
-| `isp_point` | 27 | 27 | - |
+| `isp_point` | 28 | 28 | - |
 | `isp_replace` | 30 | - | In development: no verification plan yet |
 | `isp_window` | 27 | 27 | - |
 
-Requirements: 198; without a test case: 0; test cases of the plans not run by a testbench: 12.
+Requirements: 199; without a test case: 0; test cases of the plans not run by a testbench: 2.
