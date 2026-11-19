@@ -53,6 +53,10 @@ package isp_tb_pkg is
     -- Decimal word to an integer
     function decToInt (s : string) return integer;
 
+    -- List of decimal integers separated by commas ("3,-1,0") to a vector, element 0 first: a vector generic that
+    -- GHDL cannot set on the command line is given to a testbench as a string
+    function ispIntList (s : string) return integer_vector;
+
 end package;
 
 ---------------------------------------------------------------------------------------------------
@@ -151,6 +155,39 @@ package body isp_tb_pkg is
     function decToInt (s : string) return integer is
     begin
         return integer'value(s);
+    end function;
+
+    function ispIntList (s : string) return integer_vector is
+        function count (str : string) return positive is
+            variable N_v : positive := 1;
+        begin
+
+            for i in str'range loop
+                if str(i) = ',' then
+                    N_v := N_v + 1;
+                end if;
+            end loop;
+
+            return N_v;
+        end function;
+
+        variable Res_v   : integer_vector(0 to count(s) - 1);
+        variable Start_v : integer := s'left;
+        variable K_v     : natural := 0;
+    begin
+
+        for i in s'left to s'right + 1 loop
+            if i > s'right or s(i) = ',' then
+                assert i > Start_v
+                    report "ispIntList: empty element in '" & s & "'"
+                    severity failure;
+                Res_v(K_v) := integer'value(s(Start_v to i - 1));
+                K_v        := K_v + 1;
+                Start_v    := i + 1;
+            end if;
+        end loop;
+
+        return Res_v;
     end function;
 
 end package body;
