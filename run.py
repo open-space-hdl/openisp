@@ -16,6 +16,9 @@ coverage/coverage.ucdb with the text report coverage/coverage_report.txt. Questa
 
 `--compile-order` writes compile_order.txt (the synthesis sources of the library `openisp` in compile order) and
 exits without simulating.
+
+`--subset FILE` runs the tests that match the VUnit patterns of FILE (one per line, '#' starts a comment), for example
+`--subset pr_tests.txt`, the tests of the pull-request CI.
 """
 
 import importlib.util
@@ -38,6 +41,12 @@ if COVERAGE:
 COMPILE_ORDER = "--compile-order" in sys.argv
 if COMPILE_ORDER:
     sys.argv.remove("--compile-order")
+if "--subset" in sys.argv:
+    # The patterns of the file become the test patterns of VUnit, placed before the options
+    _i = sys.argv.index("--subset")
+    _lines = Path(sys.argv[_i + 1]).read_text(encoding="utf-8").splitlines()
+    del sys.argv[_i:_i + 2]
+    sys.argv[1:1] = [p for p in (ln.split("#", 1)[0].strip() for ln in _lines) if p]
 if "--questa" in sys.argv:
     sys.argv.remove("--questa")
     os.environ["VUNIT_SIMULATOR"] = "modelsim"

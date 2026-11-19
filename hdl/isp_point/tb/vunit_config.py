@@ -47,6 +47,8 @@ CONFIGS = [
      for n in range(1, 5)] + [
     ("w65536_h1", 65536, 1, 12, 12, 16, 28, 2, False, (-100, 1229, 10, 0, -1), 10, 10, ["test_static"]),
     ("w1_h65536", 1, 65536, 12, 12, 16, 28, 2, False, (-100, 1229, 10, 0, -1), 10, 10, ["test_static"]),
+    # The low bound of the width in a small image (the pull-request CI runs it; w1_h65536 runs in the full tier)
+    ("w1_h4", 1, 4, 12, 12, 16, 28, 2, False, (-100, 1229, 10, 0, -1), 10, 10, ["test_static"]),
     ("generic_bounds", 4, 3, 32, 32, 18, 50, 2, False, (-2 ** 31, 2 ** 18 - 1, 50, 2 ** 31 - 1, -1), 0, 0,
      ["test_static", "test_registers"]),
 ]
