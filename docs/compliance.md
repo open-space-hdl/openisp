@@ -66,4 +66,4 @@ requirement included).
 | `isp_replace` | 30 | - | In development: no verification plan yet |
 | `isp_window` | 26 | - | In development: no verification plan yet |
 
-Requirements: 196; without a test case: 0; test cases of the plans not run by a testbench: 7.
+Requirements: 196; without a test case: 0; test cases of the plans not run by a testbench: 0.

@@ -1,2 +1,4 @@
 hdl/isp_pkg/src/isp_pkg.vhd
 hdl/isp_frame_sync/src/isp_frame_sync.vhd
+hdl/isp_crop/src/isp_crop_regs_pkg.vhd
+hdl/isp_crop/src/isp_crop.vhd

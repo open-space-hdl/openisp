@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 from isp_model import (CRP_ID, CRP_IMAGE, CRP_INJECT, CRP_ROI_POS, CRP_ROI_SIZE, CRP_STATUS, SEQ_CONT,  # noqa: E402
                        SEQ_FIRST, SEQ_LAST, SEQ_ONLY, crop)
 from isp_tbgen import (image_beats, packets, random_image, raw_packet, rng_for, seed_for, split,  # noqa: E402
-                       write_test)
+                       watchdog_us, write_test)
 
 MODULE = "isp_crop"
 SWEEP_STEPS = 12
@@ -355,4 +355,5 @@ def configure(lib, out_dir):
                 "StimFile_g": files["stim"].as_posix(), "ExpFile_g": files["exp"].as_posix(),
                 "RegsFile_g": files["regs"].as_posix(), "TimFile_g": files["tim"].as_posix(),
                 "GapPct_g": gap, "StallPct_g": stall, "Seed_g": seed_for(MODULE, name, test),
-                "ExpFraming_g": res["errors"], "ExpConfig_g": res["config"], "SweepSteps_g": SWEEP_STEPS})
+                "ExpFraming_g": res["errors"], "ExpConfig_g": res["config"], "SweepSteps_g": SWEEP_STEPS,
+                "WatchdogUs_g": watchdog_us(files["stim"], files["exp"])})

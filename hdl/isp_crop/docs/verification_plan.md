@@ -32,14 +32,15 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | --- | --- | --- | --- | --- | --- | --- |
 | `w8_h6_static` | 8 x 6 | 12 | 2, 1, 4, 3 | false | none | static, input_stream, registers, reset, rate |
 | `w8_h6_static_bp` | 8 x 6 | 12 | 2, 1, 4, 3 | false | 30 % / 40 % | static, input_stream, parity, registers, reset |
-| `w8_h6_runtime` | 8 x 6 | 12 | 2, 1, 4, 3 | true | 30 % / 40 % | all except rate |
+| `w8_h6_runtime` | 8 x 6 | 12 | 2, 1, 4, 3 | true | 30 % / 40 % | all except rate and flag_coincidence |
 | `w8_h6_runtime_rate` | 8 x 6 | 12 | 2, 1, 4, 3 | true | none | rate, flag_coincidence |
 | `w8_h6_full` | 8 x 6 | 8 | 0, 0, 8, 6 | true | 20 % / 20 % | static, input_stream, runtime_position, invalid_position |
 | `w8_h6_corner` | 8 x 6 | 16 | 7, 5, 1, 1 | true | 20 % / 20 % | static, runtime_position, invalid_position, parity |
 | `w8_h6_line` | 8 x 6 | 1 | 0, 5, 8, 1 | false | 20 % / 20 % | static, input_stream |
 | `w8_h6_column` | 8 x 6 | 64 | 3, 0, 1, 6 | false | 20 % / 20 % | static, input_stream |
 | `w1_h1` | 1 x 1 | 7 | 0, 0, 1, 1 | true | 30 % / 40 % | static, input_stream, runtime_position, parity, reset |
-| `w33_h9` | 33 x 9 | 13 | 5, 2, 20, 6 | true | 20 % / 20 % | all except rate |
+| `w33_h9` | 33 x 9 | 13 | 5, 2, 20, 6 | true | 20 % / 20 % | all except rate and flag_coincidence |
+| `w33_h9_rate` | 33 x 9 | 13 | 5, 2, 20, 6 | false | none | rate (13 pixels outside the region between two lines of the region, more than the module holds) |
 | `w65536_h1` | 65536 x 1 | 12 | 65535, 0, 1, 1 | true | 10 % / 10 % | static, runtime_position, invalid_position |
 | `w1_h65536` | 1 x 65536 | 12 | 0, 0, 1, 65536 | false | 10 % / 10 % | static |
 
@@ -80,9 +81,9 @@ and the whole image.
 | `test_invalid_position` (TC-CRP-04) | X + width = W + 1, Y + height = H + 1, both, the largest X with a valid Y and the reverse (valid), a value of 65535 in both fields: an invalid position processes the image with the generics and pulses `Err_Config` once per image; `STATUS.ERR_CONFIG` set; `ROI_POS` reads back the written value; a valid write afterwards is used | CRP-ER-03, CRP-IF-06 |
 | `test_parity` (TC-CRP-05) | `INJECT.ROI_POS_PARITY`: the next image and every further image use the generics with one `Err_Config` each, until `ROI_POS` is written; a second injection after the first restores the parity (the position is used again); an injection followed by a write; with `RuntimeRoi_g` false the injection has no effect | CRP-ER-04, CRP-FT-01, CRP-FT-03, CRP-RG-04 |
 | `test_registers` (TC-CRP-06) | `ID`, `IMAGE`, `ROI_SIZE` and the reset values of `ROI_POS` and `STATUS`; writes to the read-only registers (and to `ROI_POS` with `RuntimeRoi_g` false) leave them unchanged; unused addresses read 0; `STATUS.IMAGE_OPEN` follows `Stat_ImageOpen`; `ERR_FRAMING` and `ERR_CONFIG` set by their events, kept by a write of 0, cleared by a write of 1; `INJECT` reads 0 | CRP-RG-01, CRP-RG-02, CRP-IF-05 |
-| `test_flag_coincidence` (TC-CRP-07) | The clear of `STATUS.ERR_FRAMING` in the cycle of an `Err_Framing` pulse: a sweep moves a discarded pixel cycle by cycle against the write of 1 to `STATUS`. The write takes effect in the first cycle in which `BVALID` is high (`olo_axi_lite_slave` raises the write strobe and `BVALID` together); after every step `STATUS` is read: the flag is set exactly when the pulse came in that cycle or later. The sweep must contain the coinciding step | CRP-RG-02 |
+| `test_flag_coincidence` (TC-CRP-07) | The clear of `STATUS.ERR_FRAMING` against an `Err_Framing` pulse (a discarded pixel) and the clear of `STATUS.ERR_CONFIG` against an `Err_Config` pulse (an image start with an invalid position): twelve steps move the write of 1 to `STATUS` cycle by cycle against the pulse. The write takes effect in the first cycle in which `BVALID` is high (`olo_axi_lite_slave` raises the write strobe and `BVALID` together); the testbench records the cycles of the pulse and of `BVALID` and, after every step, reads `STATUS`: the flag is set exactly when the pulse came in that cycle or later. Each sweep must contain steps before, at and after the pulse | CRP-RG-02 |
 | `test_reset` (TC-CRP-08) | Resets idle, held and running in the middle of an image (inside and outside the region), resets of one cycle; after the reset `ROI_POS` holds the generics again and the images are correct | CRP-FT-02, CRP-IF-04, CRP-ER-02 |
-| `test_rate` (TC-CRP-09) | Configurations without gaps and stalls. Phase 1: images back to back: `In_Ready` high for every beat, every pixel of the region at the output at most 4 cycles after its acceptance, the region pixels of a line in consecutive cycles. Phase 2: output held, an image whose region begins in line Y: every pixel before the region accepted in its cycle | CRP-PF-01, CRP-PF-02, CRP-PF-03 |
+| `test_rate` (TC-CRP-09) | Configurations without gaps and stalls. Phase 1: images back to back: `In_Ready` high for every beat, every pixel of the region at the output exactly 4 cycles after the acceptance of its input beat (the index of the input beat of every output pixel comes from the model, docs/testbench.md section 9), so the pixels of a line of the region leave in consecutive cycles. Phase 2: the last pixel of the first line of the region held in the output register (`Out_Ready` low): every pixel outside the region up to the next pixel of the region accepted in its cycle | CRP-PF-01, CRP-PF-02, CRP-PF-03 |
 | TC-CRP-10 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2, both values of `RuntimeRoi_g`; `ImageWidth_g` 65537, `RoiWidth_g` 0, `RoiX_g` + `RoiWidth_g` > W, `RoiY_g` + `RoiHeight_g` > H and `PixelBits_g` 65 stop the elaboration with their message | CRP-CF-01, CRP-CF-02 |
 | TC-CRP-11 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation of the default configuration (4096 x 4096 pixels, 12 bits, region at run time) at 150 MHz on the Versal device of the reference systems, on the build machine | CRP-CF-03 |
 
@@ -118,7 +119,7 @@ and the whole image.
 | --- | --- | --- |
 | Latency 4 cycles for a pixel of the region (CRP-PF-02) | 4 | 2 cycles in `isp_frame_sync`, 1 in the position stage, 1 in the output register |
 | One pixel per cycle (CRP-PF-01) | 1 | Every stage is loaded when it is empty or read in the same cycle |
-| Pixels outside the region with the output held (CRP-PF-03) | One per cycle until the next pixel of the region | A pixel outside the region leaves the position stage without the output register; the input waits only once a pixel of the region waits in the position stage |
+| Pixels outside the region with the output held (CRP-PF-03) | One per cycle until the next pixel of the region | A pixel outside the region leaves the position stage without the output register; the input waits only once a pixel of the region waits in the position stage, so phase 2 holds a pixel of the region in the output register and sends more pixels outside the region than the frame sync and the position stage hold (4) |
 | Clear and event in the same cycle (CRP-RG-02) | The flag stays set | The write strobe of `olo_axi_lite_slave` is high in the first cycle of `BVALID`; the flag register takes the event and the clear at the end of that cycle, the event first |
 
 ## 6. Negative tests and mutations
@@ -136,7 +137,8 @@ registers, malformed input streams, resets. The pulse counts are compared exactl
 | The parity bit not updated by a write | TC-CRP-03, 05 |
 | `INJECT` without effect | TC-CRP-05 |
 | The byte strobes ignored | TC-CRP-03 |
-| The clear wins over the event | TC-CRP-07 |
+| The clear of `ERR_FRAMING` wins over the event | TC-CRP-07 |
+| The clear of `ERR_CONFIG` wins over the event | TC-CRP-07 |
 | Pixels outside the region wait for the output | TC-CRP-09 |
 | No `Err_Config` pulse | TC-CRP-04, 05 |
 | `ROI_POS` not set to the generics by the reset | TC-CRP-08 |

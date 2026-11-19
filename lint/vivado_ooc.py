@@ -39,6 +39,9 @@ PART = "xcvc1902-vsva2197-2MP-e-S"
 # and its widest one where it differs
 CONFIGS = {
     "fsy_max": ("isp_frame_sync", {"ImageWidth_g": 65536, "ImageHeight_g": 65536, "PixelBits_g": 64}, False),
+    # isp_crop TC-CRP-11: the default configuration with the position at run time
+    "crp_default": ("isp_crop", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "PixelBits_g": 12, "RoiWidth_g": 1024,
+                                 "RoiHeight_g": 1024, "RoiX_g": 512, "RoiY_g": 512, "RuntimeRoi_g": True}, False),
 }
 
 

@@ -25,6 +25,7 @@ library olo;
 
 library work;
     use work.isp_pkg.all;
+    use work.isp_crop_regs_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
 -- Entity
@@ -90,15 +91,6 @@ architecture rtl of isp_crop is
 
     constant XW_c : positive := ispPosWidth(ImageWidth_g);
     constant YW_c : positive := ispPosWidth(ImageHeight_g);
-
-    -- Register map (specification, section 7)
-    constant AdrId_c      : natural                       := 16#00#;
-    constant AdrImage_c   : natural                       := 16#04#;
-    constant AdrRoiSize_c : natural                       := 16#08#;
-    constant AdrRoiPos_c  : natural                       := 16#0C#;
-    constant AdrStatus_c  : natural                       := 16#10#;
-    constant AdrInject_c  : natural                       := 16#14#;
-    constant Id_c         : std_logic_vector(31 downto 0) := x"43525001";
 
     -- Reset value of ROI_POS: Y in 31:16, X in 15:0
     constant RoiPosRst_c : std_logic_vector(31 downto 0) :=
@@ -343,7 +335,7 @@ begin
 
             case to_integer(unsigned(Rb_Addr)) is
 
-                when AdrRoiPos_c =>
+                when RegRoiPos_c =>
                     if RuntimeRoi_g then
 
                         for b in 0 to 3 loop
@@ -356,14 +348,14 @@ begin
                         v.RoiPar := xor v.RoiPos;
                     end if;
 
-                when AdrStatus_c =>
+                when RegStatus_c =>
                     if Rb_ByteEna(1) = '1' then
-                        ClrFrm_v := Rb_WrData(8) = '1';
-                        ClrCfg_v := Rb_WrData(9) = '1';
+                        ClrFrm_v := Rb_WrData(StatusErrFraming_c) = '1';
+                        ClrCfg_v := Rb_WrData(StatusErrConfig_c) = '1';
                     end if;
 
-                when AdrInject_c =>
-                    if RuntimeRoi_g and Rb_ByteEna(0) = '1' and Rb_WrData(0) = '1' then
+                when RegInject_c =>
+                    if RuntimeRoi_g and Rb_ByteEna(0) = '1' and Rb_WrData(InjectRoiPosParity_c) = '1' then
                         v.RoiPar := not r.RoiPar;
                     end if;
 
@@ -396,24 +388,24 @@ begin
 
             case to_integer(unsigned(Rb_Addr)) is
 
-                when AdrId_c =>
-                    v.RdData := Id_c;
+                when RegId_c =>
+                    v.RdData := RegMapId_c;
 
-                when AdrImage_c =>
+                when RegImage_c =>
                     v.RdData := std_logic_vector(to_unsigned(ImageHeight_g - 1, 16)) &
                                 std_logic_vector(to_unsigned(ImageWidth_g - 1, 16));
 
-                when AdrRoiSize_c =>
+                when RegRoiSize_c =>
                     v.RdData := std_logic_vector(to_unsigned(RoiHeight_g - 1, 16)) &
                                 std_logic_vector(to_unsigned(RoiWidth_g - 1, 16));
 
-                when AdrRoiPos_c =>
+                when RegRoiPos_c =>
                     v.RdData := r.RoiPos;
 
-                when AdrStatus_c =>
-                    v.RdData(0) := FsImageOpen;
-                    v.RdData(8) := r.FlagFraming;
-                    v.RdData(9) := r.FlagConfig;
+                when RegStatus_c =>
+                    v.RdData(StatusImageOpen_c)  := FsImageOpen;
+                    v.RdData(StatusErrFraming_c) := r.FlagFraming;
+                    v.RdData(StatusErrConfig_c)  := r.FlagConfig;
 
                 when others =>
                     null;

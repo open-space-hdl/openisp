@@ -96,6 +96,10 @@ A register bus in another clock domain needs a clock crossing in the system. Eve
 reads of unused addresses return 0. A module whose registers are not needed leaves the slave unconnected: its inputs
 default to inactive.
 
+The register map of a module is generated from its register description (`hdl/<module>/regs/<module>_regs.yml`) by
+`tools/regmap.py`: the page "Register map" of the module, the VHDL package `<module>_regs_pkg` and the C header
+`sw/<module>_regs.h` with the addresses, the field positions and masks and the identification for the software.
+
 Every register map starts with the same registers:
 
 | Register | Content |
@@ -126,7 +130,7 @@ and so for every further image until the register is written again. The software
 - reads `STATUS` after every image or periodically,
 - writes the parameter registers again when `ERR_CONFIG` is set, then clears the flag.
 
-The register `INJECT` inverts the parity bit of one register, so that the system can test this path.
+The register `INJECT` inverts the parity bit of a parameter register, so that the system can test this path.
 
 ### 4.4 Defect map of `isp_replace`
 

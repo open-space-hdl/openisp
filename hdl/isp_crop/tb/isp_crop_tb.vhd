@@ -70,7 +70,9 @@ entity isp_crop_tb is
         ExpFraming_g  : natural  := 0;
         ExpConfig_g   : natural  := 0;
         -- Steps of each sweep of test_flag_coincidence
-        SweepSteps_g  : natural  := 12
+        SweepSteps_g  : natural  := 12;
+        -- Watchdog: the test fails when it has not ended after this time (docs/testbench.md, section 6)
+        WatchdogUs_g  : positive := 1000
     );
 end entity;
 
@@ -137,6 +139,8 @@ begin
 
     Clk <= not Clk after ClkPeriod_c / 2;
     Rst <= InitRst or RstReq;
+
+    test_runner_watchdog(runner, WatchdogUs_g * 1 us);
 
     i_dut : entity work.isp_crop
         generic map (

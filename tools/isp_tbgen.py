@@ -105,6 +105,13 @@ def image_beats(rng, width, height, bits, mode):
     return packets(pixels, split(rng, width * height, width, mode))
 
 
+def watchdog_us(*files):
+    """Watchdog of a test in microseconds: 1 ms plus 0.5 us per entry of its files. An entry takes a few cycles of
+    10 ns, also with gaps, stalls and pauses, so the margin is more than tenfold (docs/testbench.md, section 6)."""
+    entries = sum(len(Path(f).read_text(encoding="ascii").splitlines()) for f in files)
+    return 1000 + entries // 2
+
+
 def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_path=None, inj_path=None,
                tim_path=None):
     """Runs `model(items)` -> (out, errors, annot[, extra]) and writes the files. Returns a dict with the number of
