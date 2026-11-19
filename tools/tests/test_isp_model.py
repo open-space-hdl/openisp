@@ -292,3 +292,15 @@ def test_window_ecc():
     assert [elements(o[1], 3, 12) for o in out] == [elements(o[1], 3, 12) for o in window(
         packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
 
+
+def test_window_ecc_unused_delay():
+    # 1 x 3 replicate on 3 x 4: a double error written into delay 2 in line 0 is read in line 1, where the rows above
+    # the image replicate line 0 and delay 2 is not used: no pulse, no change (WIN-FT-02)
+    pix = image(3, 4)
+    cw = ecc_codeword_width(12)
+    pos = ecc_data_positions(12)
+    items = [("J", 100, ((1 << pos[0]) | (1 << pos[1])) << cw)] + packets(pix, [12])
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    assert ex["ded"] == 0 and ex["sec"] == 0
+    assert [o[1] for o in out] == [o[1] for o in window(packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
+

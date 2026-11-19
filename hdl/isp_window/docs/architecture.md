@@ -91,7 +91,9 @@ are the `WinY_g` pixels of the column.
 - A line has exactly W shifts (PIX or VPIX), whatever the timing of the input: the delay counts pixels, not clock
   cycles.
 - The error flags of the delays are sampled in the event: `Stat_EccSec` and `Stat_EccDed` are the OR over the
-  delays (WIN-FT-02).
+  delays that the row selection of the event uses (WIN-FT-02). The delays above the first lines of an image hold the
+  image before, or after power-up whatever the RAM holds; their data never reaches a window, and neither do their
+  flags.
 - `EccPipeline_g` 1 (default) registers the corrected output of every delay, so that the path from one delay to the
   encoder of the next and to the window register starts at a register.
 

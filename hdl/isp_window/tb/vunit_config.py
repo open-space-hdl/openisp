@@ -50,6 +50,10 @@ CONFIGS = [
     cfg("ecc_bram_1", 8, 6, 12, 3, 3, resource="BRAM", ecc=1, gap=0, stall=0, tests=["test_ecc"]),
     cfg("ecc_bram_min", 4, 6, 12, 3, 3, border="mirror", resource="BRAM", ecc=1, gap=0, stall=0,
         tests=["test_ecc"]),
+    # Rb = 0: the last line of an image is read in the first line of the next image, where it is not used
+    cfg("ecc_bottom", 8, 6, 12, 3, 3, 1, 2, resource="BRAM", ecc=1, gap=0, stall=0, tests=["test_ecc"]),
+    cfg("ecc_bottom_zero", 8, 6, 12, 3, 3, 1, 2, border="zero", resource="SRL", ecc=0, gap=0, stall=0,
+        tests=["test_ecc"]),
     cfg("w65536", 65536, 3, 12, 3, 3, gap=10, stall=10),
     cfg("h65536", 3, 65536, 12, 3, 3, border="mirror", resource="SRL", gap=10, stall=10),
     cfg("bits1", 7, 5, 1, 3, 3),
@@ -159,8 +163,14 @@ def build_ecc(rng, c):
         d1, d2 = rng.sample(pos, 2)
         inject((1 << d1) | (1 << (cw + d2)), h - 1, rng.randrange(w))
         inject((1 << d1) | (((1 << d1) | (1 << d2)) << cw), h - 1, rng.randrange(w))
-    # An injection in the last line of an image: read in the virtual lines or in the next image
+    # An injection in the last line of an image: read and reported where its line is used (lower border)
     inject(((1 << pos[0]) | (1 << pos[1])) << ((delays[0] - 1) * cw), h - 1, w - 1)
+    if wy >= 3 and c["border"] != "valid":
+        # Injections in the first line into the last delay: its codeword is read in the next line, where the border
+        # rule replaces that delay; not reported (WIN-FT-02)
+        last = (wy - 2) * cw
+        inject(((1 << pos[0]) | (1 << pos[1])) << last, 0, rng.randrange(w))
+        inject((1 << pos[2]) << last, 0, rng.randrange(w))
     items += img(rng, c, "lines") + img(rng, c, "random")
     return items + status()
 
