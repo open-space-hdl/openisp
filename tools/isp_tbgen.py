@@ -7,8 +7,9 @@
 A test is a list of input items (see tools/isp_model.py): beats ('B', pixel, last, user) and directives
 ('G', n) pause, ('T', n) wait cycles, ('W',) wait for the sink, ('P',) probe, ('H', 0/1) hold the sink,
 ('M', n) marker, ('R', drop, mode, cycles) reset, ('A', marker, entries) register accesses, ('J', marker, pattern)
-error injection, ('S', marker, 0 or 1) scrubber enable. `write_test` runs the model of the module over the items and writes the stimulus file, the expected
-file and, where the test needs them, the register script, the injection script and the timing file.
+error injection, ('S', marker, 0 or 1) scrubber enable. `write_test` runs the model of the module over the items
+and writes the stimulus file, the expected file and, where the test needs them, the register script, the injection
+script and the timing file.
 """
 
 import random
