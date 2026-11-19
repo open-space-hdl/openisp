@@ -54,7 +54,7 @@ The module has no memory. It counts the pixels from every image start; the count
 | --- | --- | --- |
 | FSY-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall accept one pixel per clock cycle, also across the lines and from one image to the next. | ISP-STR-09 |
 | FSY-PF-02 | With `Out_Ready` high, a pixel shall be at the output at most 2 clock cycles after the module accepted it. | ISP-STR-09 |
-| FSY-PF-03 | With `Out_Ready` high, the module shall generate missing pixels at one per clock cycle: after an image start that finds m pixels of the open image missing, the module shall accept the pixel of the image start at most m + 4 clock cycles after it was offered. | ISP-STR-08 |
+| FSY-PF-03 | With `Out_Ready` high, the module shall generate missing pixels at one per clock cycle: after an image start that finds m pixels of the open image missing, the first pixel of the new image shall be at the output at most m + 4 clock cycles after the module accepted it. | ISP-STR-08 |
 | FSY-PF-04 | The module shall discard pixels that belong to no image at one per clock cycle, whatever `Out_Ready`. | ISP-STR-07 |
 
 ### 2.4 Error handling
@@ -140,3 +140,7 @@ the image; an image start is evaluated before every other condition of its pixel
   pause of the source from a lost packet. An image whose rest never arrives and that no image start follows stays
   open; `Stat_ImageOpen` lets a supervisor outside the module detect it.
 - The sequence flags of the beats after the first beat of a packet are not evaluated, except with pixel W x H - 1.
+- The first beat after the reset is the first beat of a packet. A reset inside a packet with the flags "01" or "11"
+  therefore makes the rest of that packet an image start at a wrong position: that image comes out wrong, with
+  `Err_Framing`, and the image after it is correct. Waiting for an `In_Last` after the reset instead would lose the
+  first image after every clean reset.

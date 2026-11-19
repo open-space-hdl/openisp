@@ -8,7 +8,7 @@
 ---------------------------------------------------------------------------------------------------
 -- Verification helpers shared by all OpenISP testbenches (VUnit runner plus UVVM).
 --
--- Documentation: docs/conventions.md (section Verification)
+-- Documentation: docs/testbench.md
 
 ---------------------------------------------------------------------------------------------------
 -- Libraries
@@ -16,6 +16,9 @@
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
+
+library std;
+    use std.textio.all;
 
 library uvvm_util;
     context uvvm_util.uvvm_util_context;
@@ -32,6 +35,23 @@ package isp_tb_pkg is
     -- differ from the expected alerts (an unexpected alert or an expected alert that did not occur), whatever the
     -- stop limits of the test, which fails the VUnit test, and hands over to the VUnit runner.
     procedure ispTestEnd (signal runner : inout runner_sync_t);
+
+    -- Longest word of a stimulus or expected file (a window of 16 x 16 pixels of 32 bits in hexadecimal)
+    constant WordMax_c : positive := 4096;
+
+    -- Reads the next word of a line, separated by spaces; Len = 0 at the end of the line
+    procedure readWord (
+        variable L   : inout line;
+        variable W   : out string;
+        variable Len : out natural);
+
+    -- Hexadecimal word to a vector of Width bits; digits beyond Width must be zero
+    function hexToSlv (
+        s     : string;
+        width : positive) return std_logic_vector;
+
+    -- Decimal word to an integer
+    function decToInt (s : string) return integer;
 
 end package;
 
@@ -64,5 +84,73 @@ package body isp_tb_pkg is
             severity failure;
         test_runner_cleanup(runner);
     end procedure;
+
+    procedure readWord (
+        variable L   : inout line;
+        variable W   : out string;
+        variable Len : out natural) is
+        variable C_v : character;
+        variable N_v : natural := 0;
+    begin
+        W := (W'range => ' ');
+
+        -- Spaces before the word
+        while L /= null and L'length > 0 loop
+            exit when L(L'left) /= ' ' and L(L'left) /= HT;
+            read(L, C_v);
+        end loop;
+
+        while L /= null and L'length > 0 loop
+            exit when L(L'left) = ' ' or L(L'left) = HT or L(L'left) = CR;
+            read(L, C_v);
+            assert N_v < W'length
+                report "readWord: word longer than " & integer'image(W'length) & " characters"
+                severity failure;
+            W(W'left + N_v) := C_v;
+            N_v             := N_v + 1;
+        end loop;
+
+        Len := N_v;
+    end procedure;
+
+    function hexToSlv (
+        s     : string;
+        width : positive) return std_logic_vector is
+        variable Full_v  : std_logic_vector(4 * s'length - 1 downto 0);
+        variable Digit_v : natural;
+        variable Res_v   : std_logic_vector(width - 1 downto 0) := (others => '0');
+    begin
+
+        for i in 0 to s'length - 1 loop
+
+            case s(s'left + i) is
+                when '0' to '9' => Digit_v := character'pos(s(s'left + i)) - character'pos('0');
+                when 'a' to 'f' => Digit_v := character'pos(s(s'left + i)) - character'pos('a') + 10;
+                when 'A' to 'F' => Digit_v := character'pos(s(s'left + i)) - character'pos('A') + 10;
+                when others =>
+                    report "hexToSlv: '" & s & "' is not a hexadecimal number"
+                        severity failure;
+            end case;
+
+            Full_v(4 * (s'length - i) - 1 downto 4 * (s'length - i - 1)) := std_logic_vector(to_unsigned(Digit_v, 4));
+        end loop;
+
+        for b in 0 to Full_v'length - 1 loop
+            if b < width then
+                Res_v(b) := Full_v(b);
+            else
+                assert Full_v(b) = '0'
+                    report "hexToSlv: '" & s & "' does not fit in " & integer'image(width) & " bits"
+                    severity failure;
+            end if;
+        end loop;
+
+        return Res_v;
+    end function;
+
+    function decToInt (s : string) return integer is
+    begin
+        return integer'value(s);
+    end function;
 
 end package body;

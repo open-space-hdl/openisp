@@ -25,10 +25,28 @@ ROOT = Path(__file__).resolve().parent.parent
 LIBS = ROOT / "vunit_out" / "ghdl" / "libraries"
 
 # Configurations that must synthesise: (name, top, generics)
-CONFIGS = []
+CONFIGS = [
+    # isp_frame_sync (TC-FSY-09); isp_pkg is synthesised with it (TC-PKG-02)
+    ("fsy_w1_h1_p1", "isp_frame_sync", {"ImageWidth_g": "1", "ImageHeight_g": "1", "PixelBits_g": "1"}),
+    ("fsy_w4096_h4096_p12", "isp_frame_sync", {"ImageWidth_g": "4096", "ImageHeight_g": "4096", "PixelBits_g": "12"}),
+    ("fsy_w1_h65536_p32", "isp_frame_sync", {"ImageWidth_g": "1", "ImageHeight_g": "65536", "PixelBits_g": "32"}),
+    ("fsy_w65536_h1_p8", "isp_frame_sync", {"ImageWidth_g": "65536", "ImageHeight_g": "1", "PixelBits_g": "8"}),
+    ("fsy_w65536_h65536_p64", "isp_frame_sync",
+     {"ImageWidth_g": "65536", "ImageHeight_g": "65536", "PixelBits_g": "64"}),
+]
 
 # Configurations outside the declared ranges and the message their elaboration stops with
-NEGATIVE = []
+FSY_OK = {"ImageWidth_g": "8", "ImageHeight_g": "4", "PixelBits_g": "12"}
+NEGATIVE = [
+    ("fsy_width_0", "isp_frame_sync", dict(FSY_OK, ImageWidth_g="0"), 'generic "ImageWidth_g" is out of bounds'),
+    ("fsy_width_65537", "isp_frame_sync", dict(FSY_OK, ImageWidth_g="65537"),
+     "isp_frame_sync: ImageWidth_g must be 1 to 65536"),
+    ("fsy_height_0", "isp_frame_sync", dict(FSY_OK, ImageHeight_g="0"), 'generic "ImageHeight_g" is out of bounds'),
+    ("fsy_height_65537", "isp_frame_sync", dict(FSY_OK, ImageHeight_g="65537"),
+     "isp_frame_sync: ImageHeight_g must be 1 to 65536"),
+    ("fsy_bits_0", "isp_frame_sync", dict(FSY_OK, PixelBits_g="0"), 'generic "PixelBits_g" is out of bounds'),
+    ("fsy_bits_65", "isp_frame_sync", dict(FSY_OK, PixelBits_g="65"), "isp_frame_sync: PixelBits_g must be 1 to 64"),
+]
 
 
 def run_synth(top, generics, out_file):

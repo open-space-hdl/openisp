@@ -1,1 +1,2 @@
-
+hdl/isp_pkg/src/isp_pkg.vhd
+hdl/isp_frame_sync/src/isp_frame_sync.vhd
