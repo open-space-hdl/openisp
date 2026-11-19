@@ -7,7 +7,7 @@
 A test is a list of input items (see tools/isp_model.py): beats ('B', pixel, last, user) and directives
 ('G', n) pause, ('T', n) wait cycles, ('W',) wait for the sink, ('P',) probe, ('H', 0/1) hold the sink,
 ('M', n) marker, ('R', drop, mode, cycles) reset, ('A', marker, entries) register accesses, ('J', marker, pattern)
-error injection. `write_test` runs the model of the module over the items and writes the stimulus file, the expected
+error injection, ('S', marker, 0 or 1) scrubber enable. `write_test` runs the model of the module over the items and writes the stimulus file, the expected
 file and, where the test needs them, the register script, the injection script and the timing file.
 """
 
@@ -127,7 +127,7 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_pat
         elif kind == "R":
             _, drop, mode, cycles = it
             stim.append("R {} {} {}".format(before[0] - drop, mode, cycles))
-        elif kind in ("A", "J"):
+        elif kind in ("A", "J", "S"):
             stim.append("M {}".format(it[1]))
             stim.append("K {}".format(it[1]))
         else:
@@ -153,7 +153,7 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_pat
                     lines.append("{} C {:x} {:x}".format(marker, addr, data))
         Path(regs_path).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
     if inj_path:
-        lines = ["{} {:x}".format(it[1], it[2]) for it in items if it[0] == "J"]
+        lines = ["{} {} {:x}".format(it[1], it[0], it[2]) for it in items if it[0] in ("J", "S")]
         Path(inj_path).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
     if tim_path:
         Path(tim_path).write_text("\n".join(str(n) for n in extra["timing"]) + "\n", encoding="ascii",
