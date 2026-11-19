@@ -43,6 +43,7 @@ binning, replacement of non-operational pixels) add their core requirements when
 | ISP-STR-07 | Every module shall accept back-pressure on its output and gaps of valid on its input at any beat without loss, duplication or change of pixels, and shall not require a gap between images. |
 | ISP-STR-08 | Every module shall locate the pixels of an image by counting from the image start. It shall detect a stream that deviates from its dimensions (an image start before the image is complete, pixels after a complete image without an image start, an image that does not end with the last beat of a packet with the sequence flags "10" or "11"), report every deviation on a status output, output only complete images (missing input pixels taken as 0, excess input pixels discarded) and process the next image correctly. |
 | ISP-STR-09 | Every module shall accept one pixel per clock cycle within an image. |
+| ISP-STR-10 | Every module shall show on a status output while an input image is open (started and not complete), so that a supervisor can detect an image whose rest never arrives. |
 
 ### 3.2 Configuration (CFG)
 
