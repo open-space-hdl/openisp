@@ -281,7 +281,7 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
         values[PNT_ID] = 0x504E5401
         values[PNT_IMAGE] = ((height - 1) << 16) | (width - 1)
         values[PNT_PARAM] = (max_shift << 24) | (gain_bits << 16) | (out_bits << 8) | in_bits
-        values[PNT_CTRL] = 1 if (runtime and st["hold"]) else 0
+        values[PNT_CTRL] = 1 if st["hold"] else 0
         values[PNT_STATUS] = (1 if fs.open else 0) | (0x100 if status_framing else 0) | \
             (0x200 if status_config else 0)
         return values.get(addr, 0)
@@ -293,6 +293,8 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
                 status_framing = False
             if data & 0x200:
                 status_config = False
+        if addr == PNT_CTRL and strobes & 0x1:
+            st["hold"] = bool(data & 1)
         if not runtime:
             return
         off64 = to_signed(st["off"], ow) & ((1 << 64) - 1)
@@ -316,8 +318,6 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
         elif addr == PNT_HIGH:
             st["high"] = _strobe(st["high"], data, strobes) & full
             st["parity"][5] = True
-        elif addr == PNT_CTRL and strobes & 0x1:
-            st["hold"] = bool(data & 1)
         elif addr == PNT_INJECT and strobes & 0x1:
             for n in range(6):
                 if data & (1 << n):
