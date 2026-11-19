@@ -95,7 +95,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | --- | --- | --- |
 | `test_static` (TC-WIN-01) | Five images with random pixels over the full range in different divisions into packets (one packet, one per line, random lengths), back to back and with pauses; the image before every image has different content, so an element taken from a line that the image in progress has not written fails the comparison | WIN-IF-01 to 03, WIN-FN-01 to 03, WIN-FN-06, WIN-FT-04 |
 | `test_input_stream` (TC-WIN-02) | Malformed input streams through the frame sync (short images, pixels without an image start, E3, E4, random packets): the padded images produce complete output images; `Stat_ImageOpen` probed | WIN-FN-03, WIN-ER-01, WIN-ER-02, WIN-IF-04 |
-| `test_handshake` (TC-WIN-03) | The sink held for long periods at chosen points: during the HCOL events of a line, during the virtual lines, at the end of an image while the next image waits at the input, and with every pixel of a line accepted; the source pauses at the same points | WIN-FN-04, WIN-FN-05, WIN-FN-06 |
+| `test_handshake` (TC-WIN-03) | The sink held during the HCOL events of a line, from the last pixel of an image on during the windows of the right and the lower border (no input pending), and from an idle module while the first two pixels of the next image arrive; a cut image completed by the next image start with the sink held and the source pausing; the source pauses at the same points. The source never sends a beat that cannot enter the module while the sink is held, so the test cannot block | WIN-FN-04, WIN-FN-05, WIN-FN-06 |
 | `test_ecc` (TC-WIN-04) | Configurations `ecc_*`, the size sweep with `WinY_g` 1 and `max`: per delay a single error on a data bit, on a Hamming parity bit and on the overall parity bit (output unchanged, one `Stat_EccSec`); a double error on two data bits and on a data and a parity bit (the changed pixel in every element from that delay on, one `Stat_EccDed`); errors in two delays in the same event (one pulse); a single and a double error in the same event (one pulse of each); an injection in the last line of an image (read during the virtual lines or the next image); with `WinY_g` 1 an injection has no effect | WIN-IF-05, WIN-FT-01, WIN-FT-02, WIN-ER-03 |
 | `test_reset` (TC-WIN-05) | Resets idle, held and running, of one and two cycles, during the pixels of a line, during the HCOL events, during the virtual lines and between images; the next image after the reset is checked completely, also its first lines (no line of the image before the reset) | WIN-IF-06, WIN-FT-03, WIN-FT-04, WIN-ER-02 |
 | `test_rate` (TC-WIN-06) | Configurations `rate_*`: images back to back with `In_Valid` and `Out_Ready` high. The hold cycles of the input between the first pixels of two lines (at most Rr; none in the mode valid), the interval between two image starts (bound of WIN-PF-02, design value (H + Rb) x (W + Rr), H x W in the mode valid) and the latency of every window from the acceptance of its completing pixel (bound 6, design value 3 to 5) | WIN-PF-01, WIN-PF-02, WIN-PF-03 |
@@ -143,17 +143,17 @@ the verification report, and the wrong one is corrected. A derivation is never a
 | Left border of the mode replicate not loaded (the columns keep the line before) | TC-WIN-01 (`rep3`) |
 | Mirror at the right border one column off (2m instead of 2m - 1) | TC-WIN-01 (`mirror5`, mirror sweep) |
 | Row select of the lower border takes the delay one line too far | TC-WIN-01 (`rep3`, `mirror5`) |
-| Rows above the image not cleared in the mode zero | TC-WIN-01 (`zero3`) |
-| One HCOL event too few | TC-WIN-01 (contract), 06 |
+| Rows outside the image not cleared in the mode zero (line 0 instead) | TC-WIN-01 (`zero3`) |
+| No HCOL event for Rr = 1 | TC-WIN-01 (contract), 06 |
 | One VPIX event too few per virtual line | TC-WIN-01 (the next image) |
-| Stride counter not restarted at the start of a line | TC-WIN-01 (stride sweep, `bin2_*`) |
-| `Out_Last` from the last column instead of the last reference pixel | TC-WIN-01 (`bin2_zero`, contract) |
+| Stride counter not counting (the restart at the start of a line has a second path, the restart with column 0, so a mutant without one of them is equivalent) | TC-WIN-01 (stride sweep, `bin2_*`) |
+| `Out_Last` from the last column instead of the last reference pixel | TC-WIN-01 (`bin2_valid`, contract) |
 | `Out_User` "01" instead of "11" when Ho = 1 | TC-WIN-01 (`image_equals_window_valid`) |
 | Elements in column-major order | TC-WIN-01 (non-square windows) |
 | ECC flags of the delays not sampled in the event (held values counted again) | TC-WIN-04 (`ecc_*_1`) |
-| Injection patterns of delay 1 and delay 2 swapped | TC-WIN-04 |
+| Injection patterns of the delays in reverse order | TC-WIN-04 |
 | An event that does not wait for `Out_Ready` | TC-WIN-01 (stalls), 03 |
-| The first line of an image takes its upper border rows from the delays (the image before) | TC-WIN-01, 05 |
+| Rows above the image taken from the line buffers (the image before) instead of 0 | TC-WIN-01, 05 |
 
 ## 7. Expected coverage exclusions
 
