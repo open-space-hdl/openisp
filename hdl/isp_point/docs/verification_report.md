@@ -6,9 +6,13 @@ Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 `python run.py -p 3`, 175 of 175 tests passed (51 of them `isp_point`), 0 skipped. QuestaSim runs with the release
 regression (with and without code coverage).
 
+The configuration `w1_h4` (`ImageWidth_g` 1 in a small image, test_static) came later, with the pull-request tests of
+the CI, which run the low bound of every generic: `python run.py -p 4` on 2026-11-19 on commit 30a4acc, 510 of 510
+tests passed (52 of them `isp_point`), 0 skipped.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
-| `test_static` (TC-PNT-01) | 14 | 14 |
+| `test_static` (TC-PNT-01) | 15 | 15 |
 | `test_input_stream` (TC-PNT-02) | 5 | 5 |
 | `test_runtime` (TC-PNT-03) | 4 | 4 |
 | `test_hold` (TC-PNT-04) | 1 | 1 |
@@ -65,7 +69,7 @@ Measured timing (test_rate) and coincidence (test_flag_coincidence):
 
 | Generic | Declared range | Simulated | Synthesised |
 | --- | --- | --- | --- |
-| `ImageWidth_g`, `ImageHeight_g` | 1 to 65536 | 1, 2, 3, 4, 6, 16, 65536 | 1, 64, 4096, 65536; 65537 stops the elaboration |
+| `ImageWidth_g`, `ImageHeight_g` | 1 to 65536 | 1 (width: `w1_h65536` and `w1_h4`), 2, 3, 4, 6, 16, 65536 | 1, 64, 4096, 65536; 65537 stops the elaboration |
 | `InBits_g` | 1 to 64 | 1, 4, 8, 12, 16, 32, 64 | 1, 16, 32, 64; 65 stops the elaboration |
 | `OutBits_g` | 1 to 32 | 1, 4, 8, 12, 32 | 1, 12, 32; 33 stops the elaboration |
 | `GainBits_g` | 1 to 18 | 1, 3, 16, 18 | 1, 16, 18; 19 stops the elaboration |

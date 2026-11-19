@@ -44,6 +44,7 @@ openisp/
 |-- uvvm/             Git submodule: UVVM verification framework
 |-- component_list.txt  Modules in dependency order
 |-- compile_order.txt   Synthesis sources in compile order (generated)
+|-- pr_tests.txt      Tests of the pull-request CI (VUnit patterns)
 `-- run.py            VUnit regression runner
 ```
 
@@ -56,6 +57,7 @@ Prerequisites: Python 3, [GHDL](https://github.com/ghdl/ghdl) on the `PATH` and 
 git submodule update --init
 python -m pip install -r requirements.txt
 python run.py -p 4              # full regression with GHDL, 4 parallel simulations
+python run.py -p 4 --subset pr_tests.txt  # the tests of the pull-request CI
 python run.py "*isp_crop*"      # one module
 python run.py --questa <test>   # QuestaSim
 ```
@@ -72,6 +74,7 @@ python lint/synth_check.py          # synthesizability of the module top levels 
 python lint/vivado_ooc.py --out C:/osh/isp_ooc fsy_max  # timing at 150 MHz, Vivado with a device licence
 python tools/compliance.py --check  # every core requirement and module requirement traced to a test case
 python run.py --compile-order       # regenerates compile_order.txt (the CI fails when it is not current)
+python tools/ci_subset.py --check   # the rules of the pull-request test list pr_tests.txt
 python -m mkdocs build -f tools/docs/mkdocs.yml  # documentation website, fails on broken links
 python -m pytest -q tools/tests       # unit tests of the reference model
 ```

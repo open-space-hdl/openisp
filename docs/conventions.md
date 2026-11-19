@@ -125,6 +125,26 @@ Every module goes through seven phases:
   through the `ErrInj` ports of the Open Logic RAMs, at least one of them in a data bit) and expect the reaction and
   the status the specification defines.
 
+## Continuous integration
+
+- The workflow `CI` runs in two tiers:
+  - A pull request into `develop` runs the tests of `pr_tests.txt` (`python run.py -p 4 --subset pr_tests.txt`).
+  - The full regression runs on every push to `develop`, `main` and `release/*`, on pull requests into `main` and on
+    a manual start of the workflow. A manual start runs the full regression on any branch, for a change that needs
+    it before its merge.
+- The tests of `pr_tests.txt` are a smoke test:
+  - every test of every testbench, in at least one configuration;
+  - at least one configuration at the low bound of every generic, and every value of a boolean or an enumeration;
+  - not the high bounds of the image size (65536 pixels per line, 65536 lines) and not the long exhaustive
+    configurations, which run in the full tier only.
+  `python tools/ci_subset.py --check` checks the rules that a script can check, and the CI runs it before the
+  tests. A new test or configuration of a module updates the list in the same pull request.
+- The evidence for the merge of a module does not change: every module pull request reports the full local
+  regression (`python run.py -p 4`, every test passed, none skipped) and the mutation run of its verification
+  report. The CI of a pull request does not replace them.
+- The other checks (VSG, compliance matrix, register maps, reference model tests, markdownlint, the compile order,
+  the documentation build) run in full on every pull request.
+
 ## Git
 
 - `develop` holds the integrated state and `main` the released state. Every module or change is developed on a

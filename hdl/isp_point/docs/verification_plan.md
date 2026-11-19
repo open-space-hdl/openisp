@@ -37,6 +37,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `stages_<n>`, n = 1 to 4 | 6 x 4 | 12 / 12 / 16 | 28 | n | true | the defaults | none |
 | `w65536_h1` | 65536 x 1 | 12 / 12 / 16 | 28 | 2 | false | -100, 1229, 10, 0, -1 | 10 % / 10 % |
 | `w1_h65536` | 1 x 65536 | 12 / 12 / 16 | 28 | 2 | false | -100, 1229, 10, 0, -1 | 10 % / 10 % |
+| `w1_h4` | 1 x 4 | 12 / 12 / 16 | 28 | 2 | false | -100, 1229, 10, 0, -1 | 10 % / 10 % |
 | `generic_bounds` | 4 x 3 | 32 / 32 / 18 | 50 | 2 | false | -2^31, 2^18 - 1, 50, 2^31 - 1, -1 | none |
 
 Generic coverage:
