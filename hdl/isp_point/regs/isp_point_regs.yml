@@ -1,0 +1,83 @@
+# ---------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 by Julian Schneider
+# Authors: Julian Schneider
+# ---------------------------------------------------------------------------------------------------
+# Register map of isp_point: the single description from which tools/regmap.py generates the VHDL package
+# hdl/isp_point/src/isp_point_regs_pkg.vhd, the documentation hdl/isp_point/docs/register_map.md and the C header
+# sw/isp_point_regs.h. tools/regmap.py --check compares it with the register table of the specification.
+#
+# Access per field: RO read only, RW read and write, W1 write one (command, reads as zero), W1C sticky flag (write
+# one to clear). A reset value written as text depends on generics.
+
+id: 0x504E5401
+addr_bits: 8
+title: "Registers of the pixel operation: identification, dimensions and widths, control, status, error injection and
+  the parameter set (read only with Runtime_g false)."
+
+registers:
+  - name: ID
+    offset: 0x00
+    description: Identification
+    fields:
+      - {name: ID, bits: "31:0", access: RO, reset: 0x504E5401, description: "0x504E54 (PNT) and register map version 1"}
+  - name: IMAGE
+    offset: 0x04
+    description: Dimensions of the image
+    fields:
+      - {name: WIDTH_M1, bits: "15:0", access: RO, reset: "ImageWidth_g - 1", description: "Pixels per line, minus one"}
+      - {name: HEIGHT_M1, bits: "31:16", access: RO, reset: "ImageHeight_g - 1", description: "Lines per image, minus one"}
+  - name: PARAM
+    offset: 0x08
+    description: Widths and the largest shift
+    fields:
+      - {name: IN_BITS, bits: "6:0", access: RO, reset: InBits_g, description: "Bits per input pixel"}
+      - {name: OUT_BITS, bits: "13:8", access: RO, reset: OutBits_g, description: "Bits per output pixel"}
+      - {name: GAIN_BITS, bits: "20:16", access: RO, reset: GainBits_g, description: "Bits of the gain"}
+      - {name: MAX_SHIFT, bits: "30:24", access: RO, reset: MaxShift_g, description: "Largest shift"}
+  - name: CTRL
+    offset: 0x0C
+    description: Control
+    fields:
+      - {name: HOLD, bits: "0", access: RW, reset: 0, description: "1: the image starts do not take the parameter registers"}
+  - name: STATUS
+    offset: 0x10
+    description: Status
+    fields:
+      - {name: IMAGE_OPEN, bits: "0", access: RO, reset: 0, description: "An input image is open (Stat_ImageOpen)"}
+      - {name: ERR_FRAMING, bits: "8", access: W1C, reset: 0, description: "Set by every pulse of Err_Framing"}
+      - {name: ERR_CONFIG, bits: "9", access: W1C, reset: 0, description: "Set by every pulse of Err_Config"}
+  - name: INJECT
+    offset: 0x14
+    description: Error injection for the test of the error handling
+    fields:
+      - {name: PARITY, bits: "5:0", access: W1, reset: 0, description: "Write one to bit n: inverts the parity bit of OFFSET_LO (bit 0), OFFSET_HI (1), GAIN (2), SHIFT (3), LOW (4), HIGH (5)"}
+  - name: OFFSET_LO
+    offset: 0x18
+    description: Offset, bits 31 to 0
+    fields:
+      - {name: OFFSET, bits: "31:0", access: RW, reset: Offset_g, description: "Bits 31:0 of the offset (two's complement); the bits above the offset width are not stored and read as the sign"}
+  - name: OFFSET_HI
+    offset: 0x1C
+    description: Offset, bits 63 to 32
+    fields:
+      - {name: OFFSET, bits: "31:0", access: RW, reset: "Sign of Offset_g", description: "Bits 63:32 of the offset; the bits above the offset width are not stored and read as the sign"}
+  - name: GAIN
+    offset: 0x20
+    description: Gain
+    fields:
+      - {name: GAIN, bits: "17:0", access: RW, reset: Gain_g, description: "Gain; the bits above GainBits_g - 1 are not stored and read as 0"}
+  - name: SHIFT
+    offset: 0x24
+    description: Shift
+    fields:
+      - {name: SHIFT, bits: "6:0", access: RW, reset: Shift_g, description: "Shift; a value above MaxShift_g is taken as MaxShift_g"}
+  - name: LOW
+    offset: 0x28
+    description: Lower threshold
+    fields:
+      - {name: LOW, bits: "31:0", access: RW, reset: Low_g, description: "Lower threshold; the bits above OutBits_g - 1 are not stored and read as 0"}
+  - name: HIGH
+    offset: 0x2C
+    description: Upper threshold
+    fields:
+      - {name: HIGH, bits: "31:0", access: RW, reset: "High_g, 2^OutBits_g - 1 for -1", description: "Upper threshold; the bits above OutBits_g - 1 are not stored and read as 0"}
