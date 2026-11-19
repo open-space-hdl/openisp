@@ -3,14 +3,14 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4 "*isp_point*"`, 50 of 50 tests passed, 0 skipped; the regression of the repository passed with
-them (FULL_REGRESSION). QuestaSim runs with the release regression (with and without code coverage).
+`python run.py -p 3`, 175 of 175 tests passed (51 of them `isp_point`), 0 skipped. QuestaSim runs with the release
+regression (with and without code coverage).
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-PNT-01) | 14 | 14 |
 | `test_input_stream` (TC-PNT-02) | 5 | 5 |
-| `test_runtime` (TC-PNT-03) | 3 | 3 |
+| `test_runtime` (TC-PNT-03) | 4 | 4 |
 | `test_hold` (TC-PNT-04) | 1 | 1 |
 | `test_parity` (TC-PNT-05) | 7 | 7 |
 | `test_registers` (TC-PNT-06) | 8 | 8 |
@@ -30,17 +30,20 @@ every test.
 - The arithmetic: a bit shift, a dark level with a gain of 1.2, both thresholds active, the neutral set, the widest
   configuration (64-bit input pixels, 32-bit output pixels, an 18-bit gain, shifts up to 83) and the narrowest (one
   bit each), the parameters of the generics at their bounds (-2^31, 2^18 - 1, a shift of 50, 2^31 - 1, full scale).
-  `test_exhaustive` ran every offset (-16 to 15), gain (0 to 7) and shift (0 to 8) of a 4-bit configuration as a
-  run-time set over all 16 pixel values, with the thresholds 0 / 15, 2 / 13 and `Low` above `High`: 36864 pixels, each
-  equal to the model.
+  `test_exhaustive` ran every offset (-16 to 15), gain (0 to 7) and shift (0 to 8 and 127; above `MaxShift_g` = 6
+  taken as 6) of a 4-bit configuration as a run-time set over all 16 pixel values, with the thresholds 0 / 15, 2 / 13
+  and `Low` above `High`: 40960 pixels, each equal to the model.
 - Run-time sets: random sets, the gains 0, 1 and the largest, the shifts 0, `MaxShift_g`, `MaxShift_g` + 1 and 127
-  (taken as `MaxShift_g`), the most negative and the largest offset, `Low` above and equal to `High`, every register
+  (taken as `MaxShift_g`; in `shift_limit` with `MaxShift_g` 8 far below the width of the product, so that the limit
+  changes the result), the most negative and the largest offset, `Low` above and equal to `High`, every register
   read back; a set written during an image applies from the next image.
 - `CTRL.HOLD`: a set written over two images is not taken while `HOLD` is 1 and is taken as a whole after it; a
   register of bad parity is neither taken nor reported while `HOLD` is 1.
 - Parity: the injection into each of the six parameter registers makes every image use the generics with one
-  `Err_Config` until the register is written; two injections at once, a second injection that restores the parity,
-  an injection without the strobe of byte 0 and injections with `Runtime_g` false have no effect beyond the model.
+  `Err_Config` until the register is written; the injection into `CTRL` with `CTRL.HOLD` 1 makes every image start
+  take the held set with one `Err_Config` until `CTRL` is written; two injections at once, a second injection that
+  restores the parity, an injection without the strobe of byte 0 and injections with `Runtime_g` false have no effect
+  beyond the model.
 - Registers: identification, dimensions and widths, the reset values (also `HIGH` from the sentinel -1 and
   `OFFSET_HI` as the sign of the offset), every single byte strobe on every parameter register with random data and
   its read-back (the offset sign-extended, the other registers zero-extended), read-only registers and unused
@@ -66,14 +69,41 @@ Measured timing (test_rate) and coincidence (test_flag_coincidence):
 | `InBits_g` | 1 to 64 | 1, 4, 8, 12, 16, 32, 64 | 1, 16, 32, 64; 65 stops the elaboration |
 | `OutBits_g` | 1 to 32 | 1, 4, 8, 12, 32 | 1, 12, 32; 33 stops the elaboration |
 | `GainBits_g` | 1 to 18 | 1, 3, 16, 18 | 1, 16, 18; 19 stops the elaboration |
-| `MaxShift_g` | 0 to `InBits_g` + `GainBits_g` + 1 | 0, 8, 9, 28, 32, 50, 83 | 0, 3, 32, 50, 83; above the bound stops the elaboration |
+| `MaxShift_g` | 0 to `InBits_g` + `GainBits_g` + 1 | 0, 6, 8, 9, 28, 32, 50, 83 | 0, 3, 32, 50, 83; above the bound stops the elaboration |
 | `MultStages_g` | 1 to 4 | every value | 1, 2, 3, 4; 0 and 5 stop the elaboration |
 | `Runtime_g` | false, true | both | both |
 | `Offset_g`, `Gain_g`, `Shift_g`, `Low_g`, `High_g` | Specification, section 4 | the bounds and typical values | the bounds; values out of range stop the elaboration |
 
 ## 4. Mutations
 
-MUTATION_TABLE
+Run on 2026-11-19 on commit d2a9a6b in a worktree of its own (`git diff --quiet` before and after every mutant), with
+the 14 tests of the configurations `runtime`, `runtime_rate`, `exhaustive`, `shift_limit`, test_static of
+`dark_gain` and `clamp`, and test_rate of `stages_3`. Every mutant of the plan (section 6) fails at least one test; the
+tests that fail are those the plan expects. The mutant that drops the top bit of the gain did not compile in its
+first form (an ambiguous concatenation); it was repaired and run alone on the same commit (reference run passed
+again). The first mutation run, on 3c5cc2c, kept the mutant without the limit of the shift alive (section 7).
+
+| Mutation | Result | Failing tests |
+| --- | --- | --- |
+| None (reference) | passes (14 tests) | - |
+| No lower clamp | killed by 9 of 14 tests | test_exhaustive, test_hold, test_parity, test_registers, test_reset, test_runtime, test_static |
+| No upper clamp | killed by 8 of 14 tests | test_exhaustive, test_hold, test_parity, test_registers, test_runtime, test_static |
+| A logical instead of an arithmetic shift | killed by 6 of 14 tests | test_exhaustive, test_hold, test_parity, test_runtime, test_static |
+| The offset not sign-extended | killed by 5 of 14 tests | test_exhaustive, test_parity, test_runtime, test_static |
+| The top bit of the gain dropped | killed by 3 of 14 tests | test_exhaustive, test_hold, test_runtime |
+| A shift above MaxShift_g not limited | killed by 2 of 14 tests | test_exhaustive, test_runtime |
+| CTRL.HOLD without effect | killed by 2 of 14 tests | test_hold, test_parity |
+| No parity check of GAIN | killed by 3 of 14 tests | test_flag_coincidence, test_hold, test_parity |
+| No parity check of CTRL | killed by 1 of 14 tests | test_parity |
+| No parity check of OFFSET_HI | killed by 1 of 14 tests | test_parity |
+| The thresholds taken from the registers, not from the working set | killed by 4 of 14 tests | test_hold, test_parity, test_registers, test_runtime |
+| Out_Last one stage early | killed by 14 of 14 tests | test_exhaustive, test_flag_coincidence, test_hold, test_input_stream, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
+| One multiplier stage too few against the packet signals | killed by 14 of 14 tests | test_exhaustive, test_flag_coincidence, test_hold, test_input_stream, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
+| No Err_Config pulse for a rejected parameter set | killed by 4 of 14 tests | test_flag_coincidence, test_hold, test_parity, test_registers |
+| No Err_Config pulse for a CTRL of wrong parity | killed by 1 of 14 tests | test_parity |
+| The parity bit of GAIN not set by a write | killed by 5 of 14 tests | test_exhaustive, test_hold, test_parity, test_runtime |
+| The offset stored with the sign of the 64-bit value (resize) instead of its lower bits | killed by 4 of 14 tests | test_exhaustive, test_parity, test_runtime |
+| The clear of ERR_CONFIG wins over the event | killed by 1 of 14 tests | test_flag_coincidence |
 
 ## 5. Synthesis and timing
 
@@ -101,7 +131,7 @@ it gives no timing.
 | PNT-FN-06 | TC-PNT-01 to 10 | Passed |
 | PNT-PF-01, PNT-PF-02 | TC-PNT-10 | Passed |
 | PNT-ER-01, PNT-ER-02 | TC-PNT-02, 09 | Passed |
-| PNT-ER-03 | TC-PNT-05 | Passed |
+| PNT-ER-03, PNT-ER-04 | TC-PNT-05 | Passed |
 | PNT-FT-01 | TC-PNT-05 and review: the stages hold no state between pixels; the working set is loaded with pixel (0, 0) of every image | Passed |
 | PNT-FT-02 | TC-PNT-05 | Passed |
 | PNT-FT-03 | TC-PNT-09 and the monitor of every test | Passed |
@@ -118,4 +148,7 @@ The register map of the specification and the register description agree (`tools
 | Finding | Correction |
 | --- | --- |
 | `resize` of `numeric_std` keeps the sign bit when it narrows a signed value; storing the offset with it would keep bit 63 of the written value instead of the bits of the offset width that the specification names | The RTL stores the lower bits of the offset width; a mutation with `resize` is killed by the read-back of `test_registers` |
+| The first mutation run kept a module without the limit of `SHIFT` alive: in every configuration `MaxShift_g` was at the width of the product, where a larger shift gives the same result, so the limit was invisible | The configuration `shift_limit` (`MaxShift_g` 8) runs test_runtime with shift sets whose result shows the limit, and test_exhaustive uses `MaxShift_g` 6 with the shifts 0 to 8 and 127; the mutant is killed in the second run |
+| The mutation script counted a mutant that did not compile (no results) as survived | A mutant without results is reported as invalid, repaired and run again; the gain mutant was repaired |
+| `CTRL.HOLD` had no protection: an upset that set it would have frozen the parameter set without a report (lead decision Q-PNT-1) | `CTRL` has a parity bit; a mismatch counts as `HOLD` 0 and pulses `Err_Config` (PNT-ER-04); tested through `INJECT` bit 6 |
 | The plan named 82 as the upper bound of `MaxShift_g` for 64-bit pixels and an 18-bit gain; the bound is `InBits_g` + `GainBits_g` + 1 = 83 | Plan corrected; `wide` simulates 83 |

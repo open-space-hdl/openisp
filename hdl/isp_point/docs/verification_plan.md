@@ -138,7 +138,8 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | The thresholds taken from the registers directly, not from the working set | TC-PNT-03 (write during an image) |
 | `Out_Last` one stage early | TC-PNT-01 (contract) |
 | One multiplier stage too few against the pipeline of the packet signals | TC-PNT-10 |
-| No `Err_Config` pulse | TC-PNT-05 |
+| No `Err_Config` pulse for a rejected parameter set | TC-PNT-05 |
+| No `Err_Config` pulse for a `CTRL` of wrong parity | TC-PNT-05 |
 | The offset stored with the sign of the 64-bit value instead of its lower bits | TC-PNT-06 |
 | The clear of `ERR_CONFIG` wins over the event | TC-PNT-07 |
 
