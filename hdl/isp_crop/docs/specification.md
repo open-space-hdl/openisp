@@ -133,8 +133,8 @@ Output image: `RoiWidth_g` x `RoiHeight_g` pixels of `PixelBits_g` bits.
 ## 7. Register map
 
 Byte addresses of 32-bit registers on the AXI4-Lite slave. Access: RO read only, RW read and write, W1C sticky flag,
-write one to clear, W1 command, write one. Reads of other addresses return 0, writes to them and to read-only fields have no effect; every
-access is answered with OKAY.
+write one to clear, W1 command, write one. Reads of other addresses return 0, writes to them and to read-only
+fields have no effect; every access is answered with OKAY.
 
 | Address | Register | Bits | Field | Access | Reset | Description |
 | --- | --- | --- | --- | --- | --- | --- |

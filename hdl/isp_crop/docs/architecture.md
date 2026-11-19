@@ -114,10 +114,10 @@ position with the four limits (up to 16 bits each) into the enable of the output
 
 The module has no memory and no position counter of its own: the position of every pixel comes from CR-1, and the
 limits of the region are loaded with every image. An upset of a datapath register disturbs at most the image in
-progress. `ROI_POS` is a register that lives until it is written. Its parity bit detects an upset of one of its bits at the
-next image start: the generics apply, `Err_Config` and `STATUS.ERR_CONFIG` report it, and the software writes the
-register again. The parity check lies in the cycle that loads the limits, beside the range check. Triple modular
-redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
+progress. `ROI_POS` is a register that lives until it is written. Its parity bit detects an upset of one of its
+bits at the next image start: the generics apply, `Err_Config` and `STATUS.ERR_CONFIG` report it, and the
+software writes the register again. The parity check lies in the cycle that loads the limits, beside the range
+check. Triple modular redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
 
 ## 10. Resource estimate
 
