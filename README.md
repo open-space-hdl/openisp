@@ -22,6 +22,8 @@ The documents are also published as a website: [openspacehdl.org/openisp](https:
 
 | Document | Content |
 | --- | --- |
+| [docs/user_guide.md](docs/user_guide.md) | Integration: sources, pixel stream, registers, building a chain, protection scope, integration constraints, conformance |
+| [docs/architecture.md](docs/architecture.md) | Architecture of the suite: principles, decisions, Open Logic usage, verification, traceability matrix |
 | [docs/requirements.md](docs/requirements.md) | Requirements specification: the pixel stream and the functions of the suite |
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Technology readiness, module status and open items |

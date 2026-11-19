@@ -116,6 +116,10 @@ with their registers.
 | Word counter, current word, window register, interpolation | Flip-flops; the counter restarts with every image, an upset changes pixels of the image in progress |
 | `MAP_ADDR`, clear sequence | Flip-flops; an upset during a map update writes a word to a wrong place, which the software finds only by writing the map again |
 
+Beside the defect map, the module has no register that holds a parameter for longer than an image: `CTRL.CLEAR` is a
+command, `MAP_ADDR` a pointer that the software sets for every map update, and the scrubber is enabled by a port.
+The parity of long-lived registers (ISP-FT-05) therefore has nothing to protect here; the map itself has its ECC.
+
 Triple modular redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
 
 ## 10. Resource estimate
