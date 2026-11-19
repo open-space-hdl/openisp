@@ -3,7 +3,8 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-FULL_REGRESSION, 0 skipped. QuestaSim runs with the release regression (with and without code coverage).
+`python run.py -p 4`, 301 of 301 tests passed (126 of them `isp_window`), 0 skipped. QuestaSim runs with the release
+regression (with and without code coverage).
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
@@ -71,7 +72,34 @@ further interval equals the design value.
 
 ## 4. Mutations
 
-MUTATION_TABLE
+Run on 2026-11-19 on commit a882181 in a worktree of its own (`git diff --quiet` before and after every mutant), with
+the 17 tests of the configurations `rep3`, `zero3` and the ECC, rate and sweep configurations named in the plan. Every
+mutant of the plan (section 6) fails at least one test.
+
+The mutant that takes the rows above the image from the line buffers instead of 0 survived the first run. In the mode
+zero the line buffers above the first line of an image hold the virtual lines of the image before, which are 0, so
+the mutant is equivalent wherever the rows above the image reach no further than those lines (AnchorY_g <= Rb, all
+configurations of the first run). It differs where AnchorY_g > Rb; the regression has such configurations (`col5`,
+the anchor sweep), and a second run of this mutant on the same commit with `col5` and `anchor_0_2_zero` added (19
+tests, reference passed) killed it.
+
+| Mutation | Result | Failing tests |
+| --- | --- | --- |
+| None (reference) | passes (17 tests) | - |
+| Left border of the mode replicate not loaded | killed by 8 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| Mirror at the right border one column off (2m instead of 2m - 1) | killed by 2 of 17 tests | test_static |
+| Row selection of the lower border one line too far (replicate) | killed by 8 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| Rows outside the image not cleared in the mode zero (line 0 instead) | killed by 4 of 17 tests | test_handshake, test_input_stream, test_reset, test_static |
+| One virtual column too few for Rr = 1 | killed by 12 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| One virtual pixel too few per virtual line | killed by 14 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| Stride counter not counting | killed by 2 of 17 tests | test_static |
+| Out_Last at the last column instead of the last reference pixel | killed by 3 of 17 tests | test_static |
+| Out_User 01 instead of 11 for an output image of one line | killed by 1 of 17 tests | test_static |
+| Elements in column-major order | killed by 17 of 17 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| ECC flags of the line buffers sampled in every event | killed by 1 of 17 tests | test_ecc |
+| Injection patterns of the delays in reverse order | killed by 2 of 17 tests | test_ecc |
+| An event that does not wait for Out_Ready | killed by 13 of 17 tests | test_handshake, test_input_stream, test_reset, test_static |
+| Rows above the image taken from the line buffers (the image before) instead of 0 | killed by 2 of 19 tests (second run, section 4) | test_static |
 
 ## 5. Synthesis and timing
 
