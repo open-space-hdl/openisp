@@ -201,12 +201,12 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
                                 mask = 0xFF << (8 * byte)
                                 reg = (reg & ~mask) | (data & mask)
                         parity_ok = True
-                    elif addr == CRP_STATUS:
+                    elif addr == CRP_STATUS and strobes & 0x2:
                         if data & 0x100:
                             status_framing = False
                         if data & 0x200:
                             status_config = False
-                    elif addr == CRP_INJECT and runtime and data & 1:
+                    elif addr == CRP_INJECT and runtime and strobes & 0x1 and data & 1:
                         parity_ok = not parity_ok
                     resolved.append(("W", addr, data, strobes))
                 else:
@@ -214,3 +214,151 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
             regs.append((marker, resolved))
         annot.append((count, fs.open))
     return out, fs.errors, annot, config_errors, regs
+
+
+def _strobe(old, data, strobes):
+    """A 32-bit register value after a write of `data` with the byte strobes."""
+    for byte in range(4):
+        if strobes & (1 << byte):
+            mask = 0xFF << (8 * byte)
+            old = (old & ~mask) | (data & mask)
+    return old
+
+
+# Register map of isp_point (specification, section 7)
+PNT_ID, PNT_IMAGE, PNT_PARAM, PNT_CTRL, PNT_STATUS, PNT_INJECT = 0x00, 0x04, 0x08, 0x0C, 0x10, 0x14
+PNT_OFFSET_LO, PNT_OFFSET_HI, PNT_GAIN, PNT_SHIFT, PNT_LOW, PNT_HIGH = 0x18, 0x1C, 0x20, 0x24, 0x28, 0x2C
+PNT_PARAMS = [PNT_OFFSET_LO, PNT_OFFSET_HI, PNT_GAIN, PNT_SHIFT, PNT_LOW, PNT_HIGH]
+
+
+def point_op(pixel, offset, gain, shift, low, high):
+    """The operation of isp_point in unbounded integers: q = min(max(floor((p + offset) x gain / 2^shift), low),
+    high); the lower threshold first, then the upper one."""
+    v = ((pixel + offset) * gain) >> shift
+    return min(max(v, low), high)
+
+
+def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_g, gain_g, shift_g, low_g, high_g,
+          runtime):
+    """isp_point. Returns (out, framing errors, annot, config errors, register entries per marker)."""
+    fs = FrameSync(width, height)
+    ow = min(in_bits + 1, 64)                         # bits of the offset
+    full = (1 << out_bits) - 1
+    gen = (offset_g, gain_g, shift_g, low_g, full if high_g == -1 else high_g)
+
+    def to_signed(value, bits):
+        value &= (1 << bits) - 1
+        return value - (1 << bits) if value >> (bits - 1) else value
+
+    # Stored register bits (reset values from the generics) and their parity flags
+    st = {}
+
+    def reset_regs():
+        st["off"] = gen[0] & ((1 << ow) - 1)
+        st["gain"], st["shift"], st["low"], st["high"] = gen[1], gen[2], gen[3], gen[4]
+        st["parity"] = [True] * 6
+        st["hold"] = False
+
+    reset_regs()
+    work = gen                                        # the parameter set in use, from the reset the generics
+    status_framing = status_config = False
+    config_errors = 0
+    out, annot, regs = [], [], []
+    count = 0
+
+    def reg_set():
+        return (to_signed(st["off"], ow), st["gain"], min(st["shift"], max_shift), st["low"], st["high"])
+
+    def read(addr):
+        off64 = to_signed(st["off"], ow) & ((1 << 64) - 1)
+        if not runtime and addr in PNT_PARAMS:
+            off64 = gen[0] & ((1 << 64) - 1)
+            values = {PNT_GAIN: gen[1], PNT_SHIFT: gen[2], PNT_LOW: gen[3], PNT_HIGH: gen[4]}
+        else:
+            values = {PNT_GAIN: st["gain"], PNT_SHIFT: st["shift"], PNT_LOW: st["low"], PNT_HIGH: st["high"]}
+        values[PNT_OFFSET_LO] = off64 & 0xFFFFFFFF
+        values[PNT_OFFSET_HI] = off64 >> 32
+        values[PNT_ID] = 0x504E5401
+        values[PNT_IMAGE] = ((height - 1) << 16) | (width - 1)
+        values[PNT_PARAM] = (max_shift << 24) | (gain_bits << 16) | (out_bits << 8) | in_bits
+        values[PNT_CTRL] = 1 if (runtime and st["hold"]) else 0
+        values[PNT_STATUS] = (1 if fs.open else 0) | (0x100 if status_framing else 0) | \
+            (0x200 if status_config else 0)
+        return values.get(addr, 0)
+
+    def write(addr, data, strobes):
+        nonlocal status_framing, status_config
+        if addr == PNT_STATUS and strobes & 0x2:
+            if data & 0x100:
+                status_framing = False
+            if data & 0x200:
+                status_config = False
+        if not runtime:
+            return
+        off64 = to_signed(st["off"], ow) & ((1 << 64) - 1)
+        if addr == PNT_OFFSET_LO:
+            off64 = (off64 & ~0xFFFFFFFF) | _strobe(off64 & 0xFFFFFFFF, data, strobes)
+            st["off"] = off64 & ((1 << ow) - 1)
+            st["parity"][0] = True
+        elif addr == PNT_OFFSET_HI:
+            off64 = (off64 & 0xFFFFFFFF) | (_strobe(off64 >> 32, data, strobes) << 32)
+            st["off"] = off64 & ((1 << ow) - 1)
+            st["parity"][1] = True
+        elif addr == PNT_GAIN:
+            st["gain"] = _strobe(st["gain"], data, strobes) & ((1 << gain_bits) - 1)
+            st["parity"][2] = True
+        elif addr == PNT_SHIFT:
+            st["shift"] = _strobe(st["shift"], data, strobes) & 0x7F
+            st["parity"][3] = True
+        elif addr == PNT_LOW:
+            st["low"] = _strobe(st["low"], data, strobes) & full
+            st["parity"][4] = True
+        elif addr == PNT_HIGH:
+            st["high"] = _strobe(st["high"], data, strobes) & full
+            st["parity"][5] = True
+        elif addr == PNT_CTRL and strobes & 0x1:
+            st["hold"] = bool(data & 1)
+        elif addr == PNT_INJECT and strobes & 0x1:
+            for n in range(6):
+                if data & (1 << n):
+                    st["parity"][n] = not st["parity"][n]
+
+    for it in items:
+        if it[0] == "B":
+            before = fs.errors
+            for b in fs.feed(it[1], it[2], it[3]):
+                _, pixel, last, user, x, y = b
+                if x == 0 and y == 0 and runtime and not st["hold"]:
+                    if all(st["parity"]):
+                        work = reg_set()
+                    else:
+                        work = gen
+                        config_errors += 1
+                        status_config = True
+                out.append(("B", point_op(pixel, *work), last, user, x, y))
+                count += 1
+            if fs.errors > before:
+                status_framing = True
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            count -= drop
+            out.append(("R", mode))
+            fs.reset()
+            reset_regs()
+            work = gen
+            status_framing = status_config = False
+        elif it[0] == "A":
+            _, marker, entries = it
+            resolved = []
+            for op, addr, data, strobes in entries:
+                if op == "W":
+                    write(addr, data, strobes)
+                    resolved.append(("W", addr, data, strobes))
+                else:
+                    resolved.append(("C", addr, read(addr), 0xF))
+            regs.append((marker, resolved))
+        annot.append((count, fs.open))
+    return out, fs.errors, annot, config_errors, regs
+
