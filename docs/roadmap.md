@@ -18,8 +18,8 @@ The [TRL page](https://openspacehdl.org/trl/) explains what the levels mean for 
 | `isp_point` | Pixel-level operation: offset, gain, bit shift and clamp between two thresholds, set by generics or at run time | Phase B (architecture) |
 | `isp_window` | Neighbourhood generator: one window per reference pixel, line buffers, border modes, anchor and stride | Phase B (architecture) |
 | `isp_conv` | Linear kernel: the weighted sum of a window at full precision, coefficients set by a generic or at run time | Phase B (architecture) |
-| `isp_filter2d` | The general 2D window filter: `isp_window` and `isp_conv` in one entity, for example an MTF filter | Planned |
-| `isp_bin` | Binning: the sum of every bin of n x m pixels, two window filters with a stride | Planned |
+| `isp_filter2d` | The general 2D window filter: `isp_window` and `isp_conv` in one entity, for example an MTF filter | Phase B (architecture) |
+| `isp_bin` | Binning: the sum of every bin of n x m pixels, two window filters with a stride | Phase B (architecture) |
 | `isp_replace` | Replacement of non-operational pixels by 1D interpolation, with a defect map configurable at run time | Planned |
 
 All modules share the pixel stream of the [requirements specification](requirements.md), so they connect in any
