@@ -42,7 +42,8 @@ Text files, one entry per line, numbers in hexadecimal for data and sidebands an
 | `T <n>` | stimulus | Wait n cycles |
 | `P <value>` | stimulus | Check the probe input of the source (a status output of the module) against the value |
 | `H <0, 1>` | stimulus | Hold the sink (`Out_Ready` low) or release it |
-| `M <n>` | stimulus | Set the marker output of the source to n (phases of a timing test) |
+| `M <n>` | stimulus | Set the marker output of the source to n (phases of a timing test, register accesses) |
+| `K <n>` | stimulus | Wait until the register script has acknowledged marker n (section 7) |
 | `R <n> <mode> <cycles>` | stimulus | Wait until the sink has compared n beats, then request a reset of the module for the given number of cycles (1 or more). Mode 0 (held): the sink has held `Out_Ready` low since beat n. Mode 1 (running): the sink keeps taking beats with its random stalls, so the reset falls while beats transfer |
 | `R <mode>` | expected | Mode 0: after the beats before it, the sink holds `Out_Ready` low until the reset. Mode 1: the sink takes the beats that arrive until the reset without comparing them (their number depends on the timing). In both modes the comparison and the contract checker start again after the reset |
 
@@ -69,6 +70,7 @@ among the beats that the reset may still find in the module.
 | `RstReq` | out | Reset request (`R`), high for the cycles of the entry |
 | `Hold` | out | Hold of the sink (`H`) |
 | `Marker` | out | Marker (`M`) |
+| `Ack` | in | Last marker whose register accesses are done (`K`) |
 | `Done` | out | The stimulus file is at its end |
 
 The source reads the next entry only after the beat before has been transferred. A `P` entry that does not match
@@ -109,7 +111,7 @@ Every testbench instantiates the module, one source, one sink and a clock. It ad
   count of the model (generics of the test);
 - a monitor that checks the control outputs of the module for metavalues in every cycle after the first reset;
 - the timing checks of its verification plan, by the markers of the source;
-- for modules with registers, the AXI4-Lite master of UVVM (`bitvis_vip_axilite`).
+- for modules with registers, the register script (section 7).
 
 The test ends when the source is done, the sink has received every expected beat and a drain time has passed without
 an extra beat. The drain time is a tolerance derived from the design:
@@ -122,3 +124,24 @@ an extra beat. The drain time is a tolerance derived from the design:
 | Margin | 16 | Covers a module that is wrong by more than a few cycles; an extra beat later than that would come from input the source never sent |
 
 The drain time is L + 21 cycles; a beat in it after the last expected beat is an error.
+
+A watchdog (`test_runner_watchdog` of VUnit) ends a test that does not end, for example because the module stops
+delivering beats: its time is 1 ms plus 0.5 µs per entry of the stimulus and the expected file (`watchdog_us` of
+`tools/isp_tbgen.py`), more than ten times what an entry takes with gaps, stalls and pauses.
+
+## 7. Register script
+
+A module with registers gets a third file per test, `<test>.regs`, with its register accesses. The procedure
+`ispRegsRun` of `tb/isp_tb_axilite_pkg.vhd` executes it in the main process of the testbench with the AXI4-Lite BFM
+of UVVM (`bitvis_vip_axilite`), one access after the other, so that no access overtakes another.
+
+| Entry | Meaning |
+| --- | --- |
+| `<m> W <address> <data> [<strobes>]` | When the source sets marker m: write the data (hexadecimal) with the byte strobes (hexadecimal, default all) |
+| `<m> C <address> <data>` | When the source sets marker m: read and compare with the data (hexadecimal); a difference is an error alert |
+
+The accesses of one marker run in the order of the file; when they are done, the procedure sets the acknowledge to m.
+The source waits for it with `K m` before its next beat, so a register access falls between two known beats of the
+stream. The markers of the register script start at 100, so that they do not collide with the markers of a timing
+test. A test that needs an access at a cycle the script cannot express (for example a clear that coincides with an
+event) drives the BFM itself.
