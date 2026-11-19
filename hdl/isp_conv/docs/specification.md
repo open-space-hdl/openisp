@@ -117,9 +117,9 @@ generics of the module behind.
 ## 7. Register map
 
 Byte addresses of 32-bit registers on the AXI4-Lite slave. Access: RO read only, RW read and write, W1C sticky flag,
-write one to clear, W1 command, write one. Reads of other addresses return 0, writes to them and to read-only
-fields have no effect; every access is answered with OKAY. With `RuntimeCoef_g` false the coefficient registers are
-read only and show the generic.
+write one to clear, W1 command, write one, W write only (the argument of a command). Reads of other addresses
+return 0, writes to them and to read-only fields have no effect; every access is answered with OKAY. With
+`RuntimeCoef_g` false the coefficient registers are read only and show the generic.
 
 | Address | Register | Bits | Field | Access | Reset | Description |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -130,7 +130,8 @@ read only and show the generic.
 | | | 29:24 | `PIXEL_BITS` | RO | `PixelBits_g` | Bits per pixel of the window |
 | 0x008 | `CTRL` | 0 | `HOLD` | RW | 0 | 1: the image starts do not take the coefficient registers |
 | 0x00C | `STATUS` | 9 | `ERR_CONFIG` | W1C | 0 | Set by every pulse of `Err_Config` |
-| 0x010 | `INJECT` | 0 | `COEF0_PARITY` | W1 | 0 | Write one: inverts the parity bit of `COEF[0]` (test of the error handling); reads as zero |
+| 0x010 | `INJECT` | 0 | `PARITY` | W1 | 0 | Write one: inverts the parity bit of `COEF[INDEX]` (test of the error handling); reads as zero |
+| | | 15:8 | `INDEX` | W | 0 | Coefficient whose parity bit a write of `PARITY` inverts; an index of T or above has no effect; reads as zero |
 | 0x100 + 4 x k | `COEF[k]`, k = 0 to T - 1 | 17:0 | `COEF` | RW | `Coef_g`(k) | Coefficient of element k (two's complement, `CoefBits_g` bits); reads sign-extended to 32 bits |
 
 | ID | Requirement | Core requirement |
@@ -138,4 +139,4 @@ read only and show the generic.
 | CNV-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
 | CNV-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
 | CNV-RG-03 | A write to a coefficient register shall change only the bytes that the write strobes select, and set the parity bit for the resulting value. | ISP-CFG-03, ISP-FT-05 |
-| CNV-RG-04 | A write of one to `INJECT.COEF0_PARITY` shall invert the parity bit of `COEF[0]`, so that the next image start that takes the registers finds a mismatch. | ISP-FT-05 |
+| CNV-RG-04 | A write of one to `INJECT.PARITY` shall invert the parity bit of `COEF[INDEX]` of the same write, so that the next image start that takes the registers finds a mismatch. | ISP-FT-05 |
