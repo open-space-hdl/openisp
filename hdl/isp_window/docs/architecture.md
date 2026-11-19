@@ -143,9 +143,9 @@ Y0, follow the stride. The packet signals come from the position, without a coun
 
 | Property | Value | Requirement |
 | --- | --- | --- |
-| Pixel rate | One event per clock cycle; within a line every event is a PIX event | WIN-PF-01 |
+| Pixel rate | One event per clock cycle; within a line every event is a PIX event; the input waits for the Rr HCOL events of every line, which the input stage of WN-1 shifts by up to two pixels into the next line | WIN-PF-01 |
 | Image period | (H + Rb) x (W + Rr) events in the border modes zero, replicate, mirror, H x W in the border mode valid, plus the registers of WN-1 at the image boundary | WIN-PF-02 |
-| Latency | 2 clock cycles in WN-1, one for the event into the window register: 3 clock cycles | WIN-PF-03 |
+| Latency | 2 clock cycles in WN-1, one for the event into the window register: 3 clock cycles; up to 2 more for a pixel that WN-1 took while the module held its input: at most 5 clock cycles | WIN-PF-03 |
 
 Paths: from the output registers of the delays through the row select and the border multiplexer of a column into
 the window register (two to three LUT levels for windows up to 9 lines); `Out_Ready` to the enable of the window

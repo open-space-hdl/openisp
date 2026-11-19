@@ -56,7 +56,7 @@ window to one pixel and passes the packet signals on, which gives a pixel stream
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| WIN-PF-01 | Within a line, with `In_Valid` and `Out_Ready` high, the module shall accept one pixel per clock cycle. | ISP-STR-09 |
+| WIN-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most Rr clock cycles between the acceptance of the first pixels of two consecutive lines of an image in the border modes zero, replicate and mirror, and for no clock cycle between the first and the last pixel of an image in the border mode valid. | ISP-STR-09 |
 | WIN-PF-02 | With back-to-back input and `Out_Ready` high, the interval between the starts of two consecutive images shall not exceed (H + Rb) x (W + Rr) + 8 clock cycles in the border modes zero, replicate and mirror, and H x W + 8 clock cycles in the border mode valid: Rr cycles per line for the windows at the right border, Rb lines for the windows at the lower border, 8 cycles of registers. | ISP-STR-09 |
 | WIN-PF-03 | With `Out_Ready` high, the window of the reference pixel (x, y) shall be at the output at most 6 clock cycles after the module accepted the pixel p(x + Rr, y + Rb), where that pixel is inside the image. | ISP-STR-09 |
 
@@ -129,6 +129,7 @@ every pixel.
 | WIN-CF-02 | The border mode mirror with a window of more than one column whose anchor is not its middle column (`WinX_g` odd and `AnchorX_g` = (`WinX_g` - 1) / 2), or the same for the lines, shall stop the elaboration with a message. | ISP-CFG-01 |
 | WIN-CF-03 | The module shall be synthesizable with GHDL for the bounds of every numeric generic and every value of `BorderMode_g`. | ISP-GEN-01 |
 | WIN-CF-04 | The default configuration shall be designed for 150 MHz on the FPGA families of the reference systems; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| WIN-CF-05 | With `Resource_g` "BRAM" and `WinY_g` above 1, an `ImageWidth_g` below 3 + `EccPipeline_g` shall stop the elaboration with a message naming `ImageWidth_g` (the block RAM delay of Open Logic needs a delay of at least 3). | ISP-CFG-01 |
 
 ## 6. Interpretation
 
@@ -150,3 +151,6 @@ The border modes extend the input image beyond its borders:
   is completed.
 - With a stride above 1 the module still takes every input pixel; only the windows of the reference pixels are
   output.
+- The input stage of `isp_frame_sync` takes up to two pixels while the module holds its input for the right
+  border, so the hold cycles of a line can fall after the first pixels of the next line: WIN-PF-01 counts them
+  between the first pixels of two lines, and the latency of WIN-PF-03 leaves room for these two pixels.
