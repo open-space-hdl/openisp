@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from isp_model import frame_sync  # noqa: E402
+from isp_model import CRP_INJECT, CRP_ROI_POS, CRP_STATUS, crop, frame_sync  # noqa: E402
 from isp_tbgen import packets  # noqa: E402
 
 
@@ -71,3 +71,51 @@ def test_reset_drops_beats():
     assert [o[1] if o[0] == "B" else "R" for o in out] == [1, 2, "R", 5, 6, 7, 8]
     assert err == 1                                             # the remainder after the reset is a run of E2
     assert annot[3] == (2, False)
+
+
+def crop_pixels(out):
+    return [o[1] for o in out if o[0] == "B"]
+
+
+def test_crop_static():
+    # 4 x 3 image, region (1, 1) of 2 x 2: pixels 6, 7 and 10, 11
+    pix = list(range(1, 13))
+    out, ferr, _, cerr, _ = crop(packets(pix, [12]), 4, 3, 1, 1, 2, 2, False)
+    assert ferr == 0 and cerr == 0
+    assert crop_pixels(out) == [6, 7, 10, 11]
+    assert [o[2] for o in out] == [0, 1, 0, 1]                  # Last at the last column of the region
+    assert [o[3] for o in out] == [1, 1, 2, 2]                  # first line "01", last line "10"
+
+
+def test_crop_runtime_position_and_invalid():
+    pix = list(range(1, 13))
+    img = packets(pix, [4, 4, 4])
+    items = img + [("A", 100, [("W", CRP_ROI_POS, (0 << 16) | 2, 0xF)])] + img \
+        + [("A", 101, [("W", CRP_ROI_POS, (2 << 16) | 3, 0xF), ("C", CRP_ROI_POS, None, 0xF)])] + img
+    out, _, _, cerr, regs = crop(items, 4, 3, 1, 1, 2, 2, True)
+    # Generics, then (2, 0), then (3, 2) is invalid (3 + 2 > 4): generics again with one Err_Config
+    assert crop_pixels(out) == [6, 7, 10, 11, 3, 4, 7, 8, 6, 7, 10, 11]
+    assert cerr == 1
+    assert regs[1][1][1] == ("C", CRP_ROI_POS, (2 << 16) | 3, 0xF)   # the register keeps the written value
+
+
+def test_crop_parity_and_strobes():
+    pix = list(range(1, 13))
+    img = packets(pix, [12])
+    items = [("A", 100, [("W", CRP_ROI_POS, 0x00000002, 0x1)]), ]   # only byte 0: X = 2, Y stays 1
+    items += img + [("A", 101, [("W", CRP_INJECT, 1, 0xF)])] + img + img
+    items += [("A", 102, [("W", CRP_INJECT, 1, 0xF)])] + img        # a second injection restores the parity
+    items += [("A", 103, [("C", CRP_STATUS, None, 0xF)])]
+    out, _, _, cerr, regs = crop(items, 4, 3, 1, 1, 2, 2, True)
+    assert crop_pixels(out) == [7, 8, 11, 12, 6, 7, 10, 11, 6, 7, 10, 11, 7, 8, 11, 12]
+    assert cerr == 2
+    assert regs[-1][1][0][2] == 0x200                              # STATUS.ERR_CONFIG, image closed
+
+
+def test_crop_reset_restores_generics():
+    pix = list(range(1, 13))
+    img = packets(pix, [12])
+    items = [("A", 100, [("W", CRP_ROI_POS, 0x2, 0xF)])] + img + [("R", 0, 0, 2)] + img
+    out, _, _, _, _ = crop(items, 4, 3, 1, 1, 2, 2, True)
+    assert crop_pixels([o for o in out]) == [3, 4, 7, 8, 6, 7, 10, 11]
+

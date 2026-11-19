@@ -246,7 +246,7 @@ def configure(lib, out_dir):
             stim = folder / (test + ".stim")
             exp = folder / (test + ".exp")
             errors = write_test(stim, exp, items, lambda it: frame_sync(it, w, h), bits,
-                                side=lambda o: format((o[5] << xw) | o[4], "x"))
+                                side=lambda o: format((o[5] << xw) | o[4], "x"))["errors"]
             tb.test(test).add_config(name=name, generics={
                 "ImageWidth_g": w, "ImageHeight_g": h, "PixelBits_g": bits,
                 "StimFile_g": stim.as_posix(), "ExpFile_g": exp.as_posix(),

@@ -79,6 +79,7 @@ UVVM_COMPONENTS = (
     "uvvm_vvc_framework",
     "bitvis_vip_scoreboard",
     "bitvis_vip_axistream",
+    "bitvis_vip_axilite",
 )
 
 

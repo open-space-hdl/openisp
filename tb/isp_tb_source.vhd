@@ -8,7 +8,7 @@
 ---------------------------------------------------------------------------------------------------
 -- Pixel stream source of the OpenISP testbenches: reads a stimulus file and drives the input of a
 -- module. Entries: B beat, G pause, W wait for the sink, T wait cycles, P probe a status, H hold the
--- sink, M marker, R reset (docs/testbench.md, section 3). Random pauses of 1 to 4 cycles before a
+-- sink, M marker, K wait for the register script, R reset (docs/testbench.md, section 3). Random pauses of 1 to 4 cycles before a
 -- beat with the probability GapPct_g; data, Last and User are 'X' while Valid is low.
 --
 -- What this model does NOT check or reproduce: it does not check the handshake of the module beyond
@@ -58,6 +58,7 @@ entity isp_tb_source is
         RstReq    : out   std_logic;
         Hold      : out   std_logic;
         Marker    : out   natural;
+        Ack       : in    natural := 0;
         Done      : out   boolean
     );
 end entity;
@@ -182,6 +183,13 @@ begin
                 when 'M' =>
                     nextNumber(N_v);
                     Marker <= N_v;
+
+                when 'K' =>
+                    nextNumber(N_v);
+
+                    while Ack < N_v loop
+                        wait until rising_edge(Clk);
+                    end loop;
 
                 when 'R' =>
                     nextNumber(N_v);

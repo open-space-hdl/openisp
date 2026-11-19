@@ -6,8 +6,8 @@
 
 A test is a list of input items (see tools/isp_model.py): beats ('B', pixel, last, user) and directives
 ('G', n) pause, ('T', n) wait cycles, ('W',) wait for the sink, ('P',) probe, ('H', 0/1) hold the sink,
-('M', n) marker, ('R', drop, mode, cycles) reset. `write_test` runs the model of the module over the items and
-writes the stimulus file and the expected file.
+('M', n) marker, ('R', drop, mode, cycles) reset, ('A', marker, entries) register accesses. `write_test` runs the
+model of the module over the items and writes the stimulus file, the expected file and the register script.
 """
 
 import random
@@ -103,10 +103,12 @@ def image_beats(rng, width, height, bits, mode):
     return packets(pixels, split(rng, width * height, width, mode))
 
 
-def write_test(stim_path, exp_path, items, model, data_bits, side=None):
-    """Runs `model(items)` -> (out, errors, annot), writes the two files and returns the number of errors.
+def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_path=None):
+    """Runs `model(items)` -> (out, errors, annot[, config_errors, regs]) and writes the files. Returns a dict with
+    the number of framing errors ("errors") and, for a model with registers, of configuration errors ("config").
     `side(entry)` formats the sideband of an output beat (hexadecimal), default "0"."""
-    out, errors, annot = model(items)
+    res = model(items)
+    out, errors, annot = res[0], res[1], res[2]
     stim = []
     for i, it in enumerate(items):
         before = annot[i - 1] if i > 0 else (0, False)
@@ -122,6 +124,9 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None):
         elif kind == "R":
             _, drop, mode, cycles = it
             stim.append("R {} {} {}".format(before[0] - drop, mode, cycles))
+        elif kind == "A":
+            stim.append("M {}".format(it[1]))
+            stim.append("K {}".format(it[1]))
         else:
             raise ValueError(kind)
     exp = []
@@ -133,4 +138,16 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None):
     Path(stim_path).parent.mkdir(parents=True, exist_ok=True)
     Path(stim_path).write_text("\n".join(stim) + "\n", encoding="ascii", newline="\n")
     Path(exp_path).write_text("\n".join(exp) + "\n", encoding="ascii", newline="\n")
-    return errors
+    result = {"errors": errors}
+    if len(res) > 3:
+        result["config"] = res[3]
+        if regs_path:
+            lines = []
+            for marker, entries in res[4]:
+                for op, addr, data, strobes in entries:
+                    if op == "W":
+                        lines.append("{} W {:x} {:x} {:x}".format(marker, addr, data, strobes))
+                    else:
+                        lines.append("{} C {:x} {:x}".format(marker, addr, data))
+            Path(regs_path).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
+    return result
