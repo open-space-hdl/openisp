@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 from isp_model import (CNV_COEF, CNV_CTRL, CNV_INJECT, CNV_STATUS, SEQ_LAST, Window, conv_full_bits,  # noqa: E402
                        ecc_codeword_width, ecc_data_positions, filter2d)
 from isp_tbgen import (RegScript, check, image_beats, malformed_streams, packets, random_image, raw_packet,  # noqa
-                       rng_for, seed_for, status, watchdog_us, write, write_test)
+                       rng_for, seed_for, short_image, status, watchdog_us, write, write_test)
 
 MODULE = "isp_filter2d"
 SEP2 = [-2, 5, 7, 1, -1]       # second kernel of the configuration separable (asymmetric)
@@ -153,7 +153,11 @@ def build_static(rng, x):
 
 
 def build_input_stream(rng, x):
-    return malformed_streams(rng, x.c["w"], x.c["h"], x.c["pb"], packets_count=30)
+    c = x.c
+    # An image cut after half of its pixels: the probe sees Stat_ImageOpen 1 while it is open; the image start of
+    # the malformed streams completes it (E1)
+    items = short_image(rng, c["w"], c["h"], c["pb"], c["w"] * c["h"] // 2) + [("W",), ("T", 8), ("P",)]
+    return items + malformed_streams(rng, c["w"], c["h"], c["pb"], packets_count=30)
 
 
 def build_runtime(rng, x):
@@ -201,6 +205,8 @@ def build_errors(rng, x):
         # the pixel and their output pixels change)
         inject((1 << d1) << shift, line, rng.randrange(w))
         inject(((1 << d1) | (1 << d2)) << shift, line, rng.randrange(1, w - 1))
+    # One more single error, so that the counts of Stat_EccSec and Stat_EccDed differ (an exchange of the two shows)
+    inject(1 << rng.choice(pos), min(1, h - 1), rng.randrange(w))
     # A parity error of a coefficient: the next image uses the coefficients of the generic and pulses Err_Config;
     # the write of the coefficient restores the parity
     s = x.rand_set(rng)
