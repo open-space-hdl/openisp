@@ -42,6 +42,11 @@ CONFIGS = {
     # isp_crop TC-CRP-11: the default configuration with the position at run time
     "crp_default": ("isp_crop", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "PixelBits_g": 12, "RoiWidth_g": 1024,
                                  "RoiHeight_g": 1024, "RoiX_g": 512, "RoiY_g": 512, "RuntimeRoi_g": True}, False),
+    # isp_point TC-PNT-12: the default configuration with run-time registers, and the widest one
+    "pnt_default": ("isp_point", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "InBits_g": 16, "OutBits_g": 12,
+                                  "GainBits_g": 16, "MaxShift_g": 32, "MultStages_g": 2, "Runtime_g": True}, False),
+    "pnt_wide": ("isp_point", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "InBits_g": 64, "OutBits_g": 32,
+                               "GainBits_g": 18, "MaxShift_g": 83, "MultStages_g": 4, "Runtime_g": True}, False),
 }
 
 

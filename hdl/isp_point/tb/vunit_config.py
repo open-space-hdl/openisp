@@ -37,7 +37,8 @@ CONFIGS = [
     ("neutral", 6, 4, 8, 8, 1, 9, 1, False, DEFAULTS, 20, 20, STATIC),
     ("runtime", 6, 4, 12, 12, 16, 28, 2, True, DEFAULTS, 30, 40, RUNTIME),
     ("runtime_rate", 6, 4, 12, 12, 16, 28, 2, True, DEFAULTS, 0, 0, ["test_rate", "test_flag_coincidence"]),
-    ("exhaustive", 16, 1, 4, 4, 3, 8, 4, True, DEFAULTS, 0, 0, ["test_exhaustive"]),
+    ("exhaustive", 16, 1, 4, 4, 3, 6, 4, True, DEFAULTS, 0, 0, ["test_exhaustive"]),
+    ("shift_limit", 6, 4, 12, 12, 16, 8, 2, True, DEFAULTS, 20, 20, ["test_runtime"]),
     ("wide", 4, 3, 64, 32, 18, 83, 4, True, DEFAULTS, 20, 20,
      ["test_static", "test_runtime", "test_parity", "test_registers"]),
     ("narrow", 3, 2, 1, 1, 1, 0, 1, True, DEFAULTS, 20, 20,
@@ -108,7 +109,10 @@ def build_runtime(rng, c):
     sets = [c.random_set(rng) for _ in range(3)]
     sets += [(base[0], 0, base[2], base[3], base[4]), (base[0], 1, base[2], base[3], base[4]),
              (base[0], gmax, base[2], base[3], base[4])]
-    sets += [(base[0], base[1], s, base[3], base[4]) for s in sorted({0, c.maxs, min(c.maxs + 1, 127), 127})]
+    # The shifts 0, MaxShift_g, MaxShift_g + 1 and 127 (both taken as MaxShift_g) on a product that the shift makes
+    # visible: offset 0, gain 2^min(MaxShift_g, GainBits_g - 1), no clamp
+    g = 1 << min(c.maxs, c.gainb - 1)
+    sets += [(0, g, s, 0, full) for s in sorted({0, c.maxs, min(c.maxs + 1, 127), 127})]
     sets += [(lo, base[1], base[2], 0, full), (hi, base[1], base[2], 0, full)]
     sets += [(base[0], base[1], base[2], full, 0), (base[0], base[1], base[2], full // 2, full // 2)]
     items = []
@@ -199,13 +203,15 @@ def build_registers(rng, c):
 
 
 def build_exhaustive(rng, c):
-    # Every offset, gain and shift of the configuration as a run-time set, over an image of all pixel values
+    # Every offset, gain and shift of the configuration as a run-time set, over an image of all pixel values; the
+    # shifts above MaxShift_g and 127 are taken as MaxShift_g, which lies below the width of the product
     thresholds = [(0, (1 << c.outb) - 1), (2, 13), (9, 5)]
+    shifts = list(range(c.maxs + 3)) + [127]
     items = []
     k = 0
     for off in range(-(1 << (c.ow - 1)), 1 << (c.ow - 1)):
         for gain in range(1 << c.gainb):
-            for shift in range(c.maxs + 1):
+            for shift in shifts:
                 low, high = thresholds[k % len(thresholds)]
                 k += 1
                 writes = []
