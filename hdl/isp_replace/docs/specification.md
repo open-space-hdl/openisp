@@ -47,7 +47,7 @@ and their marks, and an interpolation kernel behind it.
 | RPL-FN-01 | For every operational pixel the module shall output q = p, for every non-operational pixel the replacement of section 1.1, at the same position. | ISP-RPL-01, ISP-RPL-03 |
 | RPL-FN-02 | The module shall use only pixels of the same line and of the same image for a replacement; a pixel outside the image is not an operational pixel. | ISP-RPL-01 |
 | RPL-FN-03 | The module shall take its input through `isp_frame_sync` with the dimensions of the image and output the image with the same dimensions as one stream packet per line with the sequence flags of the line. | ISP-STR-03, ISP-STR-04, ISP-STR-05, ISP-STR-06, ISP-STR-08 |
-| RPL-FN-04 | The mark of a pixel shall be the bit of the defect map at the time the module reads the word of the pixel; a write to the defect map shall take effect for all pixels whose word is read after it. | ISP-RPL-02, ISP-CFG-02 |
+| RPL-FN-04 | A write to the defect map that completes before the module accepts the first pixel of an image shall apply to the whole image. A write that completes during an image shall apply in that image at the latest from the third word after the word of the last pixel the module accepted. | ISP-RPL-02, ISP-CFG-02 |
 | RPL-FN-05 | The defect map shall mark no pixel after the configuration of the device and after the command `CTRL.CLEAR`; the reset `Rst` shall not change it. | ISP-RPL-02 |
 | RPL-FN-06 | The output shall not depend on the timing of the stream handshakes, and an image start may follow the last pixel of an image without a gap. | ISP-STR-07 |
 | RPL-FN-07 | The module shall be built from `isp_frame_sync`, `isp_window` (one line of 2 x G + 1 pixels, each with its mark, border mode zero) and an interpolation kernel. | ISP-GEN-02 |
@@ -56,9 +56,9 @@ and their marks, and an interpolation kernel behind it.
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| RPL-PF-01 | Within a line, with `In_Valid` and `Out_Ready` high, the module shall accept one pixel per clock cycle. | ISP-STR-09 |
-| RPL-PF-02 | With back-to-back input and `Out_Ready` high, the interval between the starts of two consecutive images shall not exceed H x (W + G) + 16 clock cycles. | ISP-STR-09 |
-| RPL-PF-03 | With `Out_Ready` high, the pixel q(x, y) shall be at the output at most 14 clock cycles after the module accepted the pixel p(x + G, y), where that pixel is inside the image. | ISP-STR-09 |
+| RPL-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most G clock cycles between the acceptance of the first pixels of two consecutive lines of an image. | ISP-STR-09 |
+| RPL-PF-02 | With back-to-back input and `Out_Ready` high, the interval between the starts of two consecutive images shall not exceed H x (W + G) + `RamRdLatency_g` + `EccPipeline_g` + 16 clock cycles. | ISP-STR-09 |
+| RPL-PF-03 | With `Out_Ready` high, the pixel q(x, y) shall be at the output at most 13 + `RamRdLatency_g` + `EccPipeline_g` clock cycles after the module accepted the pixel p(x + G, y), where that pixel is inside the image. | ISP-STR-09 |
 
 ### 2.4 Error handling
 
@@ -67,7 +67,7 @@ and their marks, and an interpolation kernel behind it.
 | RPL-ER-01 | Every output image shall be complete whatever the input; the pixels that `isp_frame_sync` generated for missing pixels are pixels of the image like the others. | ISP-STR-08 |
 | RPL-ER-02 | A non-operational pixel without an operational pixel within G on either side shall be output unchanged and reported (E5). | ISP-RPL-03 |
 | RPL-ER-03 | A word of the defect map read with a double bit error shall be used as read and reported (E6). | ISP-FT-01 |
-| RPL-ER-04 | A write to `MAP_DATA` during a clear of the map or with `MAP_ADDR` outside the map shall have no effect. | ISP-CFG-03 |
+| RPL-ER-04 | A write to `MAP_DATA` during a clear of the map or with `MAP_ADDR` outside the map shall change neither the map nor `MAP_ADDR`. | ISP-CFG-03 |
 
 ### 2.5 Fault tolerance
 
@@ -140,6 +140,12 @@ within G; the pixels in its middle stay unchanged (E5).
   and takes its value.
 - Each line has its own words of the defect map, so the software addresses the word of a pixel without a division
   by the image width.
+- The module reads the map ahead of the pixels within an image (RPL-FN-04), but not across the start of an image:
+  a map that the software completes between two images applies to the whole next image. The first pixel of an
+  image waits for its word, which adds the read latency of the map to the image period and to the latency of
+  the first pixels (RPL-PF-02, RPL-PF-03).
+- `MAP_ADDR` keeps all 32 bits, so that an address outside the map stays outside and a write to it has no effect
+  (RPL-ER-04).
 - The map is a table of one bit per pixel. A list of the positions of the non-operational pixels would need less
   memory for a detector with few defects; the register interface of this module leaves room for it in a later
   version.
@@ -166,7 +172,7 @@ return 0, writes to other addresses and to read-only fields have no effect; ever
 | | | 10 | `UNREPLACED` | W1C | 0 | Set by every pulse of `Stat_Unreplaced` |
 | | | 16 | `ECC_SEC` | W1C | 0 | Set by every corrected single bit error of the defect map (read or scrubber) |
 | | | 17 | `ECC_DED` | W1C | 0 | Set by every detected double bit error of the defect map (read or scrubber) |
-| 0x1C | `MAP_ADDR` | 31:0 | `ADDR` | RW | 0 | Address of the word that the next write to `MAP_DATA` changes; it counts up by one with every such write |
+| 0x1C | `MAP_ADDR` | 31:0 | `ADDR` | RW | 0 | Address of the word that the next write to `MAP_DATA` changes; it counts up by one with every such write; all 32 bits are stored and read back |
 | 0x20 | `MAP_DATA` | 31:0 | `DATA` | WO | - | Writes the word `MAP_ADDR` of the defect map |
 
 | ID | Requirement | Core requirement |
@@ -174,4 +180,4 @@ return 0, writes to other addresses and to read-only fields have no effect; ever
 | RPL-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
 | RPL-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
 | RPL-RG-03 | A write to `MAP_DATA` shall write all 32 bits of the word `MAP_ADDR` and then increase `MAP_ADDR` by one. | ISP-RPL-02 |
-| RPL-RG-04 | `CTRL.CLEAR` shall write 0 to every word of the defect map, with `STATUS.BUSY` high from the command to the last word. | ISP-RPL-02 |
+| RPL-RG-04 | `CTRL.CLEAR` shall write 0 to every word of the defect map, with `STATUS.BUSY` high from the command to the last word; a `CTRL.CLEAR` while `STATUS.BUSY` is high shall have no effect. | ISP-RPL-02 |

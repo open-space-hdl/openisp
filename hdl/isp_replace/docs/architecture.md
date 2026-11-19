@@ -55,11 +55,15 @@ The defect map is read in the order of the pixels. Every line has its own words,
 counter that counts up through the image: by one after every 32 pixels of a line and at the end of every line. It
 returns to 0 with pixel (0, 0).
 
-- The lookup holds the word of the current 32 pixels and reads the next word ahead, as soon as the current one is in
-  use. The read latency of the RAM and of its ECC decoder (`RamRdLatency_g` + `EccPipeline_g` cycles) lies inside
-  the 32 pixels of a word.
-- A pixel waits in the lookup only when its word has not arrived: after the reset, and for lines of fewer pixels
-  than the read latency.
+- The lookup holds the word of the current pixels and the two words after it in a queue of three words: when a word
+  comes in use, the read of the word two places after it starts. Two words ahead cover the read latency of the RAM
+  and of its ECC decoder (`RamRdLatency_g` + `EccPipeline_g`, at most 5 cycles) also when the last word of a line
+  holds a single pixel: two lines take at least 2 x (3 x G + 1) cycles.
+- The read-ahead stops at the last word of the image. Pixel (0, 0) starts the reads of words 0, 1 and 2 and waits
+  for word 0, so that a map written between two images applies to the whole next image (RPL-FN-04).
+- A pixel waits in the lookup only for the first word of an image.
+- The RAM has max(2, H x ceil(W / 32)) words, as `olo_ft_ram_sdp_scrub` needs at least 2; the extra word of a map of
+  one word is not used.
 - The read port of the RAM is busy once in 32 pixels; the scrubber uses the other cycles (RPL-FT-01).
 - The write port belongs to RP-5: a write of `MAP_DATA`, or the clear sequence. The datapath never writes.
 - `Stat_EccSec` and `Stat_EccDed` pulse with the read of a word; a word with a double error is used as read (E6).
@@ -88,7 +92,7 @@ enable: they advance when the output register is empty or its beat transfers.
 | Register | Implementation |
 | --- | --- |
 | `ID`, `IMAGE`, `PARAM`, `MAP_LINE`, `MAP_WORDS` | Constants from the generics |
-| `MAP_ADDR` | Counter with the width of the map address; written by the software, counted up by every write of `MAP_DATA` |
+| `MAP_ADDR` | 32-bit counter; written by the software, counted up by every write of `MAP_DATA` that changes the map |
 | `MAP_DATA` | Write strobe of the RAM with the address `MAP_ADDR`; no effect during a clear or with an address outside the map |
 | `CTRL.CLEAR` | Starts the clear sequence: a counter writes 0 to every word, one per clock cycle; `STATUS.BUSY` is high meanwhile |
 | `STATUS` | `Stat_ImageOpen`, the busy flag, and sticky flags set by `Err_Framing`, `Stat_Unreplaced` and the error flags of the reads and of the scrubber; cleared by a write of one, the event wins |
@@ -100,9 +104,9 @@ touch the RAM; the software clears the map with `CTRL.CLEAR` where a reset shall
 
 | Property | Value | Requirement |
 | --- | --- | --- |
-| Pixel rate | One pixel per clock cycle within a line | RPL-PF-01 |
-| Image period | H x (W + G) cycles: the window generates G virtual columns after every line; plus the registers of the blocks | RPL-PF-02 |
-| Latency | 2 clock cycles in RP-1, 1 in the lookup, 3 in the window, 4 in the interpolation: 10 clock cycles after the pixel G columns to the right | RPL-PF-03 |
+| Pixel rate | One pixel per clock cycle within a line; the input waits for the G virtual columns of the window after every line, which the input stages of the frame syncs shift by up to two pixels into the next line | RPL-PF-01 |
+| Image period | H x (W + G) cycles: the window generates G virtual columns after every line; plus the read of word 0 at the image start and the registers of the blocks | RPL-PF-02 |
+| Latency | 2 clock cycles in RP-1, 1 in the lookup, 3 in the window, 4 in the interpolation: 10 clock cycles after the pixel G columns to the right; up to 2 more for a pixel taken while the input was held; up to `RamRdLatency_g` + `EccPipeline_g` + 1 more for the first pixels of an image | RPL-PF-03 |
 
 Paths: the priority searches over at most seven flags and the selection of L and R (stage 1), and the
 multiplication with the constant in stage 3, at most 28 x 32 bits, which the synthesis tool maps to DSP blocks
