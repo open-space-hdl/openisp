@@ -3,7 +3,7 @@
 ## 1. Test results
 
 Run on 2026-11-20 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4` on 5ec4dc4, 542 of 542 tests passed (32 of them `isp_filter2d`), 0 skipped.
+`python run.py -p 4` on 2e4971c, 542 of 542 tests passed (32 of them `isp_filter2d`), 0 skipped.
 QuestaSim runs with the release regression (with and without code coverage).
 
 | Test | Configurations | Passed |
@@ -41,8 +41,9 @@ of the sink found the output contract (Wo x Ho) in every test.
 - Errors: single and double errors injected into every line buffer of the window (two data bits, or the data bit and
   the overall parity bit for 1-bit pixels): a single error leaves the output unchanged and pulses `Stat_EccSec`, a
   double error changes the windows that contain the pixel and their output pixels and pulses `Stat_EccDed`; a parity
-  error of a coefficient makes the next images use the coefficients of the generic, with one `Err_Config` each, until
-  the coefficient is written. Every pulse reached the ports of the filter, in the numbers of the model.
+  error of a coefficient makes the next image use the coefficients of the generic, with one `Err_Config`, until the
+  coefficient is written. Every pulse reached the ports of the filter, in the numbers of the model, which differ
+  between the three outputs (3, 2 and 1 pulses), so that an exchange of two of them shows.
 - Resets idle, held and running, of one and two cycles: during a line, during the windows of the lower border, and
   while the sink held the output and the kernel held windows. The next images are correct, the registers return to
   their reset values.
@@ -79,14 +80,16 @@ values below through the filter.
 
 ## 4. Mutations
 
-Run on 2026-11-20 on commit 5ec4dc4 in a worktree of its own (`git diff --quiet` before and after every mutant), with
+Run on 2026-11-20 on commit 2e4971c in a worktree of its own (`git diff --quiet` before and after every mutant), with
 11 tests: the 5 of `mtf3`, test_static of `strided`, `valid`, `separable` and `bin_h`, test_errors of `ecc` and
-test_rate of `rate_3`. Every one of the 7 mutants of the plan (section 6) fails at least one test, and the tests that
+test_rate of `rate_3`. Every one of the 8 mutants of the plan (section 6) fails at least one test, and the tests that
 fail include those the plan expects. A mutant that changes several places of the source carries all of them in one
 run.
 
 A first run on 69c2e15 kept two mutants alive, the exchange of `Stat_EccSec` and `Stat_EccDed` and `Stat_ImageOpen`
-not connected; both were gaps of the bench (section 7).
+not connected; both were gaps of the bench (section 7). An audit of the status outputs of every module then found the
+counts of `Stat_EccDed` and `Err_Config` equal in every test, a third gap of the same kind; its mutant is the
+exchange of the two.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -97,6 +100,7 @@ not connected; both were gaps of the bench (section 7).
 | Err_Config of the kernel not connected | killed by 2 of 11 tests | test_errors |
 | The register slave of the kernel not connected (reads 0) | killed by 4 of 11 tests | test_errors, test_reset, test_runtime |
 | Stat_EccSec and Stat_EccDed of the window exchanged | killed by 2 of 11 tests | test_errors |
+| Stat_EccDed of the window and Err_Config of the kernel exchanged | killed by 2 of 11 tests | test_errors |
 | Stat_ImageOpen of the window not connected | killed by 1 of 11 tests | test_input_stream |
 
 ## 5. Synthesis and timing
@@ -130,5 +134,6 @@ values of `RuntimeCoef_g` and every border mode, without latches; it gives no ti
 | Finding | Correction |
 | --- | --- |
 | The first mutation run kept two mutants alive. The exchange of `Stat_EccSec` and `Stat_EccDed` survived because `test_errors` injected as many single as double errors, so both counts stayed equal; `Stat_ImageOpen` not connected survived because every probe of the source came after a complete image, where the flag is 0 | `test_errors` injects a third single error; `test_input_stream` starts with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open. Both mutants are killed (section 4). No change of the RTL |
+| An audit of the status outputs found the counts of `Stat_EccDed` and `Err_Config` equal (2 and 2) in every test of `test_errors`, so an exchange of the two would survive | `test_errors` runs one image with the parity error of a coefficient: `Stat_EccSec` 3, `Stat_EccDed` 2, `Err_Config` 1 pulses; the plan has the mutant of the exchange (section 4) |
 | The configurations of the plan held no low bound of the image size, `PixelBits_g`, `EccPipeline_g` or `Resource_g` | Configurations `min` and `small` (plan, section 2), `mtf5_mirror` on block RAM |
 | `lint/vivado_ooc.py` wrote string generics without quotes (`BorderMode_g`) | The script quotes strings; the top levels of the earlier configurations are unchanged |
