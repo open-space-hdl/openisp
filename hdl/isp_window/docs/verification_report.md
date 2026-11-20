@@ -12,6 +12,9 @@ The status-output audit added a probe of `Stat_ImageOpen` while an image is open
 The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
 commit 4cef90a, 601 of 601 tests passed (128 of them `isp_window`), 0 skipped; `lint/synth_check.py` (TC-WIN-08) passed.
 
+`python run.py -p 4` on 2026-11-20 on commit e167a73 (the selections of section 7 and develop 572dbd7), 668 of 668
+tests passed (128 of them `isp_window`), 0 skipped; `lint/synth_check.py` (TC-WIN-08) passed.
+
 The border and row selections without the selection of the event position and the row selection of the next line by
 compares (architecture, section 7) keep every cycle: in every test of the benches that contain the module, the signals
 at the top level of the bench (the reset, the input and output streams, the status and error outputs and the injection
@@ -153,6 +156,22 @@ Not run yet: TC-WIN-09 runs out-of-context synthesis and implementation at 150 M
 
 The GHDL synthesis of TC-WIN-08 shows that the module is synthesisable at the bounds of its generics, with every
 border mode and every line buffer resource, without latches; it gives no timing.
+
+### 5.1 The event control
+
+The preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro) with a clock of 125 MHz, pre-layout estimates,
+not a timing closure and not on the reference device:
+
+| Configuration | Before (MHz, 4LUT) | Worst path before | The decisions per state (b0dfcbb) | With the row selection by compares (the design) | Worst path of the design |
+| --- | --- | --- | --- | --- | --- |
+| `win_default` (3 x 3 replicate) | 141.8, 1118 | the state -> a column of the window register (6 logic levels) | 151.3, 1199 | 146.9, 1139 | the state -> the write of line buffer 1 (4) |
+| `win_mirror5` (5 x 5 mirror, 16 bits) | 120.5, 2292 | the state -> the event position -> pixel (0, 0) -> the row multiplexer -> the window register (10) | 112.0, 2406 | 139.5, 2329 | the state -> the row select register (8) |
+
+The first step took the decisions off the selection of the event position (architecture, section 7.2); in `win_mirror5`
+the row selection of the next line then limited, `rowSelect`(ye + 1) synthesised as 14-bit subtractions and compares (19
+logic levels). The second step compares the event line with the few lines whose selection differs (architecture, section
+7.1). In `isp_filter2d` 5 x 5 mirror (`flt_mtf5`) the ready path from `isp_conv` into the event control limits after
+this change.
 
 ## 6. Requirement coverage
 
