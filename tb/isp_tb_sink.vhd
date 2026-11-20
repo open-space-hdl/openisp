@@ -220,71 +220,24 @@ begin
     end process;
 
     -----------------------------------------------------------------------------------------------
-    -- Contract checker
+    -- Contract checker (tb/isp_tb_monitor.vhd)
     -----------------------------------------------------------------------------------------------
     g_contract : if Contract_g generate
 
-        p_contract : process (Clk) is
-            variable InImage_v  : boolean                      := false;
-            variable Lines_v    : natural                      := 0;
-            variable Beats_v    : natural                      := 0;
-            variable FirstPkt_v : boolean                      := true;
-            variable Flags_v    : std_logic_vector(1 downto 0) := "00";
-            variable Exp_v      : std_logic_vector(1 downto 0);
-        begin
-            if rising_edge(Clk) then
-                if Rst = '1' then
-                    InImage_v  := false;
-                    Lines_v    := 0;
-                    Beats_v    := 0;
-                    FirstPkt_v := true;
-                elsif S_Valid = '1' and S_Ready = '1' and not Skip then
-                    if FirstPkt_v then
-                        if not InImage_v then
-                            InImage_v := true;
-                            Lines_v   := 0;
-                        end if;
-                        if OutHeight_g = 1 then
-                            Exp_v := "11";
-                        elsif Lines_v = 0 then
-                            Exp_v := "01";
-                        elsif Lines_v = OutHeight_g - 1 then
-                            Exp_v := "10";
-                        else
-                            Exp_v := "00";
-                        end if;
-                        if S_User /= Exp_v then
-                            error("contract: line " & integer'image(Lines_v) & " starts with the flags " &
-                                  to_string(S_User) & ", expected " & to_string(Exp_v));
-                        end if;
-                        Flags_v := S_User;
-                    elsif S_User /= Flags_v then
-                        error("contract: flags " & to_string(S_User) & " within a packet with the flags " &
-                              to_string(Flags_v));
-                    end if;
-
-                    Beats_v := Beats_v + 1;
-                    if S_Last = '1' then
-                        if Beats_v /= OutWidth_g then
-                            error("contract: line " & integer'image(Lines_v) & " of " & integer'image(Beats_v) &
-                                  " beats, expected " & integer'image(OutWidth_g));
-                        end if;
-                        Beats_v    := 0;
-                        Lines_v    := Lines_v + 1;
-                        FirstPkt_v := true;
-                        if Lines_v = OutHeight_g then
-                            InImage_v := false;
-                        end if;
-                    else
-                        if Beats_v >= OutWidth_g then
-                            error("contract: no Last on beat " & integer'image(Beats_v) & " of line " &
-                                  integer'image(Lines_v));
-                        end if;
-                        FirstPkt_v := false;
-                    end if;
-                end if;
-            end if;
-        end process;
+        i_contract : entity work.isp_tb_monitor
+            generic map (
+                Width_g  => OutWidth_g,
+                Height_g => OutHeight_g
+            )
+            port map (
+                Clk     => Clk,
+                Rst     => Rst,
+                S_Valid => S_Valid,
+                S_Ready => S_Ready,
+                S_Last  => S_Last,
+                S_User  => S_User,
+                Skip    => Skip
+            );
 
     end generate;
 

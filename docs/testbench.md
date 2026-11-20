@@ -30,6 +30,11 @@ specification and the RTL has to match it.
 Test images are random over the full pixel range, or depend on every bit of the pixel position, so that an
 addressing fault changes the output.
 
+The function `chain` composes the models of the modules of a chain (the chain test `isp_chain`): the output beats of
+each model are the input beats of the next. Register accesses, injections and the reset of one module go to the
+model of the module they address, at the place of its input stream that the input of the chain has reached; the
+timing of the last module is mapped back to the input beats of the chain.
+
 ## 3. Files
 
 Text files, one entry per line, numbers in hexadecimal for data and sidebands and in decimal otherwise.
@@ -102,6 +107,8 @@ Checks:
   every `OutWidth_g`-th beat of an image and on no other; the flags constant within a packet; the first packet of an
   image with "01" ("11" when `OutHeight_g` is 1), the following with "00" and the last with "10"; exactly
   `OutHeight_g` packets per image, after which the next packet starts an image. A reset (`R` entry) restarts it.
+  The checker is the entity `tb/isp_tb_monitor.vhd`, which observes a stream without driving it; the chain test
+  places one on every connection between two modules.
 
 ## 6. Testbench of a module
 
