@@ -216,6 +216,15 @@ def build_parity(rng, c):
     items += c.image(rng, "lines")
     items += c.regs(write(CRP_ROI_POS, pos(c.x, c.y), 0x3))
     items += c.image(rng, "random")
+    # Every byte of ROI_POS holds bits, so the write of only bytes without bits is the write without a strobe: it
+    # stores nothing and leaves the parity bit unchanged, without and with a mismatch (a parity bit set by such a
+    # write fails in one of the two, whatever the parity of the stored position)
+    items += c.regs(write(CRP_ROI_POS, 0xFFFFFFFF, 0x0), check(CRP_ROI_POS))
+    items += c.image(rng, "lines")
+    items += c.regs(write(CRP_INJECT, 1), write(CRP_ROI_POS, 0xFFFFFFFF, 0x0))
+    items += c.image(rng, "random")
+    items += c.regs(write(CRP_ROI_POS, pos(c.x, c.y)))
+    items += c.image(rng, "lines")
     items += c.regs(check(CRP_STATUS))
     return items + status()
 
