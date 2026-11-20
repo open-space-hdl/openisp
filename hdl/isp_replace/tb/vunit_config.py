@@ -60,7 +60,8 @@ CONFIGS = [
     cfg("rate_g7", 15, 6, 12, 7, 2, 1, gap=0, stall=0, tests=["test_rate"]),
     cfg("rate_w33", 33, 6, 12, 1, 3, 2, gap=0, stall=0, tests=["test_rate"]),
     # The module at the defaults of its entity (DutDefaults_g): G 2, RamRdLatency_g 2, EccPipeline_g 1, the scrubber
-    # free running; the timing of test_rate shows the read path of the map (line 0 holds 5 cycles, the period 3 more)
+    # free running; the timing of test_rate shows the read path of the map (line 0 holds 5 cycles, the period
+    # H x (W + G) + 3)
     cfg("defaults", 40, 6, 12, 2, 2, 1, tests=["test_static", "test_registers", "test_ecc", "test_reset"]),
     cfg("defaults_rate", 40, 6, 12, 2, 2, 1, gap=0, stall=0, tests=["test_rate"]),
 ]

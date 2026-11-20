@@ -78,7 +78,7 @@ A module accepts one pixel per clock cycle within a line. It holds its input in 
 | Completion of a short image | every module with a frame sync | One cycle per missing pixel, when the next image starts |
 | Right border of every line | `isp_window`, `isp_filter2d` (border modes zero, replicate, mirror) | `WinX_g` - 1 - `AnchorX_g` cycles |
 | Right border of every line | `isp_bin` (border modes zero, replicate) | `BinX_g` - 1 cycles |
-| Right border of every line | `isp_replace` | `MaxGap_g` cycles; between the first pixels of lines 0 and 1 of an image the wait for word 0 of the defect map: `RamRdLatency_g` + `EccPipeline_g` + 2 cycles after an idle input, max(`MaxGap_g`, `RamRdLatency_g` + `EccPipeline_g` + 2) after an image (RPL-PF-01). With the defaults (`RamRdLatency_g` 2, `EccPipeline_g` 1) 5 cycles: the read path of the map, 3 cycles longer than with `RamRdLatency_g` 1 and `EccPipeline_g` 0, for a clock of 125 MHz on PolarFire; within a line nothing changes. With `RamRdLatency_g` 1 and `EccPipeline_g` 0 set explicitly the wait is 3 cycles (the registered read request included) |
+| Right border of every line | `isp_replace` | `MaxGap_g` cycles; between the first pixels of lines 0 and 1 of an image the wait for word 0 of the defect map: `RamRdLatency_g` + `EccPipeline_g` + 2 cycles after an idle input, max(`MaxGap_g`, `RamRdLatency_g` + `EccPipeline_g` + 2) after an image (RPL-PF-01). With the defaults (`RamRdLatency_g` 2, `EccPipeline_g` 1) 5 cycles, which a clock of 125 MHz on PolarFire needs; with `RamRdLatency_g` 1 and `EccPipeline_g` 0 3 cycles. Within a line the read path adds no hold |
 | Lower border of every image | `isp_window`, `isp_filter2d` (border modes zero, replicate, mirror) | `WinY_g` - 1 - `AnchorY_g` lines of the image width |
 | Lower border of every image | `isp_bin` (border modes zero, replicate) | At most max(0, (`BinY_g` - 1) x Wo + 2 - 2 x `BinX_g`) cycles, taken by the next image (BIN-PF-01; Wo = ceil(W / `BinX_g`)) |
 | Output stalled | every module | Until the consumer takes the output |
@@ -147,14 +147,15 @@ module j S_j cycles after it, the sum of the delays of the modules before j:
 | `isp_window`, `isp_filter2d` | Rb lines, Rr pixels (`WinY_g` - 1 lines and `WinX_g` - 1 pixels in the border mode valid) and the latency, 6 (WIN-PF-03) or log2ceil(T) + 9 (FLT-PF-02) |
 | `isp_bin` | `BinY_g` - 1 lines, `BinX_g` - 1 pixels and its latency, 16 + log2ceil(`BinX_g`) + log2ceil(`BinY_g`) with both filters, 8 + log2ceil of the factor with one |
 
-A line is the line period at the chain input (W plus the holds per line, section 2.4), a pixel one cycle. With
-S_first and S_last the delays to the first and the last module whose set changes and P the image period, the window
-is S_last < t < S_first + P after the image start. A window that holds in every case is narrower than the true one at
-both ends: its start takes S_last with the latency bounds of the specifications (the table), its end S_first with
-the pixel and line delays of the table only, without the latencies. When S_last - S_first is not shorter than P (a
-region near the lower edge of the image, large windows), back-to-back images leave no window: the source pauses
-after an image, the release comes S_last after its start, and the next image starts after the writes. A release at
-another time can give one image the old set in the first modules and the new one in the last.
+A line is the line period at the chain input (W plus the holds per line, section 2.4; line 0 can be longer: the wait for
+word 0 of `isp_replace`), a pixel one cycle. With S_first and S_last the delays to the first and the last module whose
+set changes and P the image period, the window is S_last < t < S_first + P after the image start. A window that holds in
+every case is narrower than the true one at both ends: its start takes S_last with the latency bounds of the
+specifications (the table), its end S_first with the pixel and line delays of the table only, without the latencies.
+When S_last - S_first is not shorter than P (a region near the lower edge of the image, large windows), back-to-back
+images leave no window: the source pauses after an image, the release comes S_last after its start, and the next image
+starts after the writes. A release at another time can give one image the old set in the first modules and the new one
+in the last.
 
 Example: `isp_replace` (40 x 20 pixels, `MaxGap_g` 2, `RamRdLatency_g` 1, `EccPipeline_g` 0), `isp_point`, `isp_crop`
 (32 x 16 at (4, 2)), a 3 x 3 `isp_filter2d`, a 2 x 2 `isp_bin` and `isp_point`, with run-time sets in both `isp_point`,

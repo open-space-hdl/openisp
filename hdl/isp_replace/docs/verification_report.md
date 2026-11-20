@@ -173,16 +173,18 @@ The defaults of the read path of the map come from the preliminary synthesis on 
 Pro) with a clock of 125 MHz, pre-layout estimates, not a timing closure and not on the reference device. Each step
 moves the worst path, and each of the three changes is needed:
 
-| Read path of the map | `rpl_default` (MHz) | `rpl_g7` (MHz) | Worst path |
-| --- | --- | --- | --- |
-| `RamRdLatency_g` 1, `EccPipeline_g` 0, the request decided and sent in one cycle | 94.1 | 109.1 | RAM -> ECC decode -> queue |
-| `EccPipeline_g` 1 | 109.4 | 113.7 | RAM -> ECC decode -> output register of the decoder |
-| `EccPipeline_g` 2 | 105.4 | 113.8 | pixel position -> read address of the RAM |
-| The registered read request, `EccPipeline_g` 1 | 121.5 | 101.8 | RAM -> ECC decode -> output register of the decoder |
-| The registered read request, `EccPipeline_g` 1, `RamRdLatency_g` 2 (the defaults) | 136.5 | 129.8 | register of the map address -> write data of the RAM; the multiplier of the interpolation |
+| Read path of the map | `rpl_default` (MHz) | Its worst path | `rpl_g7` (MHz) | Its worst path |
+| --- | --- | --- | --- | --- |
+| `RamRdLatency_g` 1, `EccPipeline_g` 0, the request decided and sent in one cycle | 94.1 | RAM -> ECC decode -> queue (10 logic levels) | 109.1 | RAM -> ECC decode -> queue (7) |
+| `EccPipeline_g` 1 | 109.4 | RAM -> ECC decode -> output register of the decoder (7) | 113.7 | pixel position -> read address of the RAM (7) |
+| `EccPipeline_g` 2 | 105.4 | pixel position -> read address of the RAM (7) | 113.8 | pixel position -> read address of the RAM (6) |
+| The registered read request, `EccPipeline_g` 1 | 121.5 | RAM -> ECC decode -> output register of the decoder (6) | 101.8 | RAM -> ECC decode -> output register of the decoder (9) |
+| The registered read request, `EccPipeline_g` 1, `RamRdLatency_g` 2 (the defaults) | 136.5 | register of the map address -> write data of the RAM (7) | 129.8 | the multiplier of the interpolation -> output register (5) |
 
-The read of a word takes 3 cycles more than in the first row: within a line nothing changes (the read-ahead of two
-words), at the image start pixel (0, 0) waits 3 cycles longer (plan, section 5).
+The registered request moves the RAM address off the path from the pixel position; in `rpl_g7` the path through the
+ECC decode then limits, mapped with 9 logic levels against 6 in `rpl_default`, until the LSRAM output register takes
+the RAM out of it. The read of a word takes 3 cycles more than in the first row: within a line nothing changes (the
+read-ahead of two words), at the image start pixel (0, 0) waits 3 cycles longer (plan, section 5).
 
 ## 6. Requirement coverage
 
