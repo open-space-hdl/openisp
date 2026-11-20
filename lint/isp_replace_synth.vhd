@@ -30,7 +30,7 @@ entity isp_replace_synth is
         PixelBits_g     : positive := 12;
         MaxGap_g        : natural  := 2;
         RamRdLatency_g  : positive := 1;
-        EccPipeline_g   : natural  := 0;
+        EccPipeline_g   : natural  := 1;
         ClkFreqHz_g     : positive := 150000000;
         -- Above 0: the clock frequency in kHz, for frequencies beyond the integer range in Hz
         ClkFreqKHz_g    : natural  := 0;

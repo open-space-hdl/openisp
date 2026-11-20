@@ -44,7 +44,7 @@ entity isp_replace is
         MaxGap_g       : natural  := 2;
         -- RAM of the defect map (Open Logic olo_ft_ram_sdp_scrub)
         RamRdLatency_g : positive := 1;
-        EccPipeline_g  : natural  := 0;
+        EccPipeline_g  : natural  := 1;
         RamStyle_g     : string   := "auto";
         ClkFreqHz_g    : real     := 150.0e6;
         ScrubPeriod_g  : real     := 0.0

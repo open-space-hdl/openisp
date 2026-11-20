@@ -59,6 +59,10 @@ CONFIGS = [
     cfg("rate_g2", 40, 6, 12, 2, gap=0, stall=0, tests=["test_rate"]),
     cfg("rate_g7", 15, 6, 12, 7, 2, 1, gap=0, stall=0, tests=["test_rate"]),
     cfg("rate_w33", 33, 6, 12, 1, 3, 2, gap=0, stall=0, tests=["test_rate"]),
+    # The module at the defaults of its entity (DutDefaults_g): G 2, RamRdLatency_g 1, EccPipeline_g 1, the scrubber
+    # free running; the timing of test_rate shows the ECC pipeline (line 0 holds 3 cycles, the period one more)
+    cfg("defaults", 40, 6, 12, 2, 1, 1, tests=["test_static", "test_registers", "test_ecc"]),
+    cfg("defaults_rate", 40, 6, 12, 2, 1, 1, gap=0, stall=0, tests=["test_rate"]),
 ]
 # Sweeps: every G, every read latency of the map with the shortest word
 CONFIGS += [cfg("gap_{}".format(g), 4 * g + 5, 6, 10, g, tests=["test_static"]) for g in range(1, 8)]
@@ -455,6 +459,7 @@ def configure(lib, out_dir):
                 "TimFile_g": files["tim"].as_posix(), "GapPct_g": c["gap"], "StallPct_g": c["stall"],
                 "Seed_g": seed_for(MODULE, c["name"], test), "ExpFraming_g": res["errors"],
                 "ExpUnreplaced_g": res["unreplaced"], "ExpSec_g": res["sec"], "ExpDed_g": res["ded"],
-                "SweepSteps_g": SWEEP_STEPS, "WatchdogUs_g": watchdog_us(files["stim"], files["exp"])}
+                "SweepSteps_g": SWEEP_STEPS, "DutDefaults_g": c["name"].startswith("defaults"),
+                "WatchdogUs_g": watchdog_us(files["stim"], files["exp"])}
             generics.update(expect)
             tb.test(test).add_config(name=c["name"], generics=generics)
