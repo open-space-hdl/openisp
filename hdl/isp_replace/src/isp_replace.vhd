@@ -43,8 +43,8 @@ entity isp_replace is
         -- G: the largest distance to an operational pixel that a replacement uses
         MaxGap_g       : natural  := 2;
         -- RAM of the defect map (Open Logic olo_ft_ram_sdp_scrub)
-        RamRdLatency_g : positive := 1;
-        EccPipeline_g  : natural  := 0;
+        RamRdLatency_g : positive := 2;
+        EccPipeline_g  : natural  := 1;
         RamStyle_g     : string   := "auto";
         ClkFreqHz_g    : real     := 150.0e6;
         ScrubPeriod_g  : real     := 0.0
@@ -221,6 +221,9 @@ architecture rtl of isp_replace is
         FlagSec  : std_logic;
         FlagDed  : std_logic;
         RdValid  : std_logic;
+        -- The read request of the map, registered: address and enable from the cycle before
+        RdReq    : std_logic;
+        RdAddr   : std_logic_vector(AW_c - 1 downto 0);
         RdData   : std_logic_vector(31 downto 0);
     end record;
 
@@ -555,11 +558,12 @@ begin
             v.QCnt          := v.QCnt + 1;
         end if;
 
-        -- Read-ahead: the word in use and the two words after it, up to the last word of the image
-        Ram_RdEna  <= '0';
-        Ram_RdAddr <= std_logic_vector(to_unsigned(v.RdNext mod Depth_c, AW_c));
+        -- Read-ahead: the word in use and the two words after it, up to the last word of the image. The request is
+        -- registered and reaches the map one cycle later; it counts as in flight from its decision on
+        v.RdReq  := '0';
+        v.RdAddr := std_logic_vector(to_unsigned(v.RdNext mod Depth_c, AW_c));
         if v.QCnt + v.InFlight < 3 and v.RdNext < Words_c then
-            Ram_RdEna  <= '1';
+            v.RdReq    := '1';
             v.RdNext   := v.RdNext + 1;
             v.InFlight := v.InFlight + 1;
         end if;
@@ -799,6 +803,9 @@ begin
     Stat_EccSec     <= r.EccSec;
     Stat_EccDed     <= r.EccDed;
 
+    Ram_RdEna  <= r.RdReq;
+    Ram_RdAddr <= r.RdAddr;
+
     p_seq : process (Clk) is
     begin
         if rising_edge(Clk) then
@@ -825,6 +832,7 @@ begin
                 r.FlagSec  <= '0';
                 r.FlagDed  <= '0';
                 r.RdValid  <= '0';
+                r.RdReq    <= '0';
             end if;
         end if;
     end process;
