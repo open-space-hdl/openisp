@@ -105,15 +105,15 @@ architecture sim of isp_replace_tb is
     constant FlipW_c     : positive := eccCodewordWidth(32);
     -- Design values of the timing (verification plan, section 5)
     constant LatMin_c    : positive := 10;
-    constant LatMax_c    : positive := maximum(12, 11 + RdLat_c);
+    constant LatMax_c    : positive := 12 + RdLat_c;
     -- Hold cycles between the first pixels of lines 0 and 1: the wait for word 0 of the map after an idle module;
     -- after an image it runs beside the G virtual columns of the last line of that image
-    constant HoldIdle_c  : positive := RdLat_c + 1;
-    constant HoldFirst_c : positive := maximum(G_c, RdLat_c + 1);
+    constant HoldIdle_c  : positive := RdLat_c + 2;
+    constant HoldFirst_c : positive := maximum(G_c, RdLat_c + 2);
     -- Image period: the first interval after an idle module holds the virtual columns of H - 1 lines and the wait
     -- for word 0; every further one the virtual columns of H lines and the part of the wait beyond them
-    constant PerIdle_c   : positive := ImageHeight_g * ImageWidth_g + (ImageHeight_g - 1) * G_c + RdLat_c + 1;
-    constant Period_c    : positive := ImageHeight_g * (ImageWidth_g + G_c) + maximum(0, RdLat_c + 1 - G_c);
+    constant PerIdle_c   : positive := ImageHeight_g * ImageWidth_g + (ImageHeight_g - 1) * G_c + RdLat_c + 2;
+    constant Period_c    : positive := ImageHeight_g * (ImageWidth_g + G_c) + maximum(0, RdLat_c + 2 - G_c);
     -- Drain time of the test end: the latency bound of RPL-PF-03 after the last pixel, plus G and 21
     -- (docs/testbench.md, section 6)
     constant Drain_c     : positive := 13 + RdLat_c + G_c + 21;
@@ -210,7 +210,7 @@ begin
 
     test_runner_watchdog(runner, WatchdogUs_g * 1 us);
 
-    assert not DutDefaults_g or (MaxGap_g = 2 and RamRdLatency_g = 1 and EccPipeline_g = 1 and
+    assert not DutDefaults_g or (MaxGap_g = 2 and RamRdLatency_g = 2 and EccPipeline_g = 1 and
                                  ClkFreqHz_g = 150000000 and ScrubPeriodMs_g = 0)
         report "isp_replace_tb: DutDefaults_g needs the generics of the bench at the defaults of the specification"
         severity failure;

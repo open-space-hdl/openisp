@@ -56,9 +56,11 @@ counter that counts up through the image: by one after every 32 pixels of a line
 returns to 0 with pixel (0, 0).
 
 - The lookup holds the word of the current pixels and the two words after it in a queue of three words: when a word
-  comes in use, the read of the word two places after it starts. Two words ahead cover the read latency of the RAM
-  and of its ECC decoder (`RamRdLatency_g` + `EccPipeline_g`, at most 5 cycles) also when the last word of a line
-  holds a single pixel: two lines take at least 2 x (3 x G + 1) cycles.
+  comes in use, the read of the word two places after it is decided; the read request (address and enable) is
+  registered and reaches the RAM one cycle later, so that the RAM address does not depend on the pixel position in
+  the same cycle. Two words ahead cover the request, the read latency of the RAM and of its ECC decoder
+  (`RamRdLatency_g` + `EccPipeline_g` + 1, at most 6 cycles) also when the last word of a line holds a single pixel:
+  two lines take at least 2 x (3 x G + 1) cycles.
 - The read-ahead stops at the last word of the image. Pixel (0, 0) starts the reads of words 0, 1 and 2 and waits
   for word 0, so that a map written between two images applies to the whole next image (RPL-FN-04).
 - The reads of an image start in the cycle in which pixel (0, 0) reaches the lookup; reads of the image before
@@ -117,9 +119,9 @@ ends the clear, and the software repeats the command.
 
 | Property | Value | Requirement |
 | --- | --- | --- |
-| Pixel rate | One pixel per clock cycle within a line; the input waits for the G virtual columns of the window after every line, which the buffers between the input and the window (the two frame syncs and the lookup register) shift into the next line; in line 0 it waits for word 0 of the map instead, `RamRdLatency_g` + `EccPipeline_g` + 1 cycles after an idle module, max(G, `RamRdLatency_g` + `EccPipeline_g` + 1) after an image, whose last G virtual columns run beside the wait | RPL-PF-01 |
-| Image period | H x (W + G) + max(0, `RamRdLatency_g` + `EccPipeline_g` + 1 - G) cycles: the window generates G virtual columns after every line, and the wait for word 0 adds the part that does not run beside the virtual columns of the image before; the first interval after an idle module is H x W + (H - 1) x G + `RamRdLatency_g` + `EccPipeline_g` + 1 | RPL-PF-02 |
-| Latency | 2 clock cycles in RP-1, 1 in the lookup, 3 in the window, 4 in the interpolation: 10 clock cycles after the pixel G columns to the right; up to 2 more for a pixel taken while the input was held; up to `RamRdLatency_g` + `EccPipeline_g` + 1 more for the first pixels of an image | RPL-PF-03 |
+| Pixel rate | One pixel per clock cycle within a line; the input waits for the G virtual columns of the window after every line, which the buffers between the input and the window (the two frame syncs and the lookup register) shift into the next line; in line 0 it waits for word 0 of the map instead, `RamRdLatency_g` + `EccPipeline_g` + 2 cycles after an idle module, max(G, `RamRdLatency_g` + `EccPipeline_g` + 2) after an image, whose last G virtual columns run beside the wait | RPL-PF-01 |
+| Image period | H x (W + G) + max(0, `RamRdLatency_g` + `EccPipeline_g` + 2 - G) cycles: the window generates G virtual columns after every line, and the wait for word 0 adds the part that does not run beside the virtual columns of the image before; the first interval after an idle module is H x W + (H - 1) x G + `RamRdLatency_g` + `EccPipeline_g` + 2 | RPL-PF-02 |
+| Latency | 2 clock cycles in RP-1, 1 in the lookup, 3 in the window, 4 in the interpolation: 10 clock cycles after the pixel G columns to the right; up to 2 more for a pixel taken while the input was held; up to `RamRdLatency_g` + `EccPipeline_g` + 2 more for the first pixels of an image | RPL-PF-03 |
 
 Paths: the priority searches over at most seven flags and the selection of L and R (stage 1), and the
 multiplication with the constant in stage 3, at most 28 x 32 bits, which the synthesis tool maps to DSP blocks

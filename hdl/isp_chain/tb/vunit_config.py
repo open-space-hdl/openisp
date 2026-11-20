@@ -355,17 +355,19 @@ def release_times(c):
     S_last with the upper latencies for its start), the image period P and the cycle of the last pixel of an image
     after its start at the input, for the order typical with images back to back."""
     w, h, g = c["w"], c["h"], c["rpl"]["g"]
+    rd_lat = c["rpl"]["lat"] + c["rpl"]["ecc"]
     line = w + g
+    first_line = max(0, rd_lat + 2 - g)       # the longer interval of line 0 (the wait for word 0 of the map)
     s_first = g + 10
-    s = g + 12 + c["p1"]["stages"] + 5
+    s = g + 12 + rd_lat + c["p1"]["stages"] + 5
     r, f, b = c["crp"], c["flt"], c["bin"]
     s += r["y"] * line + r["x"] + 4
     rr = rb = (f["win"] - 1) // 2
     s += rb * line + rr + 8 + log2ceil(f["win"] * f["win"])
     lx, ly = log2ceil(b["x"]), log2ceil(b["y"])
     s += (b["y"] - 1) * line + (b["x"] - 1) + 16 + lx + ly
-    period = h * line
-    return s_first, s, period, (h - 1) * line + w - 1
+    period = h * line + first_line
+    return s_first, s, period, (h - 1) * line + first_line + w - 1
 
 
 def build_ecc(rng, x):
@@ -547,15 +549,16 @@ def rate_values(c):
     w, h = c["w"], c["h"]
     if c["order"] == "typical":
         g, rd_lat = c["rpl"]["g"], c["rpl"]["lat"] + c["rpl"]["ecc"]
-        # isp_replace sets the pace (RPL-PF-01, RPL-PF-02); the waits of isp_filter2d are absorbed by isp_crop
-        hold, hold_first, wait = g, rd_lat + 1, max(g, rd_lat + 1)
-        first = h * w + (h - 1) * g + rd_lat + 1
-        period = h * (w + g) + max(0, rd_lat + 1 - g)
+        # isp_replace sets the pace (RPL-PF-01, RPL-PF-02): the wait for word 0 of the map is RamRdLatency_g +
+        # EccPipeline_g + 2 (the registered read request); the waits of isp_filter2d are absorbed by isp_crop
+        hold, hold_first, wait = g, rd_lat + 2, max(g, rd_lat + 2)
+        first = h * w + (h - 1) * g + rd_lat + 2
+        period = h * (w + g) + max(0, rd_lat + 2 - g)
         t = c["flt"]["win"] ** 2
         lx, ly = log2ceil(c["bin"]["x"]), log2ceil(c["bin"]["y"])
         p1, p2 = c["p1"]["stages"] + 5, c["p2"]["stages"] + 5
         lat_min = 10 + p1 + 4 + (6 + log2ceil(t)) + (12 + lx + ly) + p2
-        lat_max = 12 + p1 + 4 + (8 + log2ceil(t)) + (16 + lx + ly) + p2 + 1
+        lat_max = (12 + rd_lat) + p1 + 4 + (8 + log2ceil(t)) + (16 + lx + ly) + p2 + 1
         return dict(HoldLine_g=hold, HoldFirst_g=hold_first, HoldWait_g=wait, PerFirst_g=first, Per_g=period,
                     LatMin_g=lat_min, LatMax_g=lat_max)
     # reordered: the virtual columns of isp_bin (zero border, W odd), and the wait of the filter behind the binning
@@ -589,7 +592,7 @@ def rate_values(c):
 def fifo_level(c):
     """Largest In_Level of the FIFO in front of the chain typical (section 5.3). r_y are the hold cycles of the chain
     input between the first pixels of lines y and y + 1: the wait of isp_replace for word 0 of the map in line 0
-    (RamRdLatency_g + EccPipeline_g + 1; every image follows an idle input, the image blanking drains the FIFO), G
+    (RamRdLatency_g + EccPipeline_g + 2; every image follows an idle input, the image blanking drains the FIFO), G
     in every further line. D_y = max(0, D_(y-1) + r_y - L); the FIFO holds D_(y-1) + r_y pixels more than in a
     continuous flow. In a continuous flow In_Level is 3: olo_base_fifo_sync shows a write at its output one cycle
     after it registered it, so a pixel is read two edges after its write, and In_Level counts it until the edge
@@ -597,7 +600,7 @@ def fifo_level(c):
     g, rd_lat = c["rpl"]["g"], c["rpl"]["lat"] + c["rpl"]["ecc"]
     d, most, last = 0, 0, 0
     for y in range(c["h"]):
-        r = rd_lat + 1 if y == 0 else g
+        r = rd_lat + 2 if y == 0 else g
         most = max(most, d + r)
         last = d + r
         d = max(0, d + r - FIFO_L)
@@ -613,7 +616,7 @@ def fifo_drain(c):
     g, rd_lat = c["rpl"]["g"], c["rpl"]["lat"] + c["rpl"]["ecc"]
     d, last = 0, 0
     for y in range(c["h"]):
-        r = rd_lat + 1 if y == 0 else g
+        r = rd_lat + 2 if y == 0 else g
         last = d + r
         d = max(0, d + r - FIFO_L)
     return last + 1
