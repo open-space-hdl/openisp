@@ -39,7 +39,7 @@ entity isp_point is
         InBits_g      : positive;
         OutBits_g     : positive;
         GainBits_g    : positive := 16;
-        MaxShift_g    : natural  := 82;
+        MaxShift_g    : natural  := InBits_g + GainBits_g;
         -- Parameter set of the generics; with Runtime_g the reset values of the registers. High_g -1 is full scale
         Offset_g      : integer  := 0;
         Gain_g        : natural  := 1;
