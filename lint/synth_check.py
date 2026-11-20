@@ -70,6 +70,12 @@ def pnt(w, h, inb, outb, gainb, maxs, ms, runtime, offset=0, gain=1, shift=0, lo
 CONFIGS += [
     ("pnt_default_rt", "isp_point", pnt(4096, 4096, 16, 12, 16, 32, 2, True)),
     ("pnt_min", "isp_point", pnt(1, 1, 1, 1, 1, 0, 1, False)),
+    # Every generic but the dimensions and the pixel bits at the default of the entity (MaxShift_g InBits_g +
+    # GainBits_g), also with 64-bit input pixels
+    ("pnt_defaults", "isp_point", {"ImageWidth_g": "4096", "ImageHeight_g": "4096", "InBits_g": "12",
+                                   "OutBits_g": "12"}),
+    ("pnt_defaults_64", "isp_point", {"ImageWidth_g": "16", "ImageHeight_g": "16", "InBits_g": "64",
+                                      "OutBits_g": "32"}),
     ("pnt_min_rt", "isp_point", pnt(1, 1, 1, 1, 1, 3, 1, True)),
     ("pnt_max_rt", "isp_point", pnt(65536, 65536, 64, 32, 18, 83, 4, True)),
     ("pnt_max", "isp_point", pnt(65536, 65536, 64, 32, 18, 83, 3, False, -2 ** 31, 2 ** 18 - 1, 83, 2 ** 31 - 1)),
