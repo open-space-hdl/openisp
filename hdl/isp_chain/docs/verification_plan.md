@@ -126,15 +126,16 @@ line y - 1, and those of the last line fall into the next image.
 
 | Seam | Wait of the module behind | Absorbed by | At the chain input |
 | --- | --- | --- | --- |
-| Input -> `isp_replace` | G = 2 cycles per line; max(G, `RamRdLatency_g` + `EccPipeline_g` + 1) = 2 between lines 0 and 1 (RPL-PF-01) | - | 2 per line |
+| Input -> `isp_replace` | G = 2 cycles per line; max(G, `RamRdLatency_g` + `EccPipeline_g` + 2) = 3 between lines 0 and 1 (RPL-PF-01) | - | 2 per line |
 | `isp_crop` -> `isp_filter2d` | Rr = 1 per line of the region; Rr + Rb x (32 + Rr) = 34 events after its last pixel | The 8 pixels outside the region in every input line; the 4 pixels after the region in row 17, the rows 18 and 19 below the region and 0 and 1 of the next image (more than 160 cycles) | 0 |
 | `isp_filter2d` -> `isp_bin` | None in the mode valid | - | 0 |
 | Other seams | None (`isp_point` and `isp_crop` take one pixel per cycle) | - | 0 |
 
-The period is the period of `isp_replace`: H x (W + G) + max(0, `RamRdLatency_g` + `EccPipeline_g` + 1 - G) = 20 x 42
-= 840 cycles; the first interval after an idle chain H x W + (H - 1) x G + `RamRdLatency_g` + `EccPipeline_g` + 1 =
-840 as well. Holds per line interval: 2, between lines 0 and 1 the wait for word 0 of the defect map
-(`RamRdLatency_g` + `EccPipeline_g` + 1 = 2 after an idle chain, max(G, 2) = 2 after an image).
+The period is the period of `isp_replace`: H x (W + G) + max(0, `RamRdLatency_g` + `EccPipeline_g` + 2 - G) =
+20 x 42 + 1 = 841 cycles; the first interval after an idle chain H x W + (H - 1) x G + `RamRdLatency_g` +
+`EccPipeline_g` + 2 = 841 as well. Holds per line interval: 2, between lines 0 and 1 the wait for word 0 of the
+defect map (`RamRdLatency_g` + `EccPipeline_g` + 2 = 3 after an idle chain, max(G, 3) = 3 after an image; the chain
+sets `RamRdLatency_g` 1 and `EccPipeline_g` 0).
 
 `reordered`: the filter behind the binning makes N = Rr + Rb x (W + Rr) = 2 + 2 x (17 + 2) = 40 events without an
 input pixel after its last pixel, while the horizontal filter of `isp_bin` sends it the first bins of the next image.
@@ -156,13 +157,13 @@ holds.
 
 | Module | Latency (its plan) | `typical` | `reordered` |
 | --- | --- | --- | --- |
-| `isp_replace` | 10, up to 12 after a hold or for the first pixels of an image | 10 to 12 | - |
+| `isp_replace` | 10, up to 12 after a hold, up to 12 + `RamRdLatency_g` + `EccPipeline_g` for the first pixels of an image | 10 to 13 | - |
 | `isp_point` | `MultStages_g` + 5 | 7, 7 | 7 |
 | `isp_crop` | 4 | 4 | 4 |
 | `isp_filter2d` | 6 + log2ceil(T) to 8 + log2ceil(T) | 10 to 12 | 11 to 13 |
 | `isp_bin` | 12 + lx + ly to 16 + lx + ly (both filters); 6 + lx to 8 + lx (one) | 14 to 18 | 7 to 9 |
 | Waits at seams that can hold a completing beat | `isp_filter2d` holds `isp_crop` for Rr cycles per line; in `reordered` it holds `isp_bin` for Rr per line | up to 1 | up to 2 |
-| Chain | | 52 to 61 | 29 to 35 |
+| Chain | | 52 to 62 | 29 to 35 |
 
 The module plans give their latencies as ranges (a pixel that a frame sync took while its module held the input
 waits up to two cycles more), and the composed model gives the beat that completes an output pixel, not the
@@ -178,27 +179,27 @@ input). The FIFO gains r_y - L pixels in the interval of line y when that is pos
 D_-1 = 0 and D_y = max(0, D_(y-1) + r_y - L) it holds up to D_(y-1) + r_y pixels more than in a continuous flow.
 
 - The holds of `isp_replace` come at the start of a line interval: the wait for word 0 of the defect map in line 0
-  (`RamRdLatency_g` + `EccPipeline_g` + 1 cycles after an idle input), the G virtual columns of the line before in
+  (`RamRdLatency_g` + `EccPipeline_g` + 2 cycles after an idle input), the G virtual columns of the line before in
   every further line (the input stage of its frame sync takes three pixels first, section 5.1). The FIFO delays every
   pixel, so the line blanking at the source does not come before these holds; each line gains r_y and then drains L.
-- In `test_fifo` every image follows an idle input (the image blanking drains the FIFO, below): r_0 = 2, r_y = G = 2
-  for y >= 1, and the virtual columns of the last line fall into the image blanking. With L = 1, D_y = y + 1 and the
-  largest D_(y-1) + r_y = D_18 + r_19 = 21.
+- In `test_fifo` every image follows an idle input (the image blanking drains the FIFO, below): r_0 = 3, r_y = G = 2
+  for y >= 1, and the virtual columns of the last line fall into the image blanking. With L = 1, D_y = y + 2 and the
+  largest D_(y-1) + r_y = D_18 + r_19 = 22.
 - The image blanking drains the FIFO: when the first pixel of the next image is written, every pixel of the image
   before has been read (a read in the same cycle counts). After the last write the FIFO holds D_(H-2) + r_(H-1)
   pixels more than in a continuous flow and the pixel written the cycle before (a pixel is read two edges after its
   write, below); it reads one per cycle, and the virtual columns of the last line hold the input of `isp_replace`
   only after its last pixel. The first pixel of the next image is written F + 1 cycles after the last one, so the
-  condition is F >= D_(H-2) + r_(H-1) + 1 = 22 <= 30. Otherwise part of an image remains in the FIFO at the next one;
+  condition is F >= D_(H-2) + r_(H-1) + 1 = 23 <= 30. Otherwise part of an image remains in the FIFO at the next one;
   when the source is faster than the chain over an image, no depth suffices.
 - `In_Level` of the `olo_ft_fifo_sync` (the `olo_base_fifo_sync` inside) is 3 in a continuous flow: the FIFO shows a
   write at its output one cycle after it registered it, so a pixel is read two edges after its write, and `In_Level`
-  counts a read one cycle late. Its largest value is 3 + 21 = 24, checked exactly. A cycle-level evaluation of these
+  counts a read one cycle late. Its largest value is 3 + 22 = 25, checked exactly. A cycle-level evaluation of these
   facts (the FIFO, the input stage and the output register of the frame sync, the wait for word 0, G HCOL events per
-  line) gives 24 as well, and an empty FIFO at the first pixel of every image for F of at least 22.
+  line) gives 25 as well, and an empty FIFO at the first pixel of every image for F of at least 23.
 - The FIFO holds the source when `In_Level` equals `Depth_g` before a write. `test_fifo` uses the depth and the
-  image blanking of the rule below, 25 entries and F = 22: `In_Ready` stays high and every image finds the FIFO
-  empty. `neg_fifo_depth` uses 24 entries (F = 30): the FIFO holds the source. `neg_fifo_drain` uses F = 21: every
+  image blanking of the rule below, 26 entries and F = 23: `In_Ready` stays high and every image finds the FIFO
+  empty. `neg_fifo_depth` uses 25 entries (F = 30): the FIFO holds the source. `neg_fifo_drain` uses F = 22: every
   further image finds a pixel of the image before in the FIFO. The bench reports both.
 
 The rule goes to the user guide (section 5, step 3) with what an integrator needs without the bench:
@@ -209,11 +210,12 @@ The rule goes to the user guide (section 5, step 3) with what an integrator need
   `isp_crop` discards the pixels outside its region at one per cycle also with its output held, a binning outputs one
   pixel per `BinX_g` input cycles; the conditions of section 5.1.
 - `Depth_g` >= max over the lines of D_(y-1) + r_y, plus 4, and the image blanking F >= D_(H-2) + r_(H-1) + 1.
-- The worked example of `typical`: r_y = 2 (the wait for word 0 in line 0, the virtual columns of `isp_replace` in
-  every further line; the waits of `isp_filter2d` absorbed by `isp_crop`), with L = 1: the depth 25 and F >= 22.
+- The worked example of `typical`: r_0 = 3 (the wait for word 0 in line 0), r_y = 2 (the virtual columns of
+  `isp_replace` in every further line; the waits of `isp_filter2d` absorbed by `isp_crop`), with L = 1: the depth 26
+  and F >= 23.
 - The warning that the plain sum of the waits of all modules overestimates: in `typical` it would add the virtual
-  column and the 34 events of the lower border of `isp_filter2d` and give D_19 = 40 > F, "no depth suffices", although
-  25 entries suffice.
+  column and the 34 events of the lower border of `isp_filter2d` and give D_19 = 41 > F, "no depth suffices", although
+  26 entries suffice.
 
 ### 5.4 One parameter set for one image in several modules (`test_registers`, user guide 4.2 and 5)
 
@@ -249,31 +251,31 @@ It exists when Delta = S_last - S_first is shorter than P. When it is not (a reg
 large windows), back-to-back images leave no window: the source pauses after an image, the release comes S_last after
 its start, and the next image starts after the writes.
 
-`typical` (first: the first `isp_point`, last: the second; line period 42, P = 840):
+`typical` (first: the first `isp_point`, last: the second; line period 42, line 0 43, P = 841):
 
-- S_first = 2 + 10 = 12 (`isp_replace`) with its lower latency for the end of the window, 2 + 12 = 14 with the upper
-  one for the mixed release below;
-- S_last = 14 + 7 (`isp_point`) + 2 x 42 + 4 + 4 (`isp_crop`) + 42 + 1 + 12 (`isp_filter2d`) + 42 + 1 + 18
-  (`isp_bin`) = 229, with the lower values of the latencies 221;
-- the window is 229 < t < 852. `test_registers` starts the writes of the procedure with input pixel (0, 10), 420 cycles
-  after the image start (ten line intervals of 42 cycles): 191 cycles after S_last. The four single writes (`CTRL.HOLD`
-  0 of both `isp_point` and of `isp_filter2d`, `ROI_POS` of `isp_crop`) end long before the end of the window; the
-  bench logs their times. The source waits for them before the next image, so the end of the window holds in any
-  case.
+- S_first = 2 + 10 = 12 (`isp_replace`) with its lower latency for the end of the window, 2 + 13 = 15 with the upper
+  one (pixel (0, 0) waits for word 0 of the map) for the mixed release below;
+- S_last = 2 + 1 + 12 (`isp_replace`: line 0 is one cycle longer than G allows, the wait for word 0 of 3 cycles) + 7
+  (`isp_point`) + 2 x 42 + 4 + 4 (`isp_crop`) + 42 + 1 + 12 (`isp_filter2d`) + 42 + 1 + 18 (`isp_bin`) = 230, with the
+  lower values of the latencies 222 (the longer line 0 is not a latency and stays);
+- the window is 230 < t < 853. `test_registers` starts the writes of the procedure with input pixel (0, 10), 421 cycles
+  after the image start (ten line intervals, line 0 of 43 cycles): 191 cycles after S_last. The four single writes
+  (`CTRL.HOLD` 0 of both `isp_point` and of `isp_filter2d`, `ROI_POS` of `isp_crop`) end long before the end of the
+  window; the bench logs their times. The source waits for them before the next image, so the end of the window holds
+  in any case.
 
-`small` (line period 7, P = 21): S_last = 14 + 6 (`isp_point`) + 1 + 4 (`isp_crop`) + 7 + 1 + 12 (`isp_filter2d`) +
-2 x 7 + 2 + 20 (`isp_bin`) = 81 with the upper latencies, S_first = 12 with the lower: Delta = 69 > P, so
-back-to-back images leave no window.
-`test_registers` runs the variant with a pause: the source stops after the last pixel of image k (18 cycles after
-its start), sets the release S_last + 1 = 82 cycles after the image start, and starts image k + 1 only after the
-writes (it waits for them). The pause between the two images is therefore at least Delta - P plus the time of the
-writes, and the window becomes S_last < t < S_first + P + the pause.
+`small` (line period 7, line 0 8, P = 22): S_last = 2 + 1 + 12 + 6 (`isp_point`) + 1 + 4 (`isp_crop`) + 7 + 1 + 12
+(`isp_filter2d`) + 2 x 7 + 2 + 20 (`isp_bin`) = 82 with the upper latencies, S_first = 12 with the lower: Delta = 70 >
+P, so back-to-back images leave no window. `test_registers` runs the variant with a pause: the source stops after the
+last pixel of image k (19 cycles after its start), sets the release S_last + 1 = 83 cycles after the image start, and
+starts image k + 1 only after the writes (it waits for them). The pause between the two images is therefore at least
+Delta - P plus the time of the writes, and the window becomes S_last < t < S_first + P + the pause.
 
 The procedure as the user guide states it today (4.2) concerns one module. Applied to several modules at an arbitrary
 time, it can give one image different sets: a release between s_first(k) and s_last(k) gives image k the old set in the
 first modules (they took their set of image k before the release) and the new one in the last (they take it at their
 start of image k, after the release). `test_registers` releases the two `isp_point` alone in the middle of that
-interval, at input pixel (37, 2) (123 cycles after the image start: two line intervals, the virtual columns of line 1 at
+interval, at input pixel (37, 2) (124 cycles after the image start: two line intervals, the virtual columns of line 1 at
 the start of line 2, section 5.1, and 37 pixels; 109 after S_first, 98 before the lower value of S_last); the model
 gives image k the old set in the first `isp_point` and the new one in the second, and the chain output follows it. This
 goes to the findings of the report, and the user guide (section 4.2 and 5) gets the procedure above with the table of

@@ -359,7 +359,8 @@ def release_times(c):
     line = w + g
     first_line = max(0, rd_lat + 2 - g)       # the longer interval of line 0 (the wait for word 0 of the map)
     s_first = g + 10
-    s = g + 12 + rd_lat + c["p1"]["stages"] + 5
+    # rows y >= 1 come first_line cycles later; their latency in isp_replace is at most 12 (RPL-PF-03, after a hold)
+    s = g + first_line + 12 + c["p1"]["stages"] + 5
     r, f, b = c["crp"], c["flt"], c["bin"]
     s += r["y"] * line + r["x"] + 4
     rr = rb = (f["win"] - 1) // 2
