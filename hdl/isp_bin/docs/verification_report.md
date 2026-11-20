@@ -12,11 +12,11 @@ commit 4cef90a, 601 of 601 tests passed (59 of them `isp_bin`), 0 skipped; `lint
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
-| `test_static` (TC-BIN-01) | 46 (with the sweep) | 46 |
+| `test_static` (TC-BIN-01) | 54 (with the sweep) | 54 |
 | `test_input_stream` (TC-BIN-02) | 8 | 8 |
 | `test_ecc` (TC-BIN-03) | 3 | 3 |
 | `test_reset` (TC-BIN-04) | 7 | 7 |
-| `test_rate` (TC-BIN-05) | 17 | 17 |
+| `test_rate` (TC-BIN-05) | 25 | 25 |
 | TC-BIN-06 (review) | Section 6 | Passed |
 | TC-BIN-07 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 10 generics out of range stop the elaboration with a message naming the generic | 18 |
 | TC-BIN-08 (`lint/vivado_ooc.py`) | Section 5 | Not run |
@@ -77,10 +77,26 @@ In the configurations with both filters the probe 4 cycles after the last pixel 
 vertical filter alone, and the port fell 7 + log2ceil(`BinX_g`) + e + s cycles after the last pixel, after the last
 image only; with one filter or none it fell 1 + s cycles after the last pixel of every image.
 
-The configurations with W not a multiple of `BinX_g` and p >= W, where the plan checks the range up to the bound of
-BIN-PF-01, waited exactly what the formula of the exact case gives (`rate_odd_w13`: 49 + 8 + 1 + 1 - 14 = 45,
-`rate_odd_w17_bx8_tall`: 45 + 8 + 3 + 7 - 48 = 15, the others a negative value, so 0), below the bound in every
-case.
+The configurations with p >= W, where the plan checks the wait from max(0, d - A) up to the bound of BIN-PF-01 (the
+requirement verified by test, plan section 5):
+
+| Configuration | Wait | Range of the plan | Bound of BIN-PF-01 | Exact formula | Period | Fall |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rate_odd_w13` (2 x 8, e = 1) | 45 | 32 to 47 | 47 | 45 | 269 | 9 |
+| `rate_odd_w17_bx8_tall` (8 x 16, e = 7) | 15 | 0 to 31 | 31 | 15 | 399 | 17 |
+| `rate_range_w22_bx4` (4 x 16, e = 2) | 74 | 56 to 84 | 84 | 74 | 474 | 11 |
+| `rate_range_w21_bx4` (4 x 16, e = 3) | 75 | 57 to 84 | 84 | 75 | 459 | 12 |
+| `rate_range_w23_bx4` (4 x 16, e = 1) | 73 | 55 to 84 | 84 | 73 | 489 | 10 |
+| `rate_range_w16_bx4` (4 x 16, e = 0) | 43 | 24 to 54 | 54 | 42 | 347 | 9 |
+| `rate_range_w10_bx4` (4 x 16, e = 2) | 28 | 11 to 39 | 39 | 29 | 236 | 11 |
+| `rate_range_w12_bx2` (2 x 8, e = 0) | 37 | 24 to 40 | 40 | 37 | 245 | 8 |
+| `rate_range_w9_bx2` (2 x 16, e = 1) | 71 | 58 to 73 | 73 | 71 | 231 | 9 |
+| `rate_range_w20_bx8` (8 x 16, e = 4) | 9 | 0 to 31 | 31 | 12 | 441 | 14 |
+
+The wait lies below the bound of BIN-PF-01 in every configuration, by at least 2 cycles (`BinX_g` 2). The exact formula
+does not hold for p >= W in general (`rate_range_w16_bx4` waits one cycle more, `rate_range_w10_bx4` one and
+`rate_range_w20_bx8` three cycles less), so the plan keeps the range there. The latency stayed in the design range of
+every configuration, and the fall of `Stat_ImageOpen` was 7 + lx + e + s in every configuration.
 
 The wait of `rate_tall`, explained from the design (plan, section 5), with h0 the PIX event of the horizontal filter
 for the last pixel of an image: the vertical filter makes its last PIX event at h0 + 7 and its 56 VPIX events, and
@@ -178,4 +194,4 @@ not connected; with constant coefficients they hold read-only registers only.
 | The model `bin_sum` emitted a line of bins at the end of the line; with a reset in the middle of a line the expected beats before the reset lacked the bins already complete. The model test against the two filters in series (`test_bin_filters_equal_definition` of `tools/tests/test_isp_model.py`) found it with `BinY_g` 1 | The model emits every bin with its last pixel, as the filters do; the sums are unchanged. `bin_sum` is used by `isp_bin` only: the test files of the other modules are unchanged (section 1) |
 | The width of the narrowed image was 0 for an `ImageWidth_g` below `BinX_g` in the mode valid, and the elaboration stopped with a range error before the check of `ImageWidth_g` | The width is at least 1, so the check names the generic (`bin_width_below`) |
 | The audit of the configuration checks found that `EccPipeline_g` 2 and an unknown `Resource_g`, which the module passes to the vertical filter, were not checked by a module of the suite (BIN-CF-01), and that the check of `Resource_g` BRAM compared with regard to case | `isp_window` checks both generics, the BRAM check compares without case as Open Logic does; the negatives `bin_ecc_2` and `bin_resource` show the messages through the module. The bench is unchanged |
-| The rate configurations covered only W a multiple of `BinX_g`, so the timing derivations were never measured outside that case. The chain test found it: behind a binning with W = 33 the filter waited one cycle longer than the exact wait of the plan. With W not a multiple of `BinX_g` the last bin of a line is completed by the e-th HCOL event after the last pixel, e = (`BinX_g` - W mod `BinX_g`) mod `BinX_g`, so the vertical filter starts its virtual pixels and closes the image e cycles later; in a line of at most 3 pixels the last pixel also waits s = `BinX_g` - 1 cycles in the input stage of the frame sync behind the HCOL events of the line before (a trace of the handshakes of `rate_odd_w3`: the last pixel enters the second entry of the input stage, the frame sync closes the image at e0 + 2) | The plan (section 5) states e and s in the wait, its bound d and the fall; the bench takes them, and eleven rate configurations with W not a multiple of `BinX_g` (zero and replicate, both filters with p < W and p >= W, the horizontal filter alone, the low bound W = `BinX_g` + 1) measure them. BIN-PF-01 bounds the wait without e: the exact wait stays below that bound for every `BinX_g` (plan, section 5), and in the configurations with p >= W the bench checks the bound itself; the requirement is unchanged |
+| The rate configurations covered only W a multiple of `BinX_g`, so the timing derivations were never measured outside that case. The chain test found it: behind a binning with W = 33 the filter waited one cycle longer than the exact wait of the plan. With W not a multiple of `BinX_g` the last bin of a line is completed by the e-th HCOL event after the last pixel, e = (`BinX_g` - W mod `BinX_g`) mod `BinX_g`, so the vertical filter starts its virtual pixels and closes the image e cycles later; in a line of at most 3 pixels the last pixel also waits s = `BinX_g` - 1 cycles in the input stage of the frame sync behind the HCOL events of the line before (a trace of the handshakes of `rate_odd_w3`: the last pixel enters the second entry of the input stage, the frame sync closes the image at e0 + 2) | The plan (section 5) states e and s in the wait, its bound d and the fall; the bench takes them, and eleven rate configurations with W not a multiple of `BinX_g` (zero and replicate, both filters with p < W and p >= W, the horizontal filter alone, the low bound W = `BinX_g` + 1) measure them. BIN-PF-01 bounds the wait without e: the exact wait stays below that bound for every `BinX_g` (plan, section 5); for p >= W, where the bins come from several lines and the exact formula does not hold, the bench checks the bound itself in eight more configurations (`rate_range_*`: every e of `BinX_g` 4, `BinX_g` 2 and 8, bins across two line boundaries). The requirement is unchanged |

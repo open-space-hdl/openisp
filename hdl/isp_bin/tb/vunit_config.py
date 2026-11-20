@@ -65,6 +65,16 @@ CONFIGS = [
     cfg("rate_odd_w5_bx4", 5, 8, 12, 4, 4, "zero", gap=0, stall=0, tests=["test_static", "test_rate"]),
     cfg("rate_odd_x_only", 9, 6, 12, 2, 1, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
     cfg("rate_odd_x_only_w3", 3, 6, 12, 2, 1, "zero", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    # p >= W, where the derivation fixes no exact wait: every e of BinX_g 4, e 0 and 1 of BinX_g 2, BinX_g 8, the
+    # bins of the buffers across one and two line boundaries, N up to 90; the bench checks the bound of BIN-PF-01
+    cfg("rate_range_w22_bx4", 22, 16, 12, 4, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_range_w21_bx4", 21, 16, 12, 4, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_range_w23_bx4", 23, 16, 12, 4, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_range_w16_bx4", 16, 16, 12, 4, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_range_w10_bx4", 10, 16, 12, 4, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_range_w12_bx2", 12, 16, 12, 2, 8, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_range_w9_bx2", 9, 16, 12, 2, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_range_w20_bx8", 20, 16, 12, 8, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
 ]
 # The sweep of the factors: bin n x (17 - n), image (n + 3) x (20 - n), the border modes in turn; with BinY_g 1 the
 # injection has no effect (test_ecc)

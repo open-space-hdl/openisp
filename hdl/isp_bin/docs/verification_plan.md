@@ -49,6 +49,8 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `rate_odd_w17_bx8`, `rate_odd_w17_bx8_tall`, `rate_odd_w17_bx16_tall` | 17 x 8; 17 x 16; 17 x 16 | 12 | 8 x 2; 8 x 16; 16 x 16 | zero; replicate; replicate | AUTO, pipeline 1 | none | static, rate |
 | `rate_odd_w3`, `rate_odd_w5_bx4` | 3 x 8; 5 x 8 | 12 | 2 x 2; 4 x 4 (W = `BinX_g` + 1) | replicate; zero | AUTO, pipeline 1 | none | static, rate |
 | `rate_odd_x_only`, `rate_odd_x_only_w3` | 9 x 6; 3 x 6 | 12 | 2 x 1 | replicate; zero | AUTO, pipeline 1 | none | static, rate |
+| `rate_range_w<W>_bx4`, W = 22, 21, 23, 16, 10 | W x 16 | 12 | 4 x 16 | replicate | AUTO, pipeline 1 | none | static, rate |
+| `rate_range_w12_bx2`, `rate_range_w9_bx2`, `rate_range_w20_bx8` | 12 x 16; 9 x 16; 20 x 16 | 12 | 2 x 8; 2 x 16; 8 x 16 | replicate | AUTO, pipeline 1 | none | static, rate |
 
 ### 2.2 Sweep (test `test_static`)
 
@@ -141,6 +143,14 @@ ly = log2ceil(`BinY_g`).
 | `rate_odd_w3` (e = 1, s = 1) | 1 (N = 2) | 16 | 0 (bound 0) | 32 |
 | `rate_odd_w5_bx4` (e = 3) | 3 (N = 6) | 30 | 0 (bound 0) | 64 |
 | `rate_odd_x_only`, `rate_odd_x_only_w3` (s = 1) | 0 | 0 | 0 | 60; 24 |
+| `rate_range_w22_bx4` (e = 2) | 86 (N = 90) | 30 | 56 to 84 (p = 27 >= W) | 456 to 484 |
+| `rate_range_w21_bx4` (e = 3) | 87 (N = 90) | 30 | 57 to 84 | 441 to 468 |
+| `rate_range_w23_bx4` (e = 1) | 85 (N = 90) | 30 | 55 to 84 | 471 to 500 |
+| `rate_range_w16_bx4` (e = 0) | 54 (N = 60) | 30 | 24 to 54 | 328 to 358 |
+| `rate_range_w10_bx4` (e = 2) | 41 (N = 45) | 30 | 11 to 39 | 219 to 247 |
+| `rate_range_w12_bx2` (e = 0) | 40 (N = 42) | 16 | 24 to 40 (p = 15 >= W) | 232 to 248 |
+| `rate_range_w9_bx2` (e = 1) | 74 (N = 75) | 16 | 58 to 73 | 218 to 233 |
+| `rate_range_w20_bx8` (e = 4) | 35 (N = 45) | 50 | 0 to 31 (p = 43 >= W) | 432 to 463 |
 
 **The wait for the virtual lines.** After the PIX event of the last bin of an image (cycle v0) the vertical filter makes
 N VPIX events in N consecutive cycles, and its input waits. Without them, its first PIX event of the next image would
@@ -175,10 +185,16 @@ which follows from the same buffers without fixing their occupancy.
 
 **The bound of BIN-PF-01.** BIN-PF-01 bounds the wait by max(0, N + 2 - 2 x `BinX_g`), the value of d without e. The
 exact wait stays below it for every `BinX_g` >= 2: the difference is 6 + lx + e - `BinX_g` x (3 + c), and with
-e <= `BinX_g` - 1 and c >= 1 it is negative (for `BinX_g` 2: -2 or less). Where p >= W the occupancy is not fixed by
-the derivation; the bench checks the wait from max(0, d - A) up to the bound of BIN-PF-01, so the configurations with W
-not a multiple of `BinX_g` and p >= W (`rate_odd_w13`, `rate_odd_w13_bx4`, `rate_odd_w17_bx8_tall`,
-`rate_odd_w17_bx16_tall`, `rate_odd_w3`, `rate_odd_w5_bx4`) check the requirement itself.
+e <= `BinX_g` - 1 and c >= 1 it is negative (-2 or less for `BinX_g` 2, -5 for 3, -9 for 4, and less beyond). Where
+p >= W the bins that fill the buffers come from two or three lines: the last bin of a line has `BinX_g` - e pixels, the
+HCOL events of the line end hold the input and leave gaps between the bins, so the frozen kernel holds a different
+number of bins. The derivation fixes no exact value there (the exact formula is off by -3 to +1 cycles in the
+configurations `rate_range_*`); the bench checks the wait from max(0, d - A) up to the bound of BIN-PF-01, and for
+p >= W the requirement is verified by test on the configurations with p >= W: `BinX_g` 2, 4, 8 and 16, every e of
+`BinX_g` 4 (0 to 3), e 0 and 1 of `BinX_g` 2 and e up to 15, the bins of the buffers across one and two line
+boundaries (W from 3 to 23), N up to 90, and the bound 0 with a positive d (`rate_odd_w3`, `rate_odd_w5_bx4`,
+`rate_odd_w13_bx4`, `rate_odd_w17_bx16_tall`). The smallest margin to the bound comes with `BinX_g` 2, where the exact
+case leaves the least room.
 
 **`Stat_ImageOpen` and the probe of `test_rate`.** e0 is the edge that accepts the last pixel of the last image. The
 frame sync of the horizontal filter closes the image when the pixel moves from its input stage into its output register,
