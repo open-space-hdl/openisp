@@ -13,6 +13,11 @@ The status-output audit added a probe of `Stat_ImageOpen` and a read of `STATUS`
 The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
 commit 4cef90a, 601 of 601 tests passed (84 of them `isp_replace`), 0 skipped; `lint/synth_check.py` (TC-RPL-12) passed.
 
+The registered read request and the defaults `RamRdLatency_g` 2 and `EccPipeline_g` 1 (section 5.1), with the
+configurations `defaults` and `defaults_rate` and the reset sweep at the read request in test_ecc: `python run.py -p 4`
+on 2026-11-20 on commit f9fad71, 668 of 668 tests passed (89 of them `isp_replace`), 0 skipped;
+`lint/synth_check.py` (TC-RPL-12) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-RPL-01) | 28 (with the sweeps) | 28 |
@@ -112,33 +117,44 @@ mode mirror, which the plan now replaces by the window that carries the mark ins
 division constant one bit shorter, which the configuration `exhaustive_p6` now kills.
 
 The mutation run was repeated on 2026-11-20 on commit 399d8b9 after the status-output audit (section 7), with the same
-14 tests and the three mutants of the audit; the table shows that run. Every one of the 19 mutants fails at least one
+14 tests and the three mutants of the audit. Every one of the 19 mutants fails at least one
 test. The read-ahead across the image start is no longer killed by test_scrub: that test wrote its double error into a
 random word, in `g2` word 0, which the mutant reads before the injection; the double error is now in the last word of
 the map (plan, section 5). test_map_update, the test the plan names, kills it as before.
 
+The mutation run was repeated on 2026-11-20 on commit f9fad71 for the registered read request and the defaults
+(section 5.1), with 21 tests: the 14 before, the configuration `defaults` (test_static, test_registers, test_ecc,
+test_reset), and test_rate of `defaults_rate`, `rate_w33` and `rate_g2`; three mutants concern the registered request.
+The table shows that run. Every one of the 22 mutants fails at least one test. The registered request kept through a
+reset is killed only at the defaults (`RamRdLatency_g` 2, `EccPipeline_g` 1), by the reset sweep of test_ecc and by
+test_reset. The read-ahead one word shorter is killed by test_rate of `rate_w33`, whose last word of a line holds a
+single pixel (architecture, section 5).
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
-| None (reference) | passes (14 tests) | - |
-| The weights of the interpolation swapped (L x dl + R x dr) | killed by 9 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_scrub, test_static |
-| No rounding term | killed by 13 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| The search one place too far (G + 1) | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| A place outside the image taken as operational (the window carries the mark instead of the operational flag, so that the zero border reads as operational) | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| A one-sided replacement from the wrong side | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| An unreplaced pixel output as 0 and not reported | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| The division constant one bit shorter (K = PixelBits_g + 7) | killed by 1 of 14 tests | test_exhaustive |
-| The read-ahead across the image start (words 0 and 1 read at the end of the image before) | killed by 9 of 14 tests | test_clear, test_map_update, test_registers, test_reset, test_static |
-| No new word at the first pixel of a line (the word counter not advanced at the end of a line) | killed by 12 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_reset, test_scrub, test_static |
-| MAP_ADDR cut to the width of the map address | killed by 3 of 14 tests | test_map_update, test_registers |
-| MAP_ADDR counted up by a write without effect | killed by 3 of 14 tests | test_clear, test_map_update |
-| A CTRL.CLEAR during a clear restarts it | killed by 1 of 14 tests | test_clear |
-| A word with a double error replaced by zeros instead of used as read | killed by 3 of 14 tests | test_ecc, test_registers, test_scrub |
-| Stat_Unreplaced pulsed when the pixel enters the output register (not when it leaves the module) | killed by 1 of 14 tests | test_reset |
-| No Stat_EccSec pulse with a read | killed by 2 of 14 tests | test_ecc, test_registers |
-| The error flags of a word reported when it is read, not when it comes in use | killed by 1 of 14 tests | test_ecc |
-| Stat_ImageOpen tied to 0 | killed by 1 of 14 tests | test_input_stream |
-| STATUS.IMAGE_OPEN tied to 0 | killed by 1 of 14 tests | test_registers |
-| Scrub_EccSec and Scrub_EccDed exchanged | killed by 1 of 14 tests | test_scrub |
+| None (reference) | passes (21 tests) |  |
+| The weights of the interpolation swapped (L x dl + R x dr) | killed by 14 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_reset, test_scrub, test_static |
+| No rounding term | killed by 20 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| The search one place too far (G + 1) | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| A place outside the image taken as operational (the window carries the mark instead of the operational flag, so that the zero border reads as operational) | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| A one-sided replacement from the wrong side | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| An unreplaced pixel output as 0 and not reported | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| The division constant one bit shorter (K = PixelBits_g + 7) | killed by 1 of 21 tests | test_exhaustive |
+| The read-ahead across the image start (words 0 and 1 read at the end of the image before) | killed by 15 of 21 tests | test_clear, test_map_update, test_rate, test_registers, test_reset, test_static |
+| No new word at the first pixel of a line (the word counter not advanced at the end of a line) | killed by 18 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_reset, test_scrub, test_static |
+| MAP_ADDR cut to the width of the map address | killed by 4 of 21 tests | test_map_update, test_registers |
+| MAP_ADDR counted up by a write without effect | killed by 3 of 21 tests | test_clear, test_map_update |
+| A CTRL.CLEAR during a clear restarts it | killed by 1 of 21 tests | test_clear |
+| A word with a double error replaced by zeros instead of used as read | killed by 5 of 21 tests | test_ecc, test_registers, test_scrub |
+| Stat_Unreplaced pulsed when the pixel enters the output register (not when it leaves the module) | killed by 2 of 21 tests | test_reset |
+| No Stat_EccSec pulse with a read | killed by 4 of 21 tests | test_ecc, test_registers |
+| The error flags of a word reported when it is read, not when it comes in use | killed by 2 of 21 tests | test_ecc |
+| Stat_ImageOpen tied to 0 | killed by 1 of 21 tests | test_input_stream |
+| STATUS.IMAGE_OPEN tied to 0 | killed by 2 of 21 tests | test_registers |
+| Scrub_EccSec and Scrub_EccDed exchanged | killed by 1 of 21 tests | test_scrub |
+| The RAM reads the word after the registered request (address from the read counter) | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| The registered read request kept through a reset | killed by 2 of 21 tests | test_ecc, test_reset |
+| The read-ahead one word shorter (two words in the queue and in flight) | killed by 1 of 21 tests | test_rate |
 
 ## 5. Synthesis and timing
 

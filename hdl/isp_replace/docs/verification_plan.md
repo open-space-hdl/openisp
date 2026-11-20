@@ -182,6 +182,9 @@ derivation is never adjusted to fit a measurement.
 | `Stat_ImageOpen` tied to 0 (a port stuck at 1 fails every probe after a complete image, which expects 0) | TC-RPL-02 (the probe of the open image) |
 | `STATUS.IMAGE_OPEN` tied to 0 | TC-RPL-07 (the read of `STATUS` while an image is open) |
 | `Scrub_EccSec` and `Scrub_EccDed` exchanged | TC-RPL-06 (one pulse per single error against one per pass) |
+| The RAM reads the word after the registered read request (the address from the read counter, not from the register) | TC-RPL-01, 03, 09 |
+| The registered read request kept through a reset | TC-RPL-05 (the reset sweep at the read requests of an image start, `defaults`), TC-RPL-10 |
+| The read-ahead one word shorter (two words in the queue and in flight) | TC-RPL-11 (`rate_w33`: the last word of a line holds a single pixel) |
 
 ## 7. Expected coverage exclusions
 
