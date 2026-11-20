@@ -14,7 +14,7 @@ from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, 
                        ecc_decode, frame_sync, point, point_op, window, conv, conv_full_bits, CNV_COEF,
                        CNV_CTRL, CNV_INJECT, CNV_STATUS)
 from isp_model import RPL_MAP_ADDR, RPL_MAP_DATA, RPL_STATUS, replace, replace_pixel  # noqa: E402
-from isp_model import bin_filters, bin_model, bin_sum, ecc_data_positions, filter2d  # noqa: E402
+from isp_model import bin_filters, bin_model, bin_sum, chain, crop, ecc_data_positions, filter2d, point  # noqa: E402
 from isp_tbgen import malformed_streams, packets  # noqa: E402
 
 
@@ -479,3 +479,50 @@ def test_bin_filters_open_and_injection():
     assert hit[0][0][1] != clean[0][0][1] and [o[1] for o in hit[0][1:]] == [o[1] for o in clean[0][1:]]
     # The timing: every output pixel of a valid 2 x 2 bin is completed by the input beat of its lower right pixel
     assert clean[3]["timing"] == [5, 7, 13, 15]
+
+
+def _crop_stage(items):
+    return crop(items, 40, 20, 4, 2, 32, 16, True)
+
+
+def _point_stage(items):
+    # 12 -> 12 bits, run-time registers, the generics the identity
+    return point(items, 32, 16, 12, 12, 16, 16, 0, 1, 0, 0, -1, True)
+
+
+def test_chain_composition():
+    # A crop and an identity point in series: the output and the timing of the chain are those of the crop
+    import random
+    rng = random.Random(3)
+    pix = [rng.getrandbits(12) for _ in range(40 * 20)]
+    items = packets(pix, [40] * 20) + packets(pix, [800])
+    ref = _crop_stage(items)
+    out, errors, annot, extra = chain(items, [_crop_stage, _point_stage])
+    assert [o[1:4] for o in out] == [o[1:4] for o in ref[0]] and errors == 0
+    assert extra["timing"] == ref[3]["timing"]
+    assert annot[-1] == (2 * 32 * 16, False)
+
+
+def test_chain_registers():
+    # Accesses of two modules in one marker: the read values of each model in the order of the accesses
+    items = [("A", 100, [(1, ("W", PNT_GAIN, 3, 0xF)), (0, ("C", CRP_ROI_POS, None, 0xF)),
+                         (1, ("C", PNT_GAIN, None, 0xF))])]
+    _out, _errors, _annot, extra = chain(items, [_crop_stage, _point_stage])
+    (marker, entries), = extra["regs"]
+    assert marker == 100 and [e[0] for e in entries] == [1, 0, 1]
+    assert entries[1][1][2] == (2 << 16) | 4 and entries[2][1][2] == 3
+
+
+def test_chain_module_reset():
+    # A reset of the second module alone in the middle of an image (the chain settled): the second module receives the
+    # rest of the image without an image start and reports it once (E2); the next image passes both
+    import random
+    rng = random.Random(4)
+    pix = [rng.getrandbits(12) for _ in range(40 * 20)]
+    k = 40 * 6 + 10
+    items = packets(pix[:k], [k], last=False) + [("RM", 100, 1)] + packets(pix[k:], [800 - k], first=False)
+    items += packets(pix, [800])
+    out, errors, _annot, extra = chain(items, [_crop_stage, _point_stage])
+    assert errors == 0 and extra["stages"][1]["errors"] == 1
+    # The second image is complete at the output
+    assert [o[1] for o in out if o[0] == "B"][-32 * 16:] == [o[1] for o in _crop_stage(packets(pix, [800]))[0]]

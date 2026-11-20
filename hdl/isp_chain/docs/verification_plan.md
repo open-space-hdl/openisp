@@ -249,7 +249,8 @@ written; with back-to-back images that is not possible, which the user guide sta
 
 ### 5.5 The reset of one module (`test_reset`)
 
-The source pauses in the middle of a line of image k; after the drain time of the chain no beat moves. The bench holds
+The source pauses in the middle of a line of image k inside the region of `isp_crop` (input rows 2 to 17, so that
+`isp_filter2d` has image k open); after the drain time of the chain no beat moves. The bench holds
 the reset of `isp_crop` (`typical`) for two cycles, then the source continues image k where it paused, so that the
 input stream stays legal and only the reset acts; image k + 1 follows. The model resets the model of that module at the
 same place of the stream.
