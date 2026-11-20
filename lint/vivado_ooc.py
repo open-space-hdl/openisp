@@ -64,6 +64,12 @@ CONFIGS = {
                                   "WinY_g": 5, "BorderMode_g": "mirror", "CoefBits_g": 16,
                                   "Coef_g": [0, -1, -1, -1, 0, -1, -2, -4, -2, -1, -1, -4, 44, -4, -1, -1, -2, -4, -2,
                                              -1, 0, -1, -1, -1, 0], "RuntimeCoef_g": True}, False),
+    # isp_bin TC-BIN-08: the default configuration (2 x 2 valid, 12-bit pixels, 4096 pixels per line) and 4 x 4
+    # replicate
+    "bin_default": ("isp_bin", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "PixelBits_g": 12, "BinX_g": 2,
+                                "BinY_g": 2, "BorderMode_g": "valid"}, False),
+    "bin_4x4_rep": ("isp_bin", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "PixelBits_g": 12, "BinX_g": 4,
+                                "BinY_g": 4, "BorderMode_g": "replicate"}, False),
     # isp_replace TC-RPL-13: the default configuration (a map of 65536 words) and the widest one
     "rpl_default": ("isp_replace", {"ImageWidth_g": 2048, "ImageHeight_g": 1024, "PixelBits_g": 12, "MaxGap_g": 2},
                     False),

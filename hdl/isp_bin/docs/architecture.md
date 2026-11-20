@@ -48,10 +48,10 @@ With coefficients of 1 the multipliers of the kernels are wires, and each kernel
 
 | Property | Value | Requirement |
 | --- | --- | --- |
-| Pixel rate | One input pixel per clock cycle; BN-2 receives one pixel in `BinX_g` cycles | BIN-PF-01 |
+| Pixel rate | One input pixel per clock cycle within a line; BN-1 holds the input for its `BinX_g` - 1 virtual columns after every line (border modes zero and replicate); BN-2 receives one pixel in `BinX_g` cycles | BIN-PF-01 |
 | Image period, border mode valid | H x W cycles plus the registers of the two filters | BIN-PF-02 |
-| Image period, border modes zero and replicate | BN-1 adds `BinX_g` - 1 cycles per line; BN-2 adds `BinY_g` - 1 virtual lines of Wo pixels, which it generates faster than BN-1 delivers a line | BIN-PF-02 |
-| Latency | log2ceil(`BinX_g`) + 6 clock cycles in BN-1 and log2ceil(`BinY_g`) + 6 in BN-2, after the last pixel of a bin | |
+| Image period, border modes zero and replicate | H x (W + `BinX_g` - 1) cycles of BN-1, plus the wait for the virtual lines: after every image BN-2 generates (`BinY_g` - 1) x Wo virtual pixels, one per cycle, and its input waits meanwhile; the wait reaches the module input once the buffers of BN-1 are full, at most max(0, (`BinY_g` - 1) x Wo + 2 - 2 x `BinX_g`) cycles (verification plan, section 5) | BIN-PF-01, BIN-PF-02 |
+| Latency | log2ceil(`BinX_g`) + 6 clock cycles in BN-1 and log2ceil(`BinY_g`) + 6 in BN-2, after the last pixel of a bin; up to 2 more in each for a pixel that its frame sync took while the filter held its input; with both factors 1 the 2 cycles of the frame sync | |
 
 ## 6. Fault tolerance and resources
 

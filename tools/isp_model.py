@@ -769,24 +769,22 @@ def bin_sum(items, width, height, pixel_bits, bin_x, bin_y, border):
             return 0
         return img[(min(max(x, 0), width - 1), min(max(y, 0), height - 1))]
 
-    def emit_line(m):
+    def emit(n, m):
         nonlocal count
-        for n in range(wo):
-            s = sum(ext(n * bin_x + i, m * bin_y + j) for i in range(bin_x) for j in range(bin_y))
-            out.append(("B", s, 1 if n == wo - 1 else 0, line_flags(m, ho), n, m))
-            count += 1
+        s = sum(ext(n * bin_x + i, m * bin_y + j) for i in range(bin_x) for j in range(bin_y))
+        out.append(("B", s, 1 if n == wo - 1 else 0, line_flags(m, ho), n, m))
+        count += 1
 
     for it in items:
         if it[0] == "B":
             for b in fs.feed(it[1], it[2], it[3]):
                 _, pixel, _last, _user, x, y = b
                 img[(x, y)] = pixel
-                # A line of bins is complete with the last pixel of its last line in the image
-                if x == width - 1:
-                    for m in range(ho):
-                        last_line = min(m * bin_y + bin_y - 1, height - 1)
-                        if last_line == y:
-                            emit_line(m)
+                # A bin is complete with its last pixel in the image: the last column and the last line of the bin
+                # that lie in the image
+                n, m = x // bin_x, y // bin_y
+                if n < wo and m < ho and x == min(n * bin_x + bin_x - 1, width - 1) and                         y == min(m * bin_y + bin_y - 1, height - 1):
+                    emit(n, m)
         elif it[0] == "R":
             _, drop, mode, _cycles = it
             assert drop <= count, "reset drops more beats than were produced"
@@ -796,6 +794,96 @@ def bin_sum(items, width, height, pixel_bits, bin_x, bin_y, border):
             fs.reset()
         annot.append((count, fs.open))
     return out, fs.errors, annot
+
+
+class SumFilter:
+    """One filter of isp_bin: isp_filter2d with a window of `win_x` x `win_y` ones, anchor 0 and a stride of the window
+    size (frame sync, window and kernel of the models above)."""
+
+    def __init__(self, width, height, pixel_bits, win_x, win_y, border, out_bits):
+        self.fs = FrameSync(width, height)
+        self.win = Window(width, height, pixel_bits, win_x, win_y, 0, 0, win_x, win_y, border)
+        self.k = ConvKernel(pixel_bits, win_x, win_y, 2, [1] * (win_x * win_y), False, out_bits)
+
+    def reset(self):
+        self.fs.reset()
+        self.win.reset()
+        self.k.reset()
+
+    def feed(self, pixel, last, user, src):
+        """One input beat with the index `src` of the input beat of the module (-1 for none); returns the output beats
+        (value, last, user, src), src the input beat that completed the window or -1."""
+        res = []
+        beats = self.fs.feed(pixel, last, user)
+        for n, b in enumerate(beats):
+            s = src if n == len(beats) - 1 else -1
+            for o in self.win.pixel(b[1], b[4], b[5], s):
+                res.append((self.k.feed(o[1], o[2], o[3]), o[2], o[3], o[6]))
+        return res
+
+
+def bin_filters(items, width, height, pixel_bits, bin_x, bin_y, border):
+    """isp_bin as the architecture builds it: the horizontal sum (BinX x 1, present for bin_x > 1) and the vertical sum
+    (1 x BinY on the narrowed image, present for bin_y > 1) in series, the frame sync alone for 1 x 1. Items
+    ('J', marker, pattern) inject into the line buffers of the vertical sum (no effect without it). Returns (out, framing errors, annot,
+    {"sec", "ded", "timing"}); annot carries the OR of the open flags of the frame syncs (Stat_ImageOpen), timing the
+    input beat that completed the bin of every output pixel (-1 for a bin completed by a virtual pixel)."""
+    assert border in ("valid", "zero", "replicate")
+    ph, q = pixel_bits + log2ceil(bin_x), pixel_bits + log2ceil(bin_x * bin_y)
+    wo_h = width // bin_x if border == "valid" else -(-width // bin_x)
+    hor = SumFilter(width, height, pixel_bits, bin_x, 1, border, ph) if bin_x > 1 else None
+    ver = SumFilter(wo_h, height, ph, 1, bin_y, border, q) if bin_y > 1 else None
+    fs = FrameSync(width, height) if hor is None and ver is None else None
+    first_fs = hor.fs if hor else ver.fs if ver else fs
+    out, annot, timing = [], [], []
+    count = beat = 0
+    for it in items:
+        if it[0] == "B":
+            if hor:
+                mid = hor.feed(it[1], it[2], it[3], beat)
+            elif ver:
+                mid = [(it[1], it[2], it[3], beat)]
+            else:
+                beats = fs.feed(it[1], it[2], it[3])
+                mid = [(b[1], b[2], b[3], beat if n == len(beats) - 1 else -1) for n, b in enumerate(beats)]
+            res = [o for m in mid for o in ver.feed(*m)] if ver else mid
+            for value, last, user, src in res:
+                out.append(("B", value, last, user))
+                timing.append(src)
+                count += 1
+            beat += 1
+        elif it[0] == "R":
+            _, drop, mode, _cycles = it
+            assert drop <= count, "reset drops more beats than were produced"
+            _drop(out, drop)
+            del timing[len(timing) - drop:]
+            count -= drop
+            out.append(("R", mode))
+            for part in (hor, ver, fs):
+                if part:
+                    part.reset()
+        elif it[0] == "J" and ver:
+            # Without the vertical sum the injection ports are not connected: no effect
+            ver.win.inject(it[2])
+        opened = any(part.open for part in (hor and hor.fs, ver and ver.fs, fs) if part)
+        annot.append((count, opened))
+    # The horizontal sum delivers complete images only: the frame sync of the vertical sum never reports
+    assert not (hor and ver and ver.fs.errors), "the vertical sum saw a malformed stream"
+    return out, first_fs.errors, annot, {"sec": ver.win.sec if ver else 0, "ded": ver.win.ded if ver else 0,
+                                          "timing": timing}
+
+
+def bin_model(items, width, height, pixel_bits, bin_x, bin_y, border):
+    """The reference model of isp_bin: the output pixels from the definition of a bin (bin_sum); the composition of
+    the two filters (bin_filters) gives the pulse counts, Stat_ImageOpen and the timing, and the output pixels of a
+    test with an injection (whose double errors change the sums). Without an injection the two must agree."""
+    comp = bin_filters(items, width, height, pixel_bits, bin_x, bin_y, border)
+    if any(it[0] == "J" for it in items):
+        return comp
+    ref, errors, _annot = bin_sum(items, width, height, pixel_bits, bin_x, bin_y, border)
+    assert [o[:4] for o in ref] == [o[:4] for o in comp[0]], "bin_filters differs from the definition of a bin"
+    assert errors == comp[1]
+    return ref, errors, comp[2], comp[3]
 
 
 # Register map of isp_replace (specification, section 7)

@@ -14,8 +14,8 @@ from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, 
                        ecc_decode, frame_sync, point, point_op, window, conv, conv_full_bits, CNV_COEF,
                        CNV_CTRL, CNV_INJECT, CNV_STATUS)
 from isp_model import RPL_MAP_ADDR, RPL_MAP_DATA, RPL_STATUS, replace, replace_pixel  # noqa: E402
-from isp_model import bin_sum, filter2d  # noqa: E402
-from isp_tbgen import packets  # noqa: E402
+from isp_model import bin_filters, bin_model, bin_sum, ecc_data_positions, filter2d  # noqa: E402
+from isp_tbgen import malformed_streams, packets  # noqa: E402
 
 
 def beats(model_out):
@@ -446,3 +446,36 @@ def test_bin_equals_two_filters():
         ho_items = packets([o[1] for o in mid], [wo] * h)
         out = filter2d(ho_items, wo, h, mid_bits, 1, by, 0, 0, 1, by, border, 2, [1] * by)[0]
         assert [o[1] for o in out] == ref, (w, h, bx, by, border)
+
+
+def test_bin_filters_equal_definition():
+    # The composition of the two sum filters equals the definition of a bin for every shape (both filters, one of
+    # them, the frame sync alone) and border mode, also for malformed streams and resets; it never sees a framing
+    # error between the two filters
+    import random
+    rng = random.Random(11)
+    for w, h, bx, by, border in [(13, 9, 2, 2, "valid"), (13, 9, 2, 2, "zero"), (14, 12, 3, 5, "replicate"),
+                                 (12, 5, 4, 1, "zero"), (5, 12, 1, 4, "replicate"), (6, 4, 1, 1, "valid"),
+                                 (4, 4, 4, 4, "valid")]:
+        items = malformed_streams(rng, w, h, 8, packets_count=20)
+        pix = [rng.getrandbits(8) for _ in range(w * h)]
+        k = w * h // 2
+        items += packets(pix[:k], [k], last=False) + [("R", 0, 0, 1)] + packets(pix, [w] * h)
+        out, errors, annot = bin_model(items, w, h, 8, bx, by, border)[:3]
+        assert errors > 0 and out and annot[-1] == (len([o for o in out if o[0] == "B"]), False)
+
+
+def test_bin_filters_open_and_injection():
+    pix = image(4, 4)
+    # One pixel of an image: only the horizontal sum is open (BinX 2 needs two pixels for its first output)
+    annot = bin_filters(packets(pix[:1], [1], last=False), 4, 4, 8, 2, 2, "valid")[2]
+    assert annot[-1] == (0, True)
+    # A double error on two data bits of narrowed pixel (0, 0) in the line buffer of the vertical sum: the bin (0, 0)
+    # uses the word as read, the other bins are unchanged
+    clean = bin_filters(packets(pix, [16]), 4, 4, 8, 2, 2, "valid")
+    pos = ecc_data_positions(9)
+    hit = bin_filters([("J", 100, (1 << pos[0]) | (1 << pos[1]))] + packets(pix, [16]), 4, 4, 8, 2, 2, "valid")
+    assert hit[3]["ded"] == 1 and hit[3]["sec"] == 0
+    assert hit[0][0][1] != clean[0][0][1] and [o[1] for o in hit[0][1:]] == [o[1] for o in clean[0][1:]]
+    # The timing: every output pixel of a valid 2 x 2 bin is completed by the input beat of its lower right pixel
+    assert clean[3]["timing"] == [5, 7, 13, 15]
