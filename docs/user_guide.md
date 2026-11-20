@@ -169,12 +169,29 @@ and a 3 x 3 `isp_bin` to `isp_point`: P = 22, S_last = 85. The source stops afte
 
 ### 4.3 Parity of the parameter registers
 
-Every parameter register carries a parity bit, set with every write. At the image start the module checks it; after
-an upset the image is processed with the values of the generics, `Err_Config` pulses and `STATUS.ERR_CONFIG` is set,
-and so for every further image until the register is written again. The software therefore:
+Every parameter register carries a parity bit. At the image start the module checks it; after an upset the image is
+processed with the values of the generics, `Err_Config` pulses and `STATUS.ERR_CONFIG` is set, and so for every further
+image until the register is written in full again. A write of every byte that holds bits of the register sets the
+parity bit for the written value; a write that keeps such a byte keeps a mismatch, so that an upset is never hidden by
+a write of other bytes, and an upset in a byte that such a write replaces is still reported (PKG-08). The software
+therefore:
 
 - reads `STATUS` after every image or periodically,
-- writes the parameter registers again when `ERR_CONFIG` is set, then clears the flag.
+- writes the parameter registers again when `ERR_CONFIG` is set, each with all four byte strobes (or at least with
+  every byte that holds bits of it, below), then clears the flag.
+
+| Register | Bytes with bits |
+| --- | --- |
+| `isp_conv` `COEF[k]` | `CoefBits_g` bits: byte 0 up to 8 bits, bytes 0 and 1 up to 16 bits, bytes 0 to 2 for 17 and 18 bits |
+| `isp_point` `OFFSET_LO`, `OFFSET_HI` | The offset of min(`InBits_g` + 1, 64) bits: `OFFSET_LO` its bits up to 31, `OFFSET_HI` the bits from 32 (none for `InBits_g` up to 31: every write of `OFFSET_HI` is then a full write and sets its parity bit to 0) |
+| `isp_point` `GAIN` | `GainBits_g` bits |
+| `isp_point` `SHIFT` | Byte 0 (7 bits); a write without byte 0 leaves the register and its parity bit unchanged |
+| `isp_point` `LOW`, `HIGH` | `OutBits_g` bits |
+| `isp_crop` `ROI_POS` | All four bytes |
+| `CTRL` of `isp_conv` and `isp_point` | Byte 0 (`HOLD`) |
+
+A register is written in full when every byte that holds bits of it is written; for a register without bits
+(`OFFSET_HI` with `InBits_g` up to 31) every write is a full write.
 
 The register `INJECT` inverts the parity bit of a parameter register, so that the system can test this path.
 
@@ -252,7 +269,7 @@ requirements of a mission is shown by a radiation test with the modules in opera
 | After a lost packet the input waits as long as the lost data would have taken; the source has blanking per image of at least the largest loss to be tolerated, or the clock of the modules is faster than the pixel rate | A source at one pixel per clock cycle without blanking never catches up after a loss; with enough blanking the chain recovers within one image |
 | A packet protocol behind a chain whose data field is smaller than a line (W x pixel width bits; 65536 octets for a Space Packet) has a segmenting stage | Every output line is one packet |
 | The register bus is in the clock domain of the module, or the system provides a clock crossing | The AXI4-Lite slaves have no crossing of their own |
-| The software reacts to `STATUS.ERR_CONFIG` by writing the parameter registers again | An upset of a parameter register persists until it is written (section 4.3) |
+| The software reacts to `STATUS.ERR_CONFIG` by writing the parameter registers again in full (every byte that holds bits of the register) | An upset of a parameter register persists until it is written in full; a partial write keeps the mismatch (section 4.3) |
 | The defect map is written between images where an image must not see a partial update | The map is read in step with the pixels (section 4.4) |
 | After power-up the software clears the defect map (`CTRL.CLEAR`) or writes it completely before the first image, and repeats `CTRL.CLEAR` after a reset during a clear | The content of the RAM after configuration depends on the device; Open Logic does not initialise it |
 | A chain is reset together with its source, or between images | A reset inside a first or only packet of an image makes the rest of that packet an image start: one wrong image with `Err_Framing`, the next one correct (`isp_frame_sync` specification, section 6) |

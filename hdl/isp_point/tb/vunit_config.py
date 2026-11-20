@@ -177,8 +177,33 @@ def build_parity(rng, c):
     items += c.regs.access(write(PNT_CTRL, 0)) + c.image(rng, "random")
     # Without the strobe of byte 0 the injection has no effect
     items += c.regs.access(write(PNT_INJECT, 0x7F, 0xE)) + c.image(rng, "lines")
+    items += build_partial_writes(rng, c, writes)
     items += c.regs.access(check(PNT_STATUS))
     return items + status()
+
+
+def build_partial_writes(rng, c, writes):
+    """PNT-RG-03, PKG-08: for every parameter register, a mismatch (the injection gives the syndrome of an upset)
+    survives a write that keeps a byte with bits of the register and a write of only bytes without bits; a write of
+    every byte clears it. A partial write of GAIN without a mismatch sets the parity for the resulting value. The model
+    decides the expected images and pulses."""
+    items = []
+    bits = [min(c.ow, 32), c.ow - min(c.ow, 32), c.gainb, 7, c.outb, c.outb]
+    for n, b in enumerate(bits):
+        with_bits = (1 << ((b + 7) // 8)) - 1
+        keeps = []
+        if with_bits not in (0x0, 0x1):
+            keeps.append(with_bits & ~0x1)
+        if with_bits != 0xF:
+            keeps.append(0xF & ~with_bits)
+        for strobes in keeps:
+            addr = writes[n][1]
+            items += c.regs.access(write(PNT_INJECT, 1 << n), write(addr, rng.getrandbits(32), strobes))
+            items += c.image(rng, "lines") + c.image(rng, "random")
+            items += c.regs.access(writes[n]) + c.image(rng, "lines")
+    items += c.regs.access(write(PNT_GAIN, rng.getrandbits(32), 0x1)) + c.image(rng, "random")
+    items += c.regs.access(writes[2]) + c.image(rng, "lines")
+    return items
 
 
 def build_registers(rng, c):

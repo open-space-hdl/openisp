@@ -24,6 +24,7 @@ library ieee;
 
 library olo;
     use olo.olo_base_pkg_math.all;
+    use olo.olo_base_pkg_attribute.all;
 
 library work;
     use work.isp_pkg.all;
@@ -173,6 +174,18 @@ architecture rtl of isp_conv is
 
     signal r, r_next : TwoProcess_r;
 
+    -- A copy of the valid flag of the output register for In_Ready alone: the enable of the stages drives every
+    -- register of the pipeline, and its fanout stays off the ready path of the module in front (architecture,
+    -- section 4). The synthesis keeps the copy as a register of its own.
+    signal OutVldDup : std_logic;
+
+    attribute dont_merge of OutVldDup   : signal is DontMerge_SuppressChanges_c;
+    attribute preserve of OutVldDup     : signal is Preserve_SuppressChanges_c;
+    attribute syn_preserve of OutVldDup : signal is SynPreserve_SuppressChanges_c;
+    attribute syn_keep of OutVldDup     : signal is SynKeep_SuppressChanges_c;
+    attribute dont_touch of OutVldDup   : signal is DontTouch_SuppressChanges_c;
+    attribute keep of OutVldDup         : signal is Keep_SuppressChanges_c;
+
     -- Register bus of the AXI4-Lite slave
     signal Rb_Addr    : std_logic_vector(11 downto 0);
     signal Rb_Wr      : std_logic;
@@ -259,6 +272,7 @@ begin
         variable Elem_v    : signed(PB_c downto 0);
         variable Sum_v     : signed(SW_c - 1 downto 0);
         variable Word_v    : std_logic_vector(31 downto 0);
+        variable Old_v     : std_logic_vector(31 downto 0);
         variable K_v       : natural;
         variable Addr_v    : natural;
         variable ClrCfg_v  : boolean;
@@ -266,13 +280,9 @@ begin
         v           := r;
         v.ErrConfig := '0';
 
-        -- All stages advance together when the output register is empty or its beat transfers
+        -- All stages advance together when the output register is empty or its beat transfers; In_Ready is the same
+        -- condition on the copy of the valid flag
         Advance_v := r.Flags(L_c + 2)(0) = '0' or Out_Ready = '1';
-        if Advance_v then
-            In_Ready <= '1';
-        else
-            In_Ready <= '0';
-        end if;
 
         if Advance_v then
             -- CV-3: output register, 0 for a negative sum, saturation to B bits
@@ -355,27 +365,40 @@ begin
                 if Rb_ByteEna(1) = '1' then
                     K_v := to_integer(unsigned(Rb_WrData(InjectIndexHi_c downto InjectIndexLo_c)));
                 end if;
-                if Rb_WrData(InjectParity_c) = '1' and K_v < T_c then
-                    v.Parity(K_v) := not r.Parity(K_v);
-                end if;
+
+                -- One compare per coefficient: the parity bit k depends on its own bit and the index only
+                for k in 0 to T_c - 1 loop
+                    if Rb_WrData(InjectParity_c) = '1' and K_v = k then
+                        v.Parity(k) := not r.Parity(k);
+                    end if;
+                end loop;
+
                 if Rb_WrData(InjectCtrlParity_c) = '1' then
                     v.CtrlPar := not r.CtrlPar;
                 end if;
             elsif RuntimeCoef_g and Addr_v >= RegCoef_c and Addr_v < RegCoef_c + RegCoefStride_c * T_c then
-                K_v := (Addr_v - RegCoef_c) / RegCoefStride_c;
-                if (Addr_v - RegCoef_c) mod RegCoefStride_c = 0 then
-                    Word_v := std_logic_vector(resize(r.Coef(K_v), 32));
+                -- One address compare per coefficient: coefficient k and its parity bit depend on their own register,
+                -- not on a selection among all coefficients
 
-                    for b in 0 to 3 loop
-                        if Rb_ByteEna(b) = '1' then
-                            Word_v(8 * b + 7 downto 8 * b) := Rb_WrData(8 * b + 7 downto 8 * b);
-                        end if;
-                    end loop;
+                for k in 0 to T_c - 1 loop
+                    if Addr_v = RegCoef_c + RegCoefStride_c * k then
+                        Old_v  := std_logic_vector(resize(r.Coef(k), 32));
+                        Word_v := Old_v;
 
-                    -- The bits above CoefBits_g are not stored; every write sets the parity bit (CNV-RG-03)
-                    v.Coef(K_v)   := signed(Word_v(CB_c - 1 downto 0));
-                    v.Parity(K_v) := xor Word_v(CB_c - 1 downto 0);
-                end if;
+                        for b in 0 to 3 loop
+                            if Rb_ByteEna(b) = '1' then
+                                Word_v(8 * b + 7 downto 8 * b) := Rb_WrData(8 * b + 7 downto 8 * b);
+                            end if;
+                        end loop;
+
+                        -- The bits above CoefBits_g are not stored. The parity bit from the parities of the bytes: a
+                        -- write of every byte with bits of the register sets it for the written value, a write that
+                        -- keeps such a byte keeps a mismatch (CNV-RG-03, PKG-08)
+                        v.Coef(k)   := signed(Word_v(CB_c - 1 downto 0));
+                        v.Parity(k) := ispWriteParity(Old_v, Rb_WrData, r.Parity(k), Rb_ByteEna, CB_c);
+                    end if;
+                end loop;
+
             end if;
         end if;
 
@@ -420,6 +443,7 @@ begin
         r_next <= v;
     end process;
 
+    In_Ready   <= '1' when OutVldDup = '0' or Out_Ready = '1' else '0';
     Out_Valid  <= r.Flags(L_c + 2)(0);
     Out_Data   <= r.OutData;
     Out_Last   <= r.Flags(L_c + 2)(1);
@@ -429,8 +453,10 @@ begin
     p_seq : process (Clk) is
     begin
         if rising_edge(Clk) then
-            r <= r_next;
+            r         <= r_next;
+            OutVldDup <= r_next.Flags(L_c + 2)(0);
             if Rst = '1' then
+                OutVldDup   <= '0';
                 r.Coef      <= GenCoefs_c;
                 r.Parity    <= GenParity_c;
                 r.Hold      <= '0';

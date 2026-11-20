@@ -344,8 +344,9 @@ begin
                             end if;
                         end loop;
 
-                        -- Every write sets the parity bit for the resulting value (CRP-RG-03)
-                        v.RoiPar := xor v.RoiPos;
+                        -- A write of every byte sets the parity bit for the written value, a write that keeps a
+                        -- byte keeps a mismatch (CRP-RG-03, PKG-08)
+                        v.RoiPar := ispWriteParity(r.RoiPos, Rb_WrData, r.RoiPar, Rb_ByteEna, 32);
                     end if;
 
                 when RegStatus_c =>

@@ -97,9 +97,13 @@ architecture rtl of isp_point is
 
     -- Widths: offset (OW), sum (SW), product and shifted value (PW), clamp comparison (CW)
     constant OW_c : positive := minimum(InBits_g + 1, 64);
-    constant SW_c : positive := InBits_g + 2;
-    constant PW_c : positive := InBits_g + GainBits_g + 2;
-    constant CW_c : positive := maximum(PW_c, OutBits_g) + 1;
+
+    -- Bits of the offset in OFFSET_LO and in OFFSET_HI
+    constant OffLoBits_c : positive := minimum(OW_c, 32);
+    constant OffHiBits_c : natural  := OW_c - OffLoBits_c;
+    constant SW_c        : positive := InBits_g + 2;
+    constant PW_c        : positive := InBits_g + GainBits_g + 2;
+    constant CW_c        : positive := maximum(PW_c, OutBits_g) + 1;
 
     -- The generics as values of the registers
     constant FullScale_c : unsigned(OutBits_g - 1 downto 0)  := (others => '1');
@@ -479,49 +483,57 @@ begin
 
                 when RegOffsetLo_c =>
                     if Runtime_g then
+                        -- The parity bit of every parameter register: a write of every byte with bits of the register
+                        -- sets it for the written value, a write that keeps such a byte keeps a mismatch (PNT-RG-03)
+                        v.Parity(ParOffLo_c) := ispWriteParity(std_logic_vector(Off64_v(31 downto 0)), Rb_WrData,
+                                                               r.Parity(ParOffLo_c), Rb_ByteEna, OffLoBits_c);
                         Word_v               := strobed(std_logic_vector(Off64_v(31 downto 0)), Rb_WrData,
                                                         Rb_ByteEna);
                         Off64_v(31 downto 0) := signed(Word_v);
                         -- The bits above the offset width are not stored
-                        v.Offset             := Off64_v(OW_c - 1 downto 0);
-                        v.Parity(ParOffLo_c) := offsetParity(v.Offset, false);
+                        v.Offset := Off64_v(OW_c - 1 downto 0);
                     end if;
 
                 when RegOffsetHi_c =>
                     if Runtime_g then
+                        v.Parity(ParOffHi_c)  := ispWriteParity(std_logic_vector(Off64_v(63 downto 32)), Rb_WrData,
+                                                                r.Parity(ParOffHi_c), Rb_ByteEna, OffHiBits_c);
                         Word_v                := strobed(std_logic_vector(Off64_v(63 downto 32)), Rb_WrData,
                                                          Rb_ByteEna);
                         Off64_v(63 downto 32) := signed(Word_v);
                         v.Offset              := Off64_v(OW_c - 1 downto 0);
-                        v.Parity(ParOffHi_c)  := offsetParity(v.Offset, true);
                     end if;
 
                 when RegGain_c =>
                     if Runtime_g then
                         Word_v              := strobed(std_logic_vector(resize(r.Gain, 32)), Rb_WrData, Rb_ByteEna);
                         v.Gain              := resize(unsigned(Word_v), GainBits_g);
-                        v.Parity(ParGain_c) := xor v.Gain;
+                        v.Parity(ParGain_c) := ispWriteParity(std_logic_vector(resize(r.Gain, 32)), Rb_WrData,
+                                                              r.Parity(ParGain_c), Rb_ByteEna, GainBits_g);
                     end if;
 
                 when RegShift_c =>
                     if Runtime_g then
                         Word_v               := strobed(std_logic_vector(resize(r.Shift, 32)), Rb_WrData, Rb_ByteEna);
                         v.Shift              := unsigned(Word_v(6 downto 0));
-                        v.Parity(ParShift_c) := xor v.Shift;
+                        v.Parity(ParShift_c) := ispWriteParity(std_logic_vector(resize(r.Shift, 32)), Rb_WrData,
+                                                               r.Parity(ParShift_c), Rb_ByteEna, 7);
                     end if;
 
                 when RegLow_c =>
                     if Runtime_g then
                         Word_v             := strobed(std_logic_vector(resize(r.Low, 32)), Rb_WrData, Rb_ByteEna);
                         v.Low              := resize(unsigned(Word_v), OutBits_g);
-                        v.Parity(ParLow_c) := xor v.Low;
+                        v.Parity(ParLow_c) := ispWriteParity(std_logic_vector(resize(r.Low, 32)), Rb_WrData,
+                                                             r.Parity(ParLow_c), Rb_ByteEna, OutBits_g);
                     end if;
 
                 when RegHigh_c =>
                     if Runtime_g then
                         Word_v              := strobed(std_logic_vector(resize(r.High, 32)), Rb_WrData, Rb_ByteEna);
                         v.High              := resize(unsigned(Word_v), OutBits_g);
-                        v.Parity(ParHigh_c) := xor v.High;
+                        v.Parity(ParHigh_c) := ispWriteParity(std_logic_vector(resize(r.High, 32)), Rb_WrData,
+                                                              r.Parity(ParHigh_c), Rb_ByteEna, OutBits_g);
                     end if;
 
                 when others =>

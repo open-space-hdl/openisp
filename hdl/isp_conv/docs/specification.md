@@ -65,7 +65,7 @@ registers on an AXI4-Lite slave (section 7). Together with `isp_window` the modu
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | CNV-FT-01 | The coefficient set in use shall be loaded with every image start (CNV-FN-04), and the datapath shall keep no state between windows, so that an upset of the datapath disturbs at most the image in progress. | ISP-FT-04 |
-| CNV-FT-02 | Every coefficient register and `CTRL` shall carry one parity bit over its bits, set by the reset and by every write, and checked with every image start: `CTRL` always, the coefficient registers when they are taken (CNV-ER-01, CNV-ER-02). | ISP-FT-05 |
+| CNV-FT-02 | Every coefficient register and `CTRL` shall carry one parity bit over its bits, set by the reset and by the writes (CNV-RG-03), and checked with every image start: `CTRL` always, the coefficient registers when they are taken (CNV-ER-01, CNV-ER-02). | ISP-FT-05 |
 | CNV-FT-03 | After the reset, `In_Ready`, `Out_Valid` and `Err_Config` shall be defined, and with defined input windows every output beat shall be free of metavalues. | ISP-FT-04 |
 
 The module has no memory, so the requirements on memories (ISP-FT-01 to ISP-FT-03) do not apply to it.
@@ -81,7 +81,7 @@ system on the clock `Clk`; a register bus in another clock domain needs a clock 
 
 | ID | Condition | Detection | Response | Status |
 | --- | --- | --- | --- | --- |
-| E1 | `RuntimeCoef_g` true: the parity bit of a coefficient register does not match its value at an image start with `CTRL.HOLD` 0 (upset of the register) | Parity check with the image start | The image is processed with the coefficient set of the generic, and so is every further image until the register is written | `Err_Config`, `STATUS.ERR_CONFIG` |
+| E1 | `RuntimeCoef_g` true: the parity bit of a coefficient register does not match its value at an image start with `CTRL.HOLD` 0 (upset of the register) | Parity check with the image start | The image is processed with the coefficient set of the generic, and so is every further image until the register is written in full (every byte that holds bits of the register); a write that keeps a byte with bits of the register keeps the mismatch (CNV-RG-03) | `Err_Config`, `STATUS.ERR_CONFIG` |
 | E2 | `RuntimeCoef_g` true: the parity bit of `CTRL` does not match its value at an image start (upset of `CTRL.HOLD`) | Parity check with the image start | `CTRL.HOLD` counts as 0: the image takes the coefficient registers (with their own parity check), and so does every further image until `CTRL` is written | `Err_Config`, `STATUS.ERR_CONFIG` |
 
 ## 4. Configuration parameters
@@ -141,5 +141,5 @@ return 0, writes to them and to read-only fields have no effect; every access is
 | --- | --- | --- |
 | CNV-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
 | CNV-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
-| CNV-RG-03 | A write to a coefficient register shall change only the bytes that the write strobes select, and set the parity bit for the resulting value. | ISP-CFG-03, ISP-FT-05 |
+| CNV-RG-03 | A write to a coefficient register shall change only the bytes that the write strobes select. A write of every byte that holds bits of the register shall set the parity bit for the written value; a write that keeps such a byte shall keep a parity mismatch (the parity bit changes with the parity of the written bytes against the bytes they replace), so that an upset in a kept byte is still reported, and an upset in a byte that the write replaces is reported as well, until the register is written in full (every byte that holds bits of the register) (PKG-08). | ISP-CFG-03, ISP-FT-05 |
 | CNV-RG-04 | A write of one to `INJECT.PARITY` shall invert the parity bit of `COEF[INDEX]` of the same write, so that the next image start that takes the registers finds a mismatch. | ISP-FT-05 |

@@ -89,7 +89,7 @@ register block answers a read in the following cycle and every access with OKAY.
 | Register | Implementation |
 | --- | --- |
 | `ID`, `IMAGE`, `ROI_SIZE` | Constants from the generics |
-| `ROI_POS` | 2 x 16 flip-flops with the reset values `RoiX_g` and `RoiY_g`, written byte by byte with the write strobes, and one parity flip-flop that the reset and every write set for the resulting value (`RuntimeRoi_g` true); constants otherwise |
+| `ROI_POS` | 2 x 16 flip-flops with the reset values `RoiX_g` and `RoiY_g`, written byte by byte with the write strobes, and one parity flip-flop that the reset sets, and a write by `ispWriteParity` of `isp_pkg` (PKG-08): a write of every byte that holds bits of the register sets it for the written value, a write that keeps one of these bytes keeps a mismatch; every byte of `ROI_POS` holds bits, so a write without a strobe leaves it unchanged (`RuntimeRoi_g` true); constants otherwise |
 | `INJECT.ROI_POS_PARITY` | Command: inverts the parity flip-flop |
 | `STATUS.IMAGE_OPEN` | `Stat_ImageOpen` |
 | `STATUS.ERR_FRAMING`, `STATUS.ERR_CONFIG` | Sticky flags: set by the pulse, cleared by a write of one; the pulse wins when both come in the same cycle (CRP-RG-02) |
@@ -114,12 +114,13 @@ position with the four limits (up to 16 bits each) into the enable of the output
 
 ## 9. Fault tolerance
 
-The module has no memory and no position counter of its own: the position of every pixel comes from CR-1, and the
-limits of the region are loaded with every image. An upset of a datapath register disturbs at most the image in
-progress. `ROI_POS` is a register that lives until it is written. Its parity bit detects an upset of one of its
-bits at the next image start: the generics apply, `Err_Config` and `STATUS.ERR_CONFIG` report it, and the
-software writes the register again. The parity check lies in the cycle that loads the limits, beside the range
-check. Triple modular redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
+The module has no memory and no position counter of its own: the position of every pixel comes from CR-1, and the limits
+of the region are loaded with every image. An upset of a datapath register disturbs at most the image in progress.
+`ROI_POS` is a register that lives until it is written. Its parity bit detects an upset of one of its bits at the next
+image start: the generics apply, `Err_Config` and `STATUS.ERR_CONFIG` report it until the software writes the register
+in full (all four bytes); a write that keeps one of the bytes keeps the mismatch. The parity check lies in the cycle
+that loads the limits, beside the range check. Triple modular redundancy of the flip-flops is a choice of the integrator
+in the synthesis tool.
 
 ## 10. Resource estimate
 

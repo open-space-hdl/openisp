@@ -209,7 +209,7 @@ def crop(items, width, height, roi_x, roi_y, roi_w, roi_h, runtime):
                             if strobes & (1 << byte):
                                 mask = 0xFF << (8 * byte)
                                 reg = (reg & ~mask) | (data & mask)
-                        parity_ok = True
+                        parity_ok = write_parity_ok(parity_ok, strobes, 32)
                     elif addr == CRP_STATUS and strobes & 0x2:
                         if data & 0x100:
                             status_framing = False
@@ -232,6 +232,28 @@ def _strobe(old, data, strobes):
             mask = 0xFF << (8 * byte)
             old = (old & ~mask) | (data & mask)
     return old
+
+
+def full_write(strobes, bits):
+    """A write of every byte that holds one of the `bits` bits of a register (from bit 0), vacuously true for 0 bits."""
+    return all(strobes & (1 << byte) for byte in range(4) if 8 * byte < bits)
+
+
+def write_parity_ok(ok, strobes, bits):
+    """The match of the parity bit of a register after a write (PKG-08), on the flag of the module models: a full
+    write makes the parity bit match the written value, any other write keeps the match or the mismatch."""
+    return True if full_write(strobes, bits) else ok
+
+
+def write_parity(old, data, par, strobes, bits):
+    """The parity bit of a register of `bits` bits after a write (PKG-08), from its definition: the parity of the
+    resulting value, and for a write that is not full the syndrome before the write (the parity bit xor the parity of
+    the stored bits) on top."""
+    mask = (1 << bits) - 1
+    result = bin(_strobe(old, data, strobes) & mask).count("1") & 1
+    if full_write(strobes, bits):
+        return result
+    return result ^ par ^ (bin(old & mask).count("1") & 1)
 
 
 # Register map of isp_point (specification, section 7)
@@ -311,23 +333,23 @@ def point(items, width, height, in_bits, out_bits, gain_bits, max_shift, offset_
         if addr == PNT_OFFSET_LO:
             off64 = (off64 & ~0xFFFFFFFF) | _strobe(off64 & 0xFFFFFFFF, data, strobes)
             st["off"] = off64 & ((1 << ow) - 1)
-            st["parity"][0] = True
+            st["parity"][0] = write_parity_ok(st["parity"][0], strobes, min(ow, 32))
         elif addr == PNT_OFFSET_HI:
             off64 = (off64 & 0xFFFFFFFF) | (_strobe(off64 >> 32, data, strobes) << 32)
             st["off"] = off64 & ((1 << ow) - 1)
-            st["parity"][1] = True
+            st["parity"][1] = write_parity_ok(st["parity"][1], strobes, ow - min(ow, 32))
         elif addr == PNT_GAIN:
             st["gain"] = _strobe(st["gain"], data, strobes) & ((1 << gain_bits) - 1)
-            st["parity"][2] = True
+            st["parity"][2] = write_parity_ok(st["parity"][2], strobes, gain_bits)
         elif addr == PNT_SHIFT:
             st["shift"] = _strobe(st["shift"], data, strobes) & 0x7F
-            st["parity"][3] = True
+            st["parity"][3] = write_parity_ok(st["parity"][3], strobes, 7)
         elif addr == PNT_LOW:
             st["low"] = _strobe(st["low"], data, strobes) & full
-            st["parity"][4] = True
+            st["parity"][4] = write_parity_ok(st["parity"][4], strobes, out_bits)
         elif addr == PNT_HIGH:
             st["high"] = _strobe(st["high"], data, strobes) & full
-            st["parity"][5] = True
+            st["parity"][5] = write_parity_ok(st["parity"][5], strobes, out_bits)
         elif addr == PNT_INJECT and strobes & 0x1:
             for n in range(7):
                 if data & (1 << n):
@@ -668,7 +690,7 @@ class ConvKernel:
         elif self.runtime and CNV_COEF <= addr < CNV_COEF + 4 * self.taps and addr % 4 == 0:
             k = (addr - CNV_COEF) // 4
             self.regs[k] = _strobe(self._signed(self.regs[k]) & 0xFFFFFFFF, data, strobes) & self.cmask
-            self.parity[k] = True
+            self.parity[k] = write_parity_ok(self.parity[k], strobes, self.cb)
 
     def accesses(self, entries):
         """Register accesses of one marker; returns them with the expected read data."""

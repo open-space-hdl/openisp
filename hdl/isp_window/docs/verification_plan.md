@@ -157,6 +157,13 @@ the verification report, and the wrong one is corrected. A derivation is never a
 | An event that does not wait for `Out_Ready` | TC-WIN-01 (stalls), 03 |
 | Rows above the image taken from the line buffers (the image before) instead of 0 | TC-WIN-01, 05 |
 | `Stat_ImageOpen` tied to 0 (a port stuck at 1 fails every probe after a complete image, which expects 0) | TC-WIN-02 (the probe of the open image) |
+| Pixel (0, 0) detected from x alone (the rows of line 0 at the first pixel of every line) | TC-WIN-01 (`WinY_g` > 1) |
+| Pixel (0, 0) detected outside the state of the image pixels (a pixel (0, 0) that waits at the frame sync during the virtual events of the image before) | TC-WIN-06 (images back to back with a lower border) |
+| The column of pixel (0, 0) from the registered row selection (no restart of the rows) | None: equivalent at the ports. Every image that reaches the event control is complete (the frame sync fills a short image, E1) and the reset loads the selection of line 0, so at every pixel (0, 0) the registered selection is that of line 0 unless an upset changed the register; the restart is verified by review (TC-WIN-07, WIN-FT-03) |
+| The left border of a virtual line not taken (the first VPIX) | TC-WIN-01 (`rep3`, `zero3`: the lower border) |
+| The selection of a line of the upper border one line late | TC-WIN-01 (`WinY_g` > 2: `mirror5`, the size and mirror sweeps) |
+| The last virtual line with the selection of the lines without a border | TC-WIN-01 (`rep3`, `zero3`, `mirror5`: the lower border) |
+| The left mirror of a virtual line not taken | TC-WIN-01 (`mirror5`, mirror sweep: the lower border) |
 
 ## 7. Expected coverage exclusions
 

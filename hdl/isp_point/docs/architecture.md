@@ -77,7 +77,7 @@ register block answers a read in the following cycle and every access with OKAY.
 | --- | --- |
 | `ID`, `IMAGE`, `PARAM` | Constants from the generics |
 | `CTRL.HOLD` | One flip-flop with a parity flip-flop that the reset and every write of `CTRL` set; a mismatch at the image start counts as `HOLD` 0 and pulses `Err_Config` (`Runtime_g` true) |
-| `OFFSET_LO`, `OFFSET_HI`, `GAIN`, `SHIFT`, `LOW`, `HIGH` | Flip-flops for the bits in use, with the reset values of the generics, written byte by byte with the write strobes; one parity flip-flop per register that the reset and every write set for the resulting value (`Runtime_g` true); constants otherwise |
+| `OFFSET_LO`, `OFFSET_HI`, `GAIN`, `SHIFT`, `LOW`, `HIGH` | Flip-flops for the bits in use, with the reset values of the generics, written byte by byte with the write strobes; one parity flip-flop per register that the reset sets, and a write by `ispWriteParity` of `isp_pkg` (PKG-08): a write of every byte that holds bits of the register sets it for the written value, a write that keeps one of these bytes keeps a mismatch; a write of only bytes without bits leaves it unchanged (`Runtime_g` true); constants otherwise |
 | `STATUS` | `Stat_ImageOpen`; sticky flags set by `Err_Framing` and `Err_Config`, cleared by a write of one, the pulse wins |
 | `INJECT.PARITY` | Command: bit n inverts the parity flip-flop of parameter register n (0 to 5) or of `CTRL` (6) |
 
@@ -95,11 +95,12 @@ configuration at the upper bounds of the widths uses `MultStages_g` 3 or 4.
 
 ## 8. Fault tolerance
 
-The module has no memory. The datapath holds no state between pixels, and the working parameter set is loaded with
-every image: an upset of either disturbs at most one image. The parameter registers live until they are written;
-their parity bits detect an upset of one bit at the next image start, the generics then apply and `Err_Config` and
-`STATUS.ERR_CONFIG` report it until the software writes the register again. Triple modular redundancy of the
-flip-flops is a choice of the integrator in the synthesis tool.
+The module has no memory. The datapath holds no state between pixels, and the working parameter set is loaded with every
+image: an upset of either disturbs at most one image. The parameter registers live until they are written; their parity
+bits detect an upset of one bit at the next image start, the generics then apply and `Err_Config` and
+`STATUS.ERR_CONFIG` report it until the software writes the register in full (every byte that holds bits of it); a write
+that keeps one of these bytes keeps the mismatch, so that a partial write cannot turn the upset into a valid word.
+Triple modular redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
 
 ## 9. Resource estimate
 

@@ -78,7 +78,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `test_static` (TC-CNV-01) | Four images of random windows with the coefficients of the generic, plus in every image a window of largest elements (the largest sum) and of zero elements, and windows that give the most negative sum and a sum of exactly 0; back to back and with pauses | CNV-IF-01, CNV-IF-02, CNV-FN-01 to 03, CNV-FN-05 |
 | `test_runtime` (TC-CNV-02) | Coefficient sets written between images: random sets, both bounds, a set that changes the sign of every coefficient; a set written during an image takes effect with the next image; every coefficient read back sign-extended | CNV-FN-01, CNV-FN-04, CNV-RG-03 |
 | `test_hold` (TC-CNV-03) | `CTRL.HOLD` 1: coefficients written over two images, which keep the set before; `CTRL.HOLD` 0: the next image takes the whole new set; `CTRL.HOLD` 1 with a register of bad parity takes no set and reports nothing | CNV-FN-04 |
-| `test_parity` (TC-CNV-04) | `INJECT` for every coefficient in turn for T up to 16; above, the first, the last and eight random ones, because the parity paths of all coefficients come from one generate loop of the RTL: the next image and every further image use the generic with one `Err_Config` each until the register is written; two injections in one set; a second injection that restores the parity; an index of T or above without effect. `INJECT.CTRL_PARITY` with `CTRL.HOLD` 1: the held set is taken at every image start, with one `Err_Config` each, until `CTRL` is written. With `RuntimeCoef_g` false no effect | CNV-IF-04, CNV-ER-01, CNV-ER-02, CNV-FT-02, CNV-RG-04, CNV-FT-01 |
+| `test_parity` (TC-CNV-04) | `INJECT` for every coefficient in turn for T up to 16; above, the first, the last and eight random ones, because the parity paths of all coefficients come from one generate loop of the RTL: the next image and every further image use the generic with one `Err_Config` each until the register is written; two injections in one set; a second injection that restores the parity; an index of T or above without effect. `INJECT.CTRL_PARITY` with `CTRL.HOLD` 1: the held set is taken at every image start, with one `Err_Config` each, until `CTRL` is written. With `RuntimeCoef_g` false no effect. Partial writes (PKG-08): an injection, then a write that keeps a byte with bits of the register and a write of only bytes without bits: the next images still use the generics with `Err_Config`; a write of every byte with bits clears the mismatch; a partial write without a mismatch is taken (one random coefficient; with `CoefBits_g` above 8 and below 25 both kinds of write) | CNV-IF-04, CNV-ER-01, CNV-ER-02, CNV-FT-02, CNV-RG-03, CNV-RG-04, CNV-FT-01, PKG-08 |
 | `test_registers` (TC-CNV-05) | `ID`, `PARAM`, the reset values of all coefficients (the generic, sign-extended); writes with every single byte strobe; writes to read-only registers and with `RuntimeCoef_g` false to the coefficients without effect; the addresses above the last coefficient and the gaps read 0; `STATUS.ERR_CONFIG` set, kept by a write of 0, cleared by a write of 1; `INJECT` reads 0 | CNV-RG-01, CNV-RG-02, CNV-RG-03, CNV-IF-03 |
 | `test_flag_coincidence` (TC-CNV-06) | The clear of `STATUS.ERR_CONFIG` swept cycle by cycle across an `Err_Config` pulse, as in `isp_crop` (TC-CRP-07) | CNV-RG-02 |
 | `test_exhaustive` (TC-CNV-07) | Configurations `exhaustive` and `exhaustive_sat`: every coefficient pair (64 sets) as a run-time set, each over an image of all 64 element pairs: every sign, carry and saturation case of the arithmetic | CNV-FN-01 |
@@ -106,7 +106,8 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | CNV-FT-01 | TC-CNV-04, 09 and review (no state between windows) | Test and review |
 | CNV-FT-02 | TC-CNV-04 | Test |
 | CNV-FT-03 | TC-CNV-09 and the checks of section 3.1 | Test |
-| CNV-RG-01, CNV-RG-03 | TC-CNV-02, 05 | Test |
+| CNV-RG-01 | TC-CNV-02, 05 | Test |
+| CNV-RG-03 | TC-CNV-02, 04, 05 | Test |
 | CNV-RG-02 | TC-CNV-05, 06 | Test |
 | CNV-RG-04 | TC-CNV-04 | Test |
 | CNV-CF-01, CNV-CF-02 | TC-CNV-11 | Synthesis |
@@ -138,6 +139,17 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | A coefficient read back without sign extension | TC-CNV-02, 05 |
 | `Out_Last` one stage early | TC-CNV-01 (contract) |
 | A stage that does not wait for the common enable | TC-CNV-01 (stalls) |
+| `In_Ready` from a copy of the output valid flag stuck at 0 (always ready) | TC-CNV-01 and every test with stalls of the sink |
+| The copy of the output valid flag one advance late | TC-CNV-01 and every test with stalls of the sink |
+| A coefficient write that lands in the coefficient after its address | TC-CNV-02, 05 |
+| The parity bit of a coefficient not set by its write | TC-CNV-02, 04 (a written set counts as a parity error at the image start) |
+| A write with byte enables merged into zeros instead of the stored coefficient | TC-CNV-05 (writes with random strobes, CNV-RG-03) |
+| `INJECT.PARITY` flips the parity bit of every coefficient | TC-CNV-04 |
+| A write that keeps a byte with bits sets the parity for the resulting value (the re-seal before PKG-08) | TC-CNV-04 (an injection, then a partial write) |
+| A write of every byte with bits keeps the syndrome | TC-CNV-04 (the full write after an injection) |
+| A write of only bytes without bits sets the parity for the stored value | TC-CNV-04 (an injection, then a write of only bytes without bits) |
+| The parity of a kept byte taken from the write data | TC-CNV-04, 05 (writes with random strobes) |
+| The parity of a written byte taken from the stored bits | TC-CNV-04 (a partial write, and every write that changes a byte) |
 
 ## 7. Expected coverage exclusions
 
