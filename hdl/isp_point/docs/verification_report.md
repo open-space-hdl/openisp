@@ -32,7 +32,7 @@ writes of test_parity; the configuration `defaults` (2 tests) came before with t
 | `test_reset` (TC-PNT-09) | 5 | 5 |
 | `test_rate` (TC-PNT-10) | 5 | 5 |
 | TC-PNT-11 (`lint/synth_check.py`) | 9 configurations synthesise without latches (2 with the defaults of the entity); 13 generics out of range stop the elaboration with a message naming the generic | 22 |
-| TC-PNT-12 (`lint/vivado_ooc.py`) | Section 5 | Not run |
+| TC-PNT-12 (`lint/libero_synth.py`) | 2 configurations (section 5) | 2 of 2 synthesised |
 
 ## 2. Summary
 
@@ -144,10 +144,18 @@ parity bit. Every one of the 24 mutants fails at least one test; the mutants of 
 
 ## 5. Synthesis and timing
 
-Not run yet: TC-PNT-12 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
-configurations `pnt_default` (16 / 12 / 16 bits, run-time registers) and `pnt_wide` (64 / 32 / 18 bits, four multiplier
-stages).
+TC-PNT-12 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
+STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
+a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
+reference systems is open (roadmap).
+
+| Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `pnt_default`: 4096 x 4096 pixels, 16 / 12 / 16 bits (input, output, gain), run-time registers, two multiplier stages (the default) | 172.6 | 2.206 | 917 | 597 | 0 | 1 | the flags of the multiplier pipeline -> the shadow register of the input stage of the frame sync (4) |
+| `pnt_wide`: 64 / 32 / 18 bits, four multiplier stages | 80.6 | -4.402 | 2362 | 2076 | 0 | 8 | the sum of pixel and offset -> a cascade of four Math blocks and 32 carry cells -> the first product register (36) |
+
+The default configuration meets 125 MHz in the estimate. `pnt_wide`, the widest configuration and not a default, reaches
+80.6 MHz (section 5.1, user guide, section 8).
 
 The GHDL synthesis of TC-PNT-11 shows that the module is synthesisable at every bound of its generics without latches;
 it gives no timing.
@@ -157,6 +165,23 @@ The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`) in the pr
 device. `pnt_default` gives 170.7 MHz with 942 4LUT on develop fbc18fd and 172.6 MHz with 917 4LUT on commit e9116a7.
 The worst path of both is the flags of the multiplier pipeline -> the input stage of the frame sync (5 and 4 logic
 levels); it does not contain the parity of the writes.
+
+### 5.1 The multiplier stages of `pnt_wide`
+
+The worst path of `pnt_wide` is the product: the sum of pixel and offset passes a cascade of four of the eight Math
+blocks and 32 carry cells and reaches the first product register in one cycle (36 logic levels). The four stages of
+`MultStages_g` are registers behind the product (4 x 84 flip-flops), and the Math blocks use none of their internal
+registers. A probe of the same configuration with the register retiming of Synplify Pro enabled
+(`set_option -retiming 1`):
+
+| Synthesis | Estimate (MHz) | 4LUT | DFF | Worst path | Stages of `MultStages_g` |
+| --- | --- | --- | --- | --- | --- |
+| Without retiming (the flow of `lint/libero_synth.py`) | 80.6 | 2362 | 2076 | the sum -> the first product register (36) | 4 x 84 flip-flops behind the product |
+| With retiming | 80.6 | 2650 | 2547 | the same | the same; the synthesis reports 486 registers retimed to 834, mainly those of the shifted value (84 to 226 flip-flops), none into the multiplier |
+
+The stages are meant for a synthesis tool that takes the registers behind a multiplier into its pipeline; on PolarFire
+neither the synthesis nor its retiming does so. `pnt_wide` is not a default; the user guide (section 8) records its
+limit, and a product pipelined in the RTL itself is an open item (roadmap).
 
 ## 6. Requirement coverage
 
@@ -198,5 +223,6 @@ The register map of the specification and the register description agree (`tools
 | The plan named 82 as the upper bound of `MaxShift_g` for 64-bit pixels and an 18-bit gain; the bound is `InBits_g` + `GainBits_g` + 1 = 83 | Plan corrected; `wide` simulates 83 |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
 | The default of `MaxShift_g` in the entity was 82; the specification gives `InBits_g` + `GainBits_g`. The range check of the module (at most `InBits_g` + `GainBits_g` + 1) rejects 82 for every input below 64 bits with an 18-bit gain, so the module did not elaborate with `MaxShift_g` left at its default. Every configuration of the benches and of `lint/synth_check.py` set the generic; the synthesis wrapper of the chain test (`isp_chain`) was the first to rely on the default | The default is `InBits_g` + `GainBits_g` (a generic of the same list, VHDL-2008). The configuration `defaults` simulates the module with every generic but the dimensions and the pixel bits at its default and reads `PARAM.MAX_SHIFT`; `pnt_defaults` and `pnt_defaults_64` synthesise it. A mutant with the old default is killed (section 4). The defaults of every entity of the suite were compared with the tables of generics of their specifications: no other differs |
-| A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example while `CTRL.HOLD` is 1 and the registers are not checked, therefore became a valid word with the next partial write: masked, not detected (a review of the lead) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; PNT-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
+| A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example while `CTRL.HOLD` is 1 and the registers are not checked, therefore became a valid word with the next partial write: masked, not detected (found in review) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; PNT-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
 | A write of `SHIFT` without the strobe of byte 0 stores none of its 7 bits but set the parity bit again, the same masking for a write of only bytes without bits | Such a write leaves the parity bit unchanged (PKG-08); test_parity writes `SHIFT` without byte 0 after an injection |
+| The architecture said that the register stages of the multiplier are placed by the retiming of the synthesis tool. The preliminary synthesis on PolarFire keeps them behind the product, with and without retiming, so that the product of the widest configuration is computed in one cycle (80.6 MHz) | The architecture (sections 4 and 7) and the specification (generics) state the intent of the stages and the result on PolarFire (section 5.1); the user guide gives the limit of the widest configuration; a product pipelined in the RTL is an open item of the roadmap. No change of the RTL |

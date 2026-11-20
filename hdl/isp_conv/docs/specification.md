@@ -82,7 +82,7 @@ system on the clock `Clk`; a register bus in another clock domain needs a clock 
 | ID | Condition | Detection | Response | Status |
 | --- | --- | --- | --- | --- |
 | E1 | `RuntimeCoef_g` true: the parity bit of a coefficient register does not match its value at an image start with `CTRL.HOLD` 0 (upset of the register) | Parity check with the image start | The image is processed with the coefficient set of the generic, and so is every further image until the register is written in full (every byte that holds bits of the register); a write that keeps a byte with bits of the register keeps the mismatch (CNV-RG-03) | `Err_Config`, `STATUS.ERR_CONFIG` |
-| E2 | `RuntimeCoef_g` true: the parity bit of `CTRL` does not match its value at an image start (upset of `CTRL.HOLD`) | Parity check with the image start | `CTRL.HOLD` counts as 0: the image takes the coefficient registers (with their own parity check), and so does every further image until `CTRL` is written | `Err_Config`, `STATUS.ERR_CONFIG` |
+| E2 | `RuntimeCoef_g` true: the parity bit of `CTRL` does not match its value at an image start (upset of `CTRL.HOLD`) | Parity check with the image start | `CTRL.HOLD` counts as 0: the image takes the coefficient registers (with their own parity check), and so does every further image until `CTRL` is written (byte 0) | `Err_Config`, `STATUS.ERR_CONFIG` |
 
 ## 4. Configuration parameters
 

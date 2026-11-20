@@ -17,7 +17,7 @@ regression (with and without code coverage).
 | `test_rate` (TC-FSY-07) | 3 | 3 |
 | `test_random_streams` (TC-FSY-08) | 8 | 8 |
 | TC-FSY-09 (`lint/synth_check.py`) | 5 configurations synthesise without latches; 6 generics out of range stop the elaboration with their message | 11 |
-| TC-FSY-10 (`lint/vivado_ooc.py`) | Section 5 | Not run |
+| TC-FSY-10 (`lint/libero_synth.py`) | 1 configuration (section 5) | 1 of 1 synthesised |
 
 ## 2. Summary
 
@@ -74,9 +74,16 @@ plan (section 6) fails at least one test; the tests that fail are those the plan
 
 ## 5. Synthesis and timing
 
-Not run yet: TC-FSY-10 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
-configuration `fsy_max`.
+TC-FSY-10 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
+STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
+a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
+reference systems is open (roadmap).
+
+| Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `fsy_max`: 65536 x 65536 pixels of 64 bits, the widest counters and data path | 171.6 | 2.174 | 204 | 276 | 0 | 0 | the output valid flag -> the shadow register of the input stage (4) |
+
+The module meets 125 MHz in the estimate at its widest counters and data path.
 
 The GHDL synthesis of TC-FSY-09 shows that the module is synthesisable at every bound of its generics without latches;
 it gives no timing.
@@ -106,4 +113,4 @@ it gives no timing.
 | --- | --- |
 | FSY-PF-03 bounded the acceptance of the pixel of the image start. The input stage takes that pixel at once, so the bound measured nothing; the completion of a short image delays the output of the next image | FSY-PF-03 bounds the time until the first pixel of the next image is at the output (phase C) |
 | `ispIsImageStart` of `isp_pkg` looked only at bit 0 of the flags (isp_pkg verification report) | Corrected in `isp_pkg` before the first simulation |
-| A reset inside a packet with the flags "01" or "11" makes the rest of that packet an image start at a wrong position (lead review of the module); the behaviour was neither specified nor tested | Specified (section 6 of the specification, integration constraints of the user guide) and tested: test_reset has a held reset inside the "01" packet of the first line; the model gives the misaligned image, its `Err_Framing` pulses and the correct image after it |
+| A reset inside a packet with the flags "01" or "11" makes the rest of that packet an image start at a wrong position (found in review); the behaviour was neither specified nor tested | Specified (section 6 of the specification, integration constraints of the user guide) and tested: test_reset has a held reset inside the "01" packet of the first line; the model gives the misaligned image, its `Err_Framing` pulses and the correct image after it |

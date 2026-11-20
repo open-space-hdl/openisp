@@ -26,7 +26,7 @@ mismatch, a write without a strobe leaves the parity bit unchanged) came with th
 | `test_reset` (TC-CRP-08) | 5 | 5 |
 | `test_rate` (TC-CRP-09) | 3 | 3 |
 | TC-CRP-10 (`lint/synth_check.py`) | 9 configurations synthesise without latches; 9 generics out of range stop the elaboration with a message naming the generic | 18 |
-| TC-CRP-11 (`lint/vivado_ooc.py`) | Section 5 | Not run |
+| TC-CRP-11 (`lint/libero_synth.py`) | 1 configuration (section 5) | 1 of 1 synthesised |
 
 ## 2. Summary
 
@@ -116,19 +116,42 @@ test_parity. The first run, on 2189d17, kept the mutant of the write of only byt
 
 ## 5. Synthesis and timing
 
-Not run yet: TC-CRP-11 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
-configuration `crp_default` (4096 x 4096 pixels of 12 bits, a region of 1024 x 1024 with the position at run time).
+TC-CRP-11 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
+STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
+a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
+reference systems is open (roadmap).
+
+| Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `crp_default`: 4096 x 4096 pixels of 12 bits, a region of 1024 x 1024 at a run-time position (the default) | 184.3 | 2.574 | 422 | 367 | 0 | 0 | the output valid flag -> the column position of the frame sync (5) |
+
+The default configuration meets 125 MHz in the estimate (section 5.1).
 
 The GHDL synthesis of TC-CRP-10 shows that the module is synthesisable at every bound of its generics, with both
 values of `RuntimeRoi_g`, without latches; it gives no timing.
 
-The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`) in the preliminary synthesis on PolarFire MPF100T
-(Libero, Synplify Pro) with a clock of 125 MHz, pre-layout estimates, not a timing closure and not on the reference
-device. `crp_default` gives 194.3 MHz with 430 4LUT on develop fbc18fd and 184.3 MHz with 422 4LUT on commit e9116a7,
-10.0 MHz (5.1 %) lower and above 125 MHz. The worst path differs: on develop the line position -> the column position of
-the frame sync (16 logic levels), with PKG-08 the output valid flag -> the column position of the frame sync (5).
-Neither contains the parity of the writes, which feeds only the parity register of `ROI_POS`.
+### 5.1 The worst path of `crp_default`
+
+The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`, commit e9116a7) changed the estimate of
+`crp_default` from 194.3 MHz with 430 4LUT (develop fbc18fd) to 184.3 MHz with 422 4LUT, and the worst path moved,
+although the parity logic feeds only the parity register of `ROI_POS`. Reports of 20000 paths of both netlists
+(`lint/libero_synth.py --paths`), whose slack and LUT counts equal those of the runs without the option:
+
+| Path | Develop fbc18fd | With PKG-08 |
+| --- | --- | --- |
+| The output valid flag -> the column position of the frame sync | 3.518 ns, 4 logic levels (223.1 MHz) | 2.574 ns, 5 logic levels (184.3 MHz) |
+| The line position -> the column position of the frame sync | 2.854 ns, 16 logic levels (194.3 MHz) | 3.278 ns, 16 logic levels (211.8 MHz) |
+
+On develop the output valid flag (a net of 4 loads) enters a LUT of the frame sync together with `Out_Ready`, the input
+valid flag and the valid flag of the position stage. With PKG-08 the condition "output held" (the output valid flag and
+not `Out_Ready`) is a LUT of its own, whose net (5 loads, 0.683 ns) feeds that LUT of the frame sync, the next output
+valid flag and three LUTs of the crop that combine it with the comparisons of the region: the free position stage (the
+ready to the frame sync, the next valid flag of the stage, the load of the limits), the load enable of the output
+register and the condition of `Err_Config`. The extra LUT and its net add 0.944 ns of arrival. The cones of the parity
+register of `ROI_POS` (its data input, 42 cells, and its enable, 10 cells) share no net with the path. The RTL of the
+module differs only in the next value of that parity bit; the final tree with the file `isp_crop.vhd` of develop gives
+the estimate and the LUT count of develop (194.3 MHz, 430 4LUT). The path is the same logic in both netlists, factored
+differently by the synthesis. No structural change: the default configuration stays 59.3 MHz above 125 MHz.
 
 ## 6. Requirement coverage
 
@@ -167,5 +190,5 @@ The register map of the specification and the register description agree (`tools
 | The UVVM AXI4-Lite BFM rejects an address wider than the bus, also with zero upper bits | The register script gives the address in the width of the bus |
 | The flag sweep, as first built, started the clear after the pixel that causes the pulse: all steps lay after the pulse | The source pauses 4 cycles after the acknowledge; the sweep checks that it has steps before, at and after the pulse |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
-| A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example between two images, therefore became a valid word with the next partial write: masked, not detected (a review of the lead) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; CRP-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
+| A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example between two images, therefore became a valid word with the next partial write: masked, not detected (found in review) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; CRP-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
 | The first mutation run with the mutants of PKG-08, on 2189d17, kept the mutant alive that sets the parity bit for a write of only bytes without bits: every byte of `ROI_POS` holds bits, so such a write is the write without a strobe, which test_parity did not make; the plan expected it from TC-CRP-05 | test_parity writes `ROI_POS` without a strobe, without and with a mismatch (the mutant sets the parity bit to 0, which differs from the parity bit before the write in one of the two, whatever the parity of the position); the plan names the write; the mutant is killed in the run on e9116a7 (section 4). No change of the RTL |

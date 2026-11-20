@@ -32,7 +32,7 @@ on 2026-11-20 on commit f9fad71, 668 of 668 tests passed (89 of them `isp_replac
 | `test_reset` (TC-RPL-10) | 9 | 9 |
 | `test_rate` (TC-RPL-11) | 4 | 4 |
 | TC-RPL-12 (`lint/synth_check.py`) | 7 configurations synthesise without latches; 13 generics out of range stop the elaboration with a message naming the generic | 20 |
-| TC-RPL-13 (`lint/vivado_ooc.py`) | Section 5 | Not run |
+| TC-RPL-13 (`lint/libero_synth.py`) | 2 configurations (section 5) | 2 of 2 synthesised |
 | TC-RPL-14 (review) | Section 6 | Passed |
 
 ## 2. Summary
@@ -158,10 +158,17 @@ single pixel (architecture, section 5).
 
 ## 5. Synthesis and timing
 
-Not run yet: TC-RPL-13 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
-configurations `rpl_default` (2048 x 1024 pixels of 12 bits, G = 2, a map of 65536 words) and `rpl_g7` (24-bit pixels, G
-= 7).
+TC-RPL-13 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
+STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
+a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
+reference systems is open (roadmap).
+
+| Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `rpl_default`: 2048 x 1024 pixels of 12 bits, G = 2, a map of 65536 words (the default) | 133.7 | 0.522 | 7190 | 6643 | 156 | 2 | the map address -> the map RAM (7) |
+| `rpl_g7`: 2048 x 1024 pixels of 24 bits, G = 7 | 128.4 | 0.212 | 9526 | 7434 | 156 | 9 | the column position of the frame sync -> its output data (8) |
+
+Both configurations meet 125 MHz in the estimate (section 5.2).
 
 The GHDL synthesis of TC-RPL-12 shows that the module is synthesisable at the bounds of its generics, with the
 scrubber free running and paced, without latches; the netlist of the default configuration holds the map as a RAM of
@@ -185,6 +192,37 @@ The registered request moves the RAM address off the path from the pixel positio
 ECC decode then limits, mapped with 9 logic levels against 6 in `rpl_default`, until the LSRAM output register takes
 the RAM out of it. The read of a word takes 3 cycles more than in the first row: within a line nothing changes (the
 read-ahead of two words), at the image start pixel (0, 0) waits 3 cycles longer (plan, section 5).
+
+### 5.2 The window of the event decisions in the hierarchy
+
+`isp_replace` contains an `isp_window` of one line (RP-3). The window with the event decisions per state (report of
+`isp_window`, section 5.1) changed the estimates of `rpl_default` from 136.5 MHz with 7272 4LUT to 133.7 MHz with 7190
+4LUT and of `rpl_g7` from 129.8 MHz with 9637 4LUT to 128.4 MHz with 9526 4LUT; the RTL of the module, of its frame
+sync and of the map is the same in both. The final tree with the file `isp_window.vhd` from before that change gives
+the values of section 5.1. Reports of 20000 paths of both netlists (`lint/libero_synth.py --paths`):
+
+| Path | Window before the change | Window with the event decisions per state |
+| --- | --- | --- |
+| `rpl_default`: the map address -> the data input of the map RAM (bit 21, block 0_1) | 1.218 ns, 6 logic levels (147.4 MHz) | 0.522 ns, 7 logic levels (133.7 MHz), the worst path |
+| `rpl_default`: the map address (bit 24) -> the data input of the map RAM (block 0_2) | 0.675 ns, 7 logic levels (136.5 MHz), the worst path | not among the 20000 worst paths |
+| `rpl_g7`: the column position of the frame sync -> its output register | 1.167 ns, 8 logic levels (146.3 MHz) | 0.212 ns, 8 logic levels (128.4 MHz), the worst path |
+| `rpl_g7`: the multiplier of the interpolation -> the output register | 0.296 ns, 5 logic levels (129.8 MHz), the worst path | 0.296 ns, 5 logic levels |
+
+The paths of `rpl_default` are the write of `MAP_DATA`: the compare of the map address with the size of the map, the
+selection of the write data of the RAM between the scrubber and the register write, the ECC encoder and the data
+input of the RAM. Before the change the selection came through a net of 12 loads and a carry cell with a net of 22
+loads; with the change the write enable of the map is one net of 123 loads (1.277 ns), one logic level more.
+
+The path of `rpl_g7` decides the image start of the lookup (pixel (0, 0) at the output of the frame sync), from it the
+ready to the frame sync, and loads the output register of the frame sync. With the change the image-start term takes
+two LUTs in series (0.316 ns more) and the following term drives a net of 3 loads instead of 2 (0.645 ns instead of
+0.146 ns): 0.955 ns more arrival over the same 8 logic levels.
+
+No cell of the window lies on these paths, and in the netlist with the changed window no net of them connects to the
+window; with the window before the change a net of the image-start term of `rpl_g7` also fed the window. The
+synthesis optimizes across the boundary of the window (the netlist connects it through nets of logic shared with the
+module), and the changed window changed the factoring of the logic around it. No structural change: `rpl_default`
+stays 8.7 MHz and `rpl_g7` 3.4 MHz above 125 MHz.
 
 ## 6. Requirement coverage
 

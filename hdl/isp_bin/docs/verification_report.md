@@ -22,7 +22,7 @@ on 2026-11-20 on commit 9f48b53, 663 of 663 tests passed (97 of them `isp_bin`),
 | `test_rate` (TC-BIN-05) | 25 | 25 |
 | TC-BIN-06 (review) | Section 6 | Passed |
 | TC-BIN-07 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 10 generics out of range stop the elaboration with a message naming the generic | 18 |
-| TC-BIN-08 (`lint/vivado_ooc.py`) | Section 5 | Not run |
+| TC-BIN-08 (`lint/libero_synth.py`) | 2 configurations (section 5) | 2 of 2 synthesised |
 
 ## 2. Summary
 
@@ -158,9 +158,17 @@ filters.
 
 ## 5. Synthesis and timing
 
-Not run yet: TC-BIN-08 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
-configurations `bin_default` (2 x 2 valid, 12-bit pixels, 4096 pixels per line) and `bin_4x4_rep`.
+TC-BIN-08 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
+STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
+a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
+reference systems is open (roadmap).
+
+| Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `bin_default`: 2 x 2 valid, 12-bit pixels, 4096 pixels per line (the default) | 176.8 | 2.344 | 585 | 612 | 2 | 0 | the ready copy of the vertical `isp_conv` -> the line buffer RAM of the vertical window (4) |
+| `bin_4x4_rep`: 4 x 4 replicate, 12-bit pixels, 4096 pixels per line | 174.1 | 2.257 | 1399 | 1124 | 3 | 0 | the output valid flag of the vertical window -> its line buffer RAM (5) |
+
+Both configurations meet 125 MHz in the estimate.
 
 The GHDL synthesis of TC-BIN-07 shows that the module is synthesisable at the bounds of its generics, in every border
 mode and with every line buffer resource, without latches; it gives no timing.
