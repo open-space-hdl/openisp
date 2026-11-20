@@ -21,7 +21,7 @@ commit 4cef90a, 601 of 601 tests passed (128 of them `isp_window`), 0 skipped; `
 | `test_reset` (TC-WIN-05) | 11 | 11 |
 | `test_rate` (TC-WIN-06) | 4 | 4 |
 | TC-WIN-07 (review) | Section 6 | Passed |
-| TC-WIN-08 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 18 generics out of range stop the elaboration with a message naming the generic | 26 |
+| TC-WIN-08 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 19 generics out of range stop the elaboration with a message naming the generic | 27 |
 | TC-WIN-09 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
@@ -95,6 +95,10 @@ has them since.
 The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section 7) and ran alone on 2026-11-20 on
 commit 399d8b9 with the same 21 tests; the reference run passed again.
 
+The output dimensions moved into `isp_pkg` (`ispWinOut`, section 7); the mutant that computes them in the border mode
+valid for every border mode ran alone on 2026-11-20 on commit 2d4b4c8 with the same 21 tests (the reference run passed
+again).
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (21 tests) | - |
@@ -114,6 +118,7 @@ commit 399d8b9 with the same 21 tests; the reference run passed again.
 | An event that does not wait for Out_Ready | killed by 15 of 21 tests | test_handshake, test_input_stream, test_reset, test_static |
 | Rows above the image taken from the line buffers (the image before) instead of 0 | killed by 3 of 21 tests | test_ecc, test_static |
 | Stat_ImageOpen tied to 0 | killed by 2 of 21 tests | test_input_stream |
+| The output dimensions of the border mode valid in every border mode | killed by 18 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
 
 ## 5. Synthesis and timing
 
@@ -155,3 +160,4 @@ border mode and every line buffer resource, without latches; it gives no timing.
 | The anchors out of range failed at a derived constant before the check that names the generic; the comparisons of the virtual columns used `VCols_c - 1`, which is -1 without virtual columns | The derived constants are limited to 0 and the comparison is an integer comparison; the positions have one value more |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
 | An audit of the configuration checks of every module found `EccPipeline_g` and `Resource_g` without a check of the module: `EccPipeline_g` 2 stopped the elaboration inside the delay of Open Logic with a range error that does not name the generic, an unknown `Resource_g` only at an assertion of Open Logic of severity error, which not every tool stops at (WIN-CF-01); and the check of WIN-CF-05 compared `Resource_g` with "BRAM" with regard to case, while Open Logic takes "bram" as block RAM | The module checks both generics with severity failure and gives the delays the values in range, so that the elaboration reaches the checks; WIN-CF-05 compares without case. Negatives `win_ecc_2`, `win_resource` and `win_bram_narrow_case` (TC-WIN-08). The bench is unchanged |
+| The output dimensions came from a formula of the module, and in the border mode valid an `ImageWidth_g` below `WinX_g` gave 0 for a positive constant: the elaboration stopped with a range error before the check that names the generic | The dimensions come from `ispWinOut` of `isp_pkg` (one definition with the integrator) and are at least 1, so that the check names the generic (negative `win_width_below_valid`, TC-WIN-08). The test files are unchanged |
