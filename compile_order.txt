@@ -9,3 +9,4 @@ hdl/isp_crop/src/isp_crop_regs_pkg.vhd
 hdl/isp_crop/src/isp_crop.vhd
 hdl/isp_conv/src/isp_conv_regs_pkg.vhd
 hdl/isp_conv/src/isp_conv.vhd
+hdl/isp_filter2d/src/isp_filter2d.vhd

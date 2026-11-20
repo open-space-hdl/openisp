@@ -66,6 +66,20 @@ openisp.isp_conv_tb.size_1x16.*
 openisp.isp_conv_tb.size_16x1.*
 openisp.isp_conv_tb.max.test_static
 
+# isp_filter2d: every test (mtf3, ecc, rate_3); the low bounds in min (1 x 1 image and window, 1 bit, 2-bit
+# coefficients, 1 output bit, border mode valid) and small (the image as large as the window, EccPipeline_g 0, SRL);
+# BRAM and the border mode mirror (mtf5_mirror); zero, saturation and constant coefficients (mtf5_const); a stride
+# and an anchor at 0 (strided); two filters in series (separable)
+openisp.isp_filter2d_tb.mtf3.*
+openisp.isp_filter2d_tb.ecc.*
+openisp.isp_filter2d_tb.rate_3.*
+openisp.isp_filter2d_tb.min.*
+openisp.isp_filter2d_tb.small.*
+openisp.isp_filter2d_tb.mtf5_mirror.test_static
+openisp.isp_filter2d_tb.mtf5_const.test_static
+openisp.isp_filter2d_tb.strided.test_static
+openisp.isp_filter2d_tb.separable.test_static
+
 # isp_replace: every test (g2, flags, rate_g2, exhaustive, clear); G = 1 with the narrowest image; G = 7; 1 bit; a
 # map of one word; the longest read latency; the scrubber overrun
 openisp.isp_replace_tb.g2.*

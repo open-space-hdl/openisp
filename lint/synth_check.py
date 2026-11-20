@@ -124,6 +124,28 @@ CONFIGS += [
 ]
 
 
+def flt(wx, wy, border, cb, runtime, out_bits, ax=None, ay=None, sx=1, sy=1, bits=12, coef_set=0, count=0):
+    """Generics of the wrapper isp_filter2d_synth (lint/isp_filter2d_synth.vhd), images of 1024 x 1024."""
+    ax = (wx - 1) // 2 if ax is None else ax
+    ay = (wy - 1) // 2 if ay is None else ay
+    return {"ImageWidth_g": "1024", "ImageHeight_g": "1024", "PixelBits_g": str(bits), "WinX_g": str(wx),
+            "WinY_g": str(wy), "AnchorX_g": str(ax), "AnchorY_g": str(ay), "StrideX_g": str(sx), "StrideY_g": str(sy),
+            "BorderMode_g": border, "CoefBits_g": str(cb), "RuntimeCoef_g": str(runtime).lower(),
+            "OutBits_g": str(out_bits), "CoefSet_g": str(coef_set), "CoefCount_g": str(count)}
+
+
+# isp_filter2d (TC-FLT-07): the MTF filters, the mode valid, a stride, the horizontal filter of isp_bin and the 3 x 3
+# filter with constant coefficients
+CONFIGS += [
+    ("flt_mtf3", "isp_filter2d_synth", flt(3, 3, "replicate", 16, True, 0)),
+    ("flt_mtf5_mirror", "isp_filter2d_synth", flt(5, 5, "mirror", 16, True, 0)),
+    ("flt_valid", "isp_filter2d_synth", flt(3, 3, "valid", 16, False, 0)),
+    ("flt_strided", "isp_filter2d_synth", flt(4, 2, "replicate", 16, True, 0, ax=1, ay=0, sx=3, sy=2)),
+    ("flt_bin_h", "isp_filter2d_synth", flt(4, 1, "zero", 2, False, 14, ax=0, ay=0, sx=4, coef_set=1)),
+    ("flt_mtf3_const", "isp_filter2d_synth", flt(3, 3, "replicate", 16, False, 0)),
+]
+
+
 def rpl(w, h, bits, g, lat=1, ecc=0, period_ms=0):
     """Generics of the wrapper isp_replace_synth (lint/isp_replace_synth.vhd)."""
     return {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "PixelBits_g": str(bits), "MaxGap_g": str(g),
@@ -199,6 +221,14 @@ NEGATIVE += [
     ("cnv_coef_more", "isp_conv_synth", dict(CNV_OK, CoefCount_g="1"), "isp_conv: Coef_g must have"),
     ("cnv_coef_low", "isp_conv_synth", dict(CNV_OK, CoefOffset_g="-1"), "isp_conv: Coef_g values must be"),
     ("cnv_coef_high", "isp_conv_synth", dict(CNV_OK, CoefOffset_g="65536"), "isp_conv: Coef_g values must be"),
+]
+
+FLT_OK = flt(3, 3, "replicate", 16, True, 0)
+NEGATIVE += [
+    ("flt_x_17", "isp_filter2d_synth", dict(FLT_OK, WinX_g="17"), "WinX_g must be 1 to 16"),
+    ("flt_coef_bits_19", "isp_filter2d_synth", dict(FLT_OK, CoefBits_g="19"), "isp_conv: CoefBits_g must be 2 to 18"),
+    ("flt_border", "isp_filter2d_synth", dict(FLT_OK, BorderMode_g="wrap"), "isp_window: BorderMode_g must be"),
+    ("flt_coef_fewer", "isp_filter2d_synth", dict(FLT_OK, CoefCount_g="-1"), "isp_conv: Coef_g must have"),
 ]
 
 RPL_OK = rpl(40, 6, 12, 2)

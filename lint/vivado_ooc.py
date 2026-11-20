@@ -58,6 +58,12 @@ CONFIGS = {
                              "Coef_g": [1] * 256, "RuntimeCoef_g": True}, False),
     "cnv_bin4": ("isp_conv", {"PixelBits_g": 12, "WinX_g": 1, "WinY_g": 4, "CoefBits_g": 2, "Coef_g": [1] * 4,
                               "RuntimeCoef_g": False}, False),
+    # isp_filter2d TC-FLT-08: the MTF compensation, 5 x 5 mirror, 12-bit pixels, 16-bit run-time coefficients,
+    # 4096 pixels per line
+    "flt_mtf5": ("isp_filter2d", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "PixelBits_g": 12, "WinX_g": 5,
+                                  "WinY_g": 5, "BorderMode_g": "mirror", "CoefBits_g": 16,
+                                  "Coef_g": [0, -1, -1, -1, 0, -1, -2, -4, -2, -1, -1, -4, 44, -4, -1, -1, -2, -4, -2,
+                                             -1, 0, -1, -1, -1, 0], "RuntimeCoef_g": True}, False),
     # isp_replace TC-RPL-13: the default configuration (a map of 65536 words) and the widest one
     "rpl_default": ("isp_replace", {"ImageWidth_g": 2048, "ImageHeight_g": 1024, "PixelBits_g": 12, "MaxGap_g": 2},
                     False),
@@ -66,9 +72,12 @@ CONFIGS = {
 
 
 def vhdl_value(value):
-    """A generic value as VHDL: booleans in lower case, lists as named aggregates (also of one element)."""
+    """A generic value as VHDL: booleans in lower case, strings quoted, lists as named aggregates (also of one
+    element)."""
     if isinstance(value, bool):
         return str(value).lower()
+    if isinstance(value, str):
+        return '"{}"'.format(value)
     if isinstance(value, (list, tuple)):
         return "(" + ", ".join("{} => {}".format(i, v) for i, v in enumerate(value)) + ")"
     return str(value)

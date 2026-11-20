@@ -14,6 +14,7 @@ from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, 
                        ecc_decode, frame_sync, point, point_op, window, conv, conv_full_bits, CNV_COEF,
                        CNV_CTRL, CNV_INJECT, CNV_STATUS)
 from isp_model import RPL_MAP_ADDR, RPL_MAP_DATA, RPL_STATUS, replace, replace_pixel  # noqa: E402
+from isp_model import bin_sum, filter2d  # noqa: E402
 from isp_tbgen import packets  # noqa: E402
 
 
@@ -409,3 +410,39 @@ def test_replace_ecc_only_used_words():
     out, _, _, ex = replace(items + packets(pix, [40, 40, 40]), w, h, 12, 2)
     assert ex["sec"] == 1 and [o[1] for o in out if o[0] == "B"][-120:] == pix
 
+
+def test_filter2d_composition():
+    pix = image(3, 3)
+    ones = [1] * 9
+    out = filter2d(packets(pix, [9]), 3, 3, 8, 3, 3, coef_bits=2, coef=ones)[0]
+    assert out[0][1] == 11 + 11 + 12 + 11 + 11 + 12 + 21 + 21 + 22
+    centre = [0, 0, 0, 0, 1, 0, 0, 0, 0]
+    out = filter2d(packets(pix, [9]), 3, 3, 8, 3, 3, coef_bits=2, coef=centre)[0]
+    assert [o[1] for o in out] == pix
+
+
+def test_bin_definition():
+    pix = image(5, 3)
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "valid")[0]
+    assert [(o[1], o[2], o[3]) for o in out] == [(66, 0, 3), (74, 1, 3)]
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "zero")[0]
+    assert [o[1] for o in out] == [66, 74, 40, 63, 67, 35]
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "replicate")[0]
+    assert out[5][1] == 35 * 4 and out[3][1] == 31 + 32 + 31 + 32
+
+
+def test_bin_equals_two_filters():
+    # The definition of a bin and the two filters in series give the same images (model consistency)
+    import random
+    rng = random.Random(7)
+    for w, h, bx, by, border in [(13, 9, 2, 2, "valid"), (13, 9, 3, 5, "zero"), (14, 12, 3, 5, "replicate"),
+                                 (8, 6, 4, 1, "zero"), (5, 12, 1, 4, "replicate")]:
+        pix = [rng.getrandbits(8) for _ in range(w * h)]
+        items = packets(pix, [w] * h)
+        ref = [o[1] for o in bin_sum(items, w, h, 8, bx, by, border)[0]]
+        wo = w // bx if border == "valid" else -(-w // bx)
+        mid = filter2d(items, w, h, 8, bx, 1, 0, 0, bx, 1, border, 2, [1] * bx)[0]
+        mid_bits = 8 + (bx - 1).bit_length()
+        ho_items = packets([o[1] for o in mid], [wo] * h)
+        out = filter2d(ho_items, wo, h, mid_bits, 1, by, 0, 0, 1, by, border, 2, [1] * by)[0]
+        assert [o[1] for o in out] == ref, (w, h, bx, by, border)
