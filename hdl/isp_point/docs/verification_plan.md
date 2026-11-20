@@ -39,6 +39,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `w1_h65536` | 1 x 65536 | 12 / 12 / 16 | 28 | 2 | false | -100, 1229, 10, 0, -1 | 10 % / 10 % |
 | `w1_h4` | 1 x 4 | 12 / 12 / 16 | 28 | 2 | false | -100, 1229, 10, 0, -1 | 10 % / 10 % |
 | `generic_bounds` | 4 x 3 | 32 / 32 / 18 | 50 | 2 | false | -2^31, 2^18 - 1, 50, 2^31 - 1, -1 | none |
+| `defaults` | 6 x 4 | 12 / 12 / 16 | 28 | 2 | false | the defaults; the module with every generic but the dimensions and the pixel bits at the default of its entity (`DutDefaults_g`) | 20 % / 20 % |
 
 Generic coverage:
 
@@ -48,7 +49,7 @@ Generic coverage:
 | `InBits_g` | 1 to 64 | 1, 4, 8, 12, 16, 32, 64 | 1, 12, 64 |
 | `OutBits_g` | 1 to 32 | 1, 4, 8, 12, 32 | 1, 12, 32 |
 | `GainBits_g` | 1 to 18 | 1, 3, 16, 18 | 1, 16, 18 |
-| `MaxShift_g` | 0 to `InBits_g` + `GainBits_g` + 1 | 0, 6, 8, 9, 28, 32, 50, 83 (the upper bound for 64 / 18) | 0 and the upper bound |
+| `MaxShift_g` | 0 to `InBits_g` + `GainBits_g` + 1 | 0, 6, 8, 9, 28, 32, 50, 83 (the upper bound for 64 / 18); 28 also as the default of the entity | 0, the upper bound and the default `InBits_g` + `GainBits_g` (12 and 64-bit input pixels) |
 | `MultStages_g` | 1 to 4 | every value | every value |
 | `Runtime_g` | false, true | both | both |
 | `Offset_g`, `Gain_g`, `Shift_g`, `Low_g`, `High_g` | section 4 of the specification | the bounds (-2^31, 2^31 - 1, 0, 2^18 - 1, the largest shift, -1 and 0 for `High_g`) and typical values | the bounds |
@@ -78,12 +79,12 @@ the run-time parameters are swept exhaustively (`exhaustive`) cover them.
 | `test_runtime` (TC-PNT-03) | Parameter sets written between images: random sets, the gains 0, 1 and the largest, the shifts 0, the largest, `MaxShift_g` + 1 and 127 (taken as `MaxShift_g`), the most negative and the largest offset, `Low` above `High`, `Low` equal to `High`; a set written during an image takes effect with the next image; every register read back (offset sign-extended, unused bits) | PNT-FN-01, PNT-FN-04, PNT-FN-05, PNT-RG-03, PNT-RG-05 |
 | `test_hold` (TC-PNT-04) | `CTRL.HOLD` 1: several registers written over two images, which keep the set before; `CTRL.HOLD` 0: the next image takes the whole new set; `CTRL.HOLD` 1 with a register of bad parity takes no set and reports nothing | PNT-FN-04 |
 | `test_parity` (TC-PNT-05) | Bits 0 to 5 of `INJECT` in turn: the next image and every further image use the generics with one `Err_Config` each until the register is written; two bits at once; a second injection that restores the parity. Bit 6 (`CTRL`) with `CTRL.HOLD` 1: the held set is taken at every image start, with one `Err_Config` each, until `CTRL` is written, which restores the parity and the hold. An injection without the strobe of byte 0 and with `Runtime_g` false has no effect | PNT-ER-03, PNT-ER-04, PNT-FT-02, PNT-RG-04, PNT-FT-01 |
-| `test_registers` (TC-PNT-06) | `ID`, `IMAGE`, `PARAM`, the reset values (also `HIGH` from the sentinel -1, `OFFSET_HI` the sign of `Offset_g`); writes with every single byte strobe; writes to read-only registers (and to the parameter registers with `Runtime_g` false) without effect; unused addresses read 0; `STATUS` flags set by their events, kept by a write of 0, cleared by a write of 1; `INJECT` reads 0 | PNT-RG-01, PNT-RG-02, PNT-RG-03, PNT-RG-05, PNT-IF-03 |
+| `test_registers` (TC-PNT-06) | `ID`, `IMAGE`, `PARAM` (in `defaults` `MAX_SHIFT` the default of the entity), the reset values (also `HIGH` from the sentinel -1, `OFFSET_HI` the sign of `Offset_g`); writes with every single byte strobe; writes to read-only registers (and to the parameter registers with `Runtime_g` false) without effect; unused addresses read 0; `STATUS` flags set by their events, kept by a write of 0, cleared by a write of 1; `INJECT` reads 0 | PNT-RG-01, PNT-RG-02, PNT-RG-03, PNT-RG-05, PNT-IF-03 |
 | `test_flag_coincidence` (TC-PNT-07) | The clears of `STATUS.ERR_FRAMING` and `STATUS.ERR_CONFIG` swept cycle by cycle across an `Err_Framing` pulse (a discarded pixel) and an `Err_Config` pulse (an image start with a register of bad parity), as in `isp_crop` (TC-CRP-07); each sweep has steps before, at and after the pulse | PNT-RG-02 |
 | `test_exhaustive` (TC-PNT-08) | Configuration `exhaustive` (4-bit pixels, 3-bit gain): every combination of offset (-16 to 15), gain (0 to 7) and shift (0 to 8 and 127, of which 7, 8 and 127 are taken as `MaxShift_g` = 6, below the width of the product) as a run-time set, each over an image of all 16 pixel values (2560 sets), with the thresholds 0 / 15, 2 / 13 and 9 / 5 (`Low` above `High`) in turn: every output against the model | PNT-FN-01, PNT-FN-05 |
 | `test_reset` (TC-PNT-09) | Resets idle, held and running during an image, of one and two cycles; after the reset the registers hold the generics and the next image uses them | PNT-FT-03, PNT-IF-05, PNT-ER-02 |
 | `test_rate` (TC-PNT-10) | Configurations `runtime_rate` and `stages_<n>`: images back to back, `In_Ready` high for every beat, every pixel at the output exactly `MultStages_g` + 5 cycles after its acceptance, one pixel per cycle at the output | PNT-PF-01, PNT-PF-02 |
-| TC-PNT-11 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2 and both values of `Runtime_g`; `InBits_g` 65, `OutBits_g` 33, `GainBits_g` 19, `MaxShift_g` above `InBits_g` + `GainBits_g` + 1, `MultStages_g` 5, `Gain_g` 2^`GainBits_g` and `Low_g` 2^`OutBits_g` stop the elaboration with their message | PNT-CF-01, PNT-CF-02 |
+| TC-PNT-11 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2, both values of `Runtime_g`, and every generic but the dimensions and the pixel bits at the default of the entity (12 and 64-bit input pixels); `InBits_g` 65, `OutBits_g` 33, `GainBits_g` 19, `MaxShift_g` above `InBits_g` + `GainBits_g` + 1, `MultStages_g` 5, `Gain_g` 2^`GainBits_g` and `Low_g` 2^`OutBits_g` stop the elaboration with their message | PNT-CF-01, PNT-CF-02 |
 | TC-PNT-12 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation of the default configuration (4096 x 4096 pixels, 16 / 12 / 16 bits, run-time registers) and of `wide` (64 / 32 / 18 bits, four multiplier stages) at 150 MHz on the Versal device of the reference systems, on the build machine | PNT-CF-03 |
 
 ## 4. Requirement coverage

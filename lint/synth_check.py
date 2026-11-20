@@ -70,6 +70,12 @@ def pnt(w, h, inb, outb, gainb, maxs, ms, runtime, offset=0, gain=1, shift=0, lo
 CONFIGS += [
     ("pnt_default_rt", "isp_point", pnt(4096, 4096, 16, 12, 16, 32, 2, True)),
     ("pnt_min", "isp_point", pnt(1, 1, 1, 1, 1, 0, 1, False)),
+    # Every generic but the dimensions and the pixel bits at the default of the entity (MaxShift_g InBits_g +
+    # GainBits_g), also with 64-bit input pixels
+    ("pnt_defaults", "isp_point", {"ImageWidth_g": "4096", "ImageHeight_g": "4096", "InBits_g": "12",
+                                   "OutBits_g": "12"}),
+    ("pnt_defaults_64", "isp_point", {"ImageWidth_g": "16", "ImageHeight_g": "16", "InBits_g": "64",
+                                      "OutBits_g": "32"}),
     ("pnt_min_rt", "isp_point", pnt(1, 1, 1, 1, 1, 3, 1, True)),
     ("pnt_max_rt", "isp_point", pnt(65536, 65536, 64, 32, 18, 83, 4, True)),
     ("pnt_max", "isp_point", pnt(65536, 65536, 64, 32, 18, 83, 3, False, -2 ** 31, 2 ** 18 - 1, 83, 2 ** 31 - 1)),
@@ -218,6 +224,8 @@ NEGATIVE += [
     ("win_y_17", "isp_window", dict(WIN_OK, WinY_g="17", ImageHeight_g="20"), "isp_window: WinY_g must be 1 to 16"),
     ("win_width_below", "isp_window", dict(WIN_OK, ImageWidth_g="2"), "isp_window: ImageWidth_g must be WinX_g to"),
     ("win_height_below", "isp_window", dict(WIN_OK, ImageHeight_g="2"), "isp_window: ImageHeight_g must be WinY_g"),
+    ("win_width_below_valid", "isp_window", dict(WIN_OK, ImageWidth_g="2", BorderMode_g="valid"),
+     "isp_window: ImageWidth_g must be WinX_g to"),
     ("win_width_65537", "isp_window", dict(WIN_OK, ImageWidth_g="65537"), "ImageWidth_g must be"),
     ("win_bits_33", "isp_window", dict(WIN_OK, PixelBits_g="33"), "isp_window: PixelBits_g must be 1 to 32"),
     ("win_anchor_x", "isp_window", dict(WIN_OK, AnchorX_g="3"), "isp_window: AnchorX_g must be 0 to"),

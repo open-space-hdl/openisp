@@ -15,7 +15,7 @@ implements it, and with the test cases that verify these module requirements.
 | --- | --- | --- | --- | --- | --- |
 | ISP-STR-01 | AXI4-Stream handshake | `isp_frame_sync` | BIN-IF-01, BIN-IF-02, CNV-IF-01, CNV-IF-02, CRP-IF-01, CRP-IF-02, FLT-IF-01, FLT-IF-02, FSY-IF-01, FSY-IF-02, PNT-IF-01, PNT-IF-02, RPL-IF-01, RPL-IF-02, WIN-IF-01, WIN-IF-02 | TC-BIN-01, TC-CNV-01, TC-CRP-01, TC-FLT-01, TC-FSY-01, TC-PNT-01, TC-RPL-01, TC-WIN-01 | Verified |
 | ISP-STR-02 | Raster order, packets, sequence flags | `isp_frame_sync` | BIN-IF-01, BIN-IF-02, CNV-IF-02, CRP-IF-01, CRP-IF-02, FLT-IF-01, FLT-IF-02, FSY-IF-01, FSY-IF-02, PKG-01, PNT-IF-01, PNT-IF-02, RPL-IF-01, RPL-IF-02, WIN-IF-01 | TC-BIN-01, TC-CNV-01, TC-CRP-01, TC-FLT-01, TC-FSY-01, TC-PKG-01, TC-PNT-01, TC-RPL-01, TC-WIN-01 | Verified |
-| ISP-STR-03 | Dimensions and pixel width by generics | `isp_crop` | BIN-FN-03, CRP-FN-01, FLT-FN-02, PKG-02, PNT-FN-01, RPL-FN-03, WIN-FN-02 | TC-BIN-01, TC-CRP-01, TC-FLT-01, TC-PKG-01, TC-PNT-01, TC-PNT-03, TC-PNT-08, TC-RPL-01, TC-RPL-02, TC-WIN-01 | Verified |
+| ISP-STR-03 | Dimensions and pixel width by generics | `isp_crop` | BIN-FN-03, CRP-FN-01, FLT-FN-02, PKG-02, PKG-06, PKG-07, PNT-FN-01, RPL-FN-03, WIN-FN-02 | TC-BIN-01, TC-CRP-01, TC-FLT-01, TC-PKG-01, TC-PKG-03, TC-PNT-01, TC-PNT-03, TC-PNT-08, TC-RPL-01, TC-RPL-02, TC-WIN-01 | Verified |
 | ISP-STR-04 | Any division into packets | `isp_frame_sync` | BIN-FN-04, CRP-FN-02, FLT-FN-03, FSY-FN-02, FSY-PB-01, PKG-03, PNT-FN-02, RPL-FN-03, WIN-FN-03 | TC-BIN-01, TC-BIN-05, TC-BIN-06, TC-CRP-02, TC-FLT-01, TC-FLT-02, TC-FLT-03, TC-FSY-01, TC-FSY-08, TC-PKG-01, TC-PNT-02, TC-RPL-01, TC-RPL-02, TC-WIN-01, TC-WIN-02 | Verified |
 | ISP-STR-05 | One packet per line at the output | `isp_frame_sync` | BIN-FN-03, CNV-FN-02, CRP-FN-03, FLT-FN-02, FSY-FN-03, PNT-FN-02, RPL-FN-03, WIN-IF-03 | TC-BIN-01, TC-CNV-01, TC-CNV-08, TC-CRP-01, TC-FLT-01, TC-FSY-01, TC-PNT-02, TC-RPL-01, TC-RPL-02, TC-WIN-01 | Verified |
 | ISP-STR-06 | Output is a legal input | `isp_frame_sync` | BIN-FN-03, CNV-FN-02, CRP-FN-03, FLT-FN-02, FSY-FN-03, PNT-FN-02, RPL-FN-03, WIN-IF-03 | TC-BIN-01, TC-CNV-01, TC-CNV-08, TC-CRP-01, TC-FLT-01, TC-FSY-01, TC-PNT-02, TC-RPL-01, TC-RPL-02, TC-WIN-01 | Verified |
@@ -32,9 +32,9 @@ implements it, and with the test cases that verify these module requirements.
 | ISP-FLT-01 | Window with border modes | `isp_window` | FLT-FN-01, WIN-FN-01, WIN-FN-02, WIN-IF-02 | TC-FLT-01, TC-WIN-01 | Verified |
 | ISP-FLT-02 | Linear filter at full precision | `isp_conv` | CNV-FN-01, CNV-IF-01, FLT-FN-01, PKG-05 | TC-CNV-01, TC-CNV-02, TC-CNV-07, TC-FLT-01, TC-PKG-01 | Verified |
 | ISP-FLT-03 | Window size by generics, coefficients at run time | `isp_conv` | CNV-FN-03, CNV-FN-04, FLT-FN-03 | TC-CNV-01, TC-CNV-02, TC-CNV-03, TC-CNV-08, TC-FLT-01, TC-FLT-02, TC-FLT-03 | Verified |
-| ISP-FLT-04 | Stride | `isp_window` | FLT-FN-02, WIN-FN-02 | TC-FLT-01, TC-WIN-01 | Verified |
+| ISP-FLT-04 | Stride | `isp_window` | FLT-FN-02, PKG-06, WIN-FN-02 | TC-FLT-01, TC-PKG-03, TC-WIN-01 | Verified |
 | ISP-BIN-01 | Binning as a configuration of the filter | `isp_bin` | BIN-FN-01, BIN-FN-04 | TC-BIN-01, TC-BIN-05, TC-BIN-06 | Verified |
-| ISP-BIN-02 | Incomplete bins by the border mode | `isp_bin` | BIN-FN-02 | TC-BIN-01 | Verified |
+| ISP-BIN-02 | Incomplete bins by the border mode | `isp_bin` | BIN-FN-02, PKG-07 | TC-BIN-01, TC-PKG-03 | Verified |
 | ISP-RPL-01 | Replacement by interpolation in the line | `isp_replace` | RPL-FN-01, RPL-FN-02 | TC-RPL-01, TC-RPL-09, TC-RPL-14 | Verified |
 | ISP-RPL-02 | Defect map of one bit per pixel | `isp_replace` | RPL-FN-04, RPL-FN-05, RPL-RG-03, RPL-RG-04 | TC-RPL-01, TC-RPL-03, TC-RPL-04, TC-RPL-07 | Verified |
 | ISP-RPL-03 | Largest distance by a generic | `isp_replace` | RPL-ER-02, RPL-FN-01 | TC-RPL-01, TC-RPL-09, TC-RPL-14 | Verified |
@@ -61,9 +61,9 @@ requirement included).
 | `isp_crop` | 29 | 29 | - |
 | `isp_filter2d` | 15 | 15 | - |
 | `isp_frame_sync` | 28 | 28 | - |
-| `isp_pkg` | 5 | 5 | - |
+| `isp_pkg` | 7 | 7 | - |
 | `isp_point` | 28 | 28 | - |
 | `isp_replace` | 30 | 30 | - |
 | `isp_window` | 27 | 27 | - |
 
-Requirements: 201; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 203; without a test case: 0; test cases of the plans not run by a testbench: 0.

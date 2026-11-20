@@ -48,7 +48,7 @@ the packets of the output image.
 | Ax, Ay | `AnchorX_g`, `AnchorY_g` | Reference pixel in the window |
 | Rr, Rb | `WinX_g` - 1 - Ax, `WinY_g` - 1 - Ay | Columns right of the reference pixel, lines below it |
 | X0, Y0 | 0 in the border modes zero, replicate, mirror; Ax, Ay in the border mode valid | First reference pixel |
-| Wo, Ho | Specification, section 1.1 | Output image |
+| Wo, Ho | Specification, section 1.1: `ispWinOut` of `isp_pkg` (PKG-06), at least 1 | Output image |
 | XL, YL | X0 + (Wo - 1) x `StrideX_g`, Y0 + (Ho - 1) x `StrideY_g` | Last reference pixel of a line, last line with reference pixels |
 
 ## 5. Events (WN-2)

@@ -26,7 +26,8 @@ openisp.isp_crop_tb.w1_h1.*
 openisp.isp_crop_tb.w8_h6_line.*
 
 # isp_point: every test (runtime, runtime_rate, exhaustive, shift_limit); width 1 (w1_h4); height 1 (exhaustive);
-# 1 bit and one multiplier stage (narrow); the widest generics and the values of the generics at their bounds
+# 1 bit and one multiplier stage (narrow); the widest generics and the values of the generics at their bounds;
+# the defaults of the entity (defaults)
 openisp.isp_point_tb.runtime.*
 openisp.isp_point_tb.runtime_rate.*
 openisp.isp_point_tb.exhaustive.*
@@ -35,6 +36,7 @@ openisp.isp_point_tb.w1_h4.*
 openisp.isp_point_tb.narrow.*
 openisp.isp_point_tb.wide.*
 openisp.isp_point_tb.generic_bounds.*
+openisp.isp_point_tb.defaults.*
 
 # isp_window: every test (row9, the rate configurations, ecc_bram_1, ecc_srl_1); 1 bit; 32 bits; windows 1 x 16 and
 # 16 x 1; the image as large as the window, with border mode valid and EccPipeline_g 0 (an output of 1 x 1); the
