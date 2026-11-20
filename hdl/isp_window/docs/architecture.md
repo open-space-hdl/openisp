@@ -114,7 +114,14 @@ mode has its reference pixel in the middle, WIN-CF-02), and always a line of the
 
 The selection depends on the line only: on ye up to `WinY_g` - 2 for the upper border and on the number of the
 virtual line for the lower border. The event control sets a row select vector at the start of every line from a
-constant table; every column passes `WinY_g` multiplexers of at most `WinY_g` + 1 inputs.
+constant table; every column passes `WinY_g` multiplexers of at most `WinY_g` + 1 inputs. For the lines without a
+border (from `WinY_g` - 1 to H - 1) the selection is the same, row j from delay `WinY_g` - 1 - j; at the end of a line
+the event control compares the line of the event with the few lines whose next line has another selection (the lines
+of the upper border and the virtual lines) and takes the constant selection of the line found, so that no arithmetic on
+the line number lies between the event and the row select register. Pixel (0, 0) restarts the selection with that of
+line 0: the column of the registered selection and the column of line 0 are both formed, and pixel (0, 0), taken from
+the position of the frame sync itself, chooses between them, so that the decision does not pass through the selection of
+the event position and the row multiplexers after it.
 
 ### 7.2 Left and right border
 
@@ -128,7 +135,29 @@ last one. `Out_Data` is the register itself. The border modes act on what is loa
 | replicate | The event of column 0 loads its column into all columns | The new column is a copy of the last one |
 | mirror | The event of column k (1 to Ax) also loads its column into the column 2k places before the last | HCOL m (1 to Rr) loads the column 2m - 1 places before the last, which holds column W - 1 - m |
 
-`BorderMode_g` is a generic, so only the multiplexers of the selected mode exist.
+`BorderMode_g` is a generic, so only the multiplexers of the selected mode exist. The decisions come from the state
+and the registered column counter (HCOL m = `VCol` + 1, and a VPIX column) or from the position of the frame sync (a
+PIX column), each compared before the state selects, not from the position of the event after its selection.
+
+These decisions equal those on the event position (xe, ye), because the position of an event is fixed by its state:
+
+| State | Event position (xe, ye) | Range of xe |
+| --- | --- | --- |
+| `Pix_s` (PIX) | the position of the frame sync | 0 to W - 1 (the frame sync counts within the image) |
+| `HCol_s` (HCOL) | (W + `VCol`, the line of the event) | W to W + Rr - 1 |
+| `VPix_s` (VPIX) | (`VCol`, `VLine`) | 0 to W - 1 |
+
+So xe >= W holds in `HCol_s` only, xe = 0 in a PIX at frame sync column 0 or in the first VPIX of a virtual line, and
+xe = k for 1 <= k <= Ax in a PIX or VPIX at column k. Pixel (0, 0) needs the state `Pix_s` and a PIX at (0, 0): no
+HCOL (xe >= W >= 1) and no VPIX (ye >= H) has that position, and a pixel (0, 0) of the next image that waits at the
+frame sync during the virtual events of an image is not taken before `Pix_s`.
+
+The row selection of the next line equals `rowSelect`(ye + 1) for the same reason of constant structure. For a next
+line n = ye + 1 from `WinY_g` - 1 to H - 1, the lines of its rows, n - (`WinY_g` - 1) + j for j = 0 to `WinY_g` - 1,
+all lie from 0 to H - 1: no border rule applies, and row j takes delay `WinY_g` - 1 - j, the same selection for every
+such n. Only the next lines 1 to `WinY_g` - 2 (rows above line 0) and H to H - 1 + Rb (the virtual lines) have other
+selections, and after the last line of an image the next line is 0; the event control compares ye with these lines
+(ye = n - 1) and takes `rowSelect`(n) as a constant.
 
 ## 8. Output (WN-5)
 
