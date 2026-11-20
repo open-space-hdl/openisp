@@ -6,11 +6,12 @@ Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 `python run.py -p 4`, 425 of 425 tests passed (122 of them `isp_conv`), 0 skipped.
 QuestaSim runs with the release regression (with and without code coverage).
 
-The write decode with one address compare per coefficient (architecture, section 6): `python run.py -p 4` on
-2026-11-20 on commit 8787093, 668 of 668 tests passed (122 of them `isp_conv`), 0 skipped; `lint/synth_check.py`
-(TC-CNV-11) passed. The change keeps every cycle: the ports of the module in 40 tests (the configurations `mtf3`,
-`min`, `max`, `wide`, `mtf5_const`, `ones4` and `rate_3`, every test of each) are identical in every time step
-before and after it, and the generated stimuli and expected outputs of every configuration are unchanged.
+The write decode with one address compare per coefficient and the parity of a write from the parities of its bytes
+(architecture, section 6) keep every cycle: in all 122 tests of the module, the 29 signals at the ports of the module
+(the reset, the input and output streams, the AXI4-Lite channels and `Err_Config`) are identical in every time step
+between commit ac061ff (before the change) and commit dbcce6e, and the generated stimuli and expected outputs of every
+configuration are unchanged (488 files). The test bench, the model and the shared bench sources are the same in both
+commits.
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
@@ -125,6 +126,26 @@ configurations `cnv_mtf3`, `cnv_mtf5` (12-bit pixels, 16-bit run-time coefficien
 The GHDL synthesis of TC-CNV-11 shows that the module is synthesisable at the bounds of its generics with both values
 of `RuntimeCoef_g`, without latches; it gives no timing.
 
+### 5.1 The register write
+
+The preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro) with a clock of 125 MHz, pre-layout estimates,
+not a timing closure and not on the reference device, found the write of a coefficient register on the worst path of
+every configuration with run-time coefficients: the index of the register computed from the address, the stored
+coefficient selected among all T for the merge of the written bytes, the parity of the merged word and the write
+enables decoded again. The write now compares the address with each register by itself (one compare per
+coefficient), and the parity of a write comes from the parities of the bytes (the write data for a written byte, the
+stored bits for a kept one), so that the byte merge feeds only the register:
+
+| Configuration | Before (MHz, 4LUT) | One compare per coefficient, the parity of the merged word | With the parity from the bytes (the design) | Worst path of the design |
+| --- | --- | --- | --- | --- |
+| `cnv_mtf3` (3 x 3) | 132.3, 1093 | 180.3, 1187 | 178.8, 1061 | the image-start load of the working set (4 logic levels) |
+| `cnv_mtf5` (5 x 5) | 124.4, 2792 | 160.9, 3196 | 156.2, 2758 | a coefficient -> the working set (8) |
+| `cnv_max` (16 x 16) | 79.4, 21930 | 118.0, 29122 | 116.2, 24507 | the register address -> the read data, the read multiplexer of 256 coefficients (16) |
+
+`cnv_max`, the largest configuration and not a default, stays below 125 MHz: its worst path is the read multiplexer of
+the 256 coefficient registers, which answers a read in the cycle after it (CV-4). A register stage there would add a
+cycle to every register read; the configuration is recorded instead.
+
 ## 6. Requirement coverage
 
 | Requirement | Test cases | Status |
@@ -156,3 +177,4 @@ of `RuntimeCoef_g`, without latches; it gives no timing.
 | The synthesis check with a `Coef_g` of T - 1 values stopped with an index error in the function that builds the coefficient set of the generic, before the check of CNV-CF-01 could name the generic | The function fills the missing values with 0, so that the elaboration reaches the check and stops with its message |
 | `test_static` sent one image as a single packet with the flags "11", which `isp_window` never delivers; the contract checker of the sink rejected it. `test_reset` resumed the interrupted image after the reset, which a window stream does not do either, since `isp_window` is reset with the module and restarts at an image start | `test_static` sends window streams of one packet per line (the other packet shapes stay in `test_packets`, with the checker off); `test_reset` stops the window stream at the reset and sends the next image; the plan states it. No change of the RTL |
 | `lint/vivado_ooc.py` read one declaration per line and wrote generic values as plain text: the port `Out_Data` of `isp_conv` continues on a second line, and `Coef_g` is a vector | The script joins continued declarations and writes lists as named aggregates; the top levels of the earlier configurations are unchanged, byte for byte |
+| The preliminary synthesis at 125 MHz on PolarFire MPF100T found the write of a coefficient register on the worst path of every configuration with run-time coefficients (`cnv_mtf5` 124.4 MHz, `cnv_max` 79.4 MHz, in `isp_filter2d` 108.0 MHz): the register selected by an index computed from the address for the merge of the written bytes and the parity | One address compare per coefficient and the parity of a write from the parities of its bytes (architecture, section 6; section 5.1): `cnv_mtf3` 178.8 MHz, `cnv_mtf5` 156.2 MHz, with fewer LUT than before; no cycle changes (section 1); four mutants of the write decode (plan, section 6) |
