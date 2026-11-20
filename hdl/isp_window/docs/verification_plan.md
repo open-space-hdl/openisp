@@ -157,6 +157,10 @@ the verification report, and the wrong one is corrected. A derivation is never a
 | An event that does not wait for `Out_Ready` | TC-WIN-01 (stalls), 03 |
 | Rows above the image taken from the line buffers (the image before) instead of 0 | TC-WIN-01, 05 |
 | `Stat_ImageOpen` tied to 0 (a port stuck at 1 fails every probe after a complete image, which expects 0) | TC-WIN-02 (the probe of the open image) |
+| Pixel (0, 0) detected from x alone (the rows of line 0 at the first pixel of every line) | TC-WIN-01 (`WinY_g` > 1) |
+| The column of pixel (0, 0) from the registered row selection (no restart of the rows) | TC-WIN-02, 05 (an image cut inside a line, WIN-FT-03) |
+| The left border of a virtual line not taken (the first VPIX) | TC-WIN-01 (`rep3`, `zero3`: the lower border) |
+| The left mirror of a virtual line not taken | TC-WIN-01 (`mirror5`, mirror sweep: the lower border) |
 
 ## 7. Expected coverage exclusions
 

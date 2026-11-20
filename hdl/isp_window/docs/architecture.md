@@ -114,7 +114,10 @@ mode has its reference pixel in the middle, WIN-CF-02), and always a line of the
 
 The selection depends on the line only: on ye up to `WinY_g` - 2 for the upper border and on the number of the
 virtual line for the lower border. The event control sets a row select vector at the start of every line from a
-constant table; every column passes `WinY_g` multiplexers of at most `WinY_g` + 1 inputs.
+constant table; every column passes `WinY_g` multiplexers of at most `WinY_g` + 1 inputs. Pixel (0, 0) restarts the
+selection with that of line 0: the column of the registered selection and the column of line 0 are both formed, and
+pixel (0, 0), taken from the position of the frame sync itself, chooses between them, so that the decision does not
+pass through the selection of the event position and the row multiplexers after it.
 
 ### 7.2 Left and right border
 
@@ -128,7 +131,9 @@ last one. `Out_Data` is the register itself. The border modes act on what is loa
 | replicate | The event of column 0 loads its column into all columns | The new column is a copy of the last one |
 | mirror | The event of column k (1 to Ax) also loads its column into the column 2k places before the last | HCOL m (1 to Rr) loads the column 2m - 1 places before the last, which holds column W - 1 - m |
 
-`BorderMode_g` is a generic, so only the multiplexers of the selected mode exist.
+`BorderMode_g` is a generic, so only the multiplexers of the selected mode exist. The decisions come from the state
+and the registered column counter (HCOL m = `VCol` + 1, and a VPIX column) or from the position of the frame sync (a
+PIX column), each compared before the state selects, not from the position of the event after its selection.
 
 ## 8. Output (WN-5)
 
