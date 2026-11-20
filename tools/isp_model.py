@@ -749,14 +749,17 @@ def filter2d(items, width, height, pixel_bits, win_x, win_y, anchor_x=None, anch
                                    "timing": timing}
 
 
+def bin_count(n, factor, border):
+    """Bins along an axis of n pixels (specification of isp_bin, section 1.1): the complete bins in the border mode
+    valid, every bin with at least one pixel of the image otherwise."""
+    return n // factor if border == "valid" else -(-n // factor)
+
+
 def bin_sum(items, width, height, pixel_bits, bin_x, bin_y, border):
     """isp_bin from the definition of a bin (specification, section 1.1): the sum of the pixels p' of every bin, for
     the Wo x Ho bins of the border mode. Returns (out, framing errors, annot)."""
     assert border in ("valid", "zero", "replicate")
-    if border == "valid":
-        wo, ho = width // bin_x, height // bin_y
-    else:
-        wo, ho = -(-width // bin_x), -(-height // bin_y)
+    wo, ho = bin_count(width, bin_x, border), bin_count(height, bin_y, border)
     fs = FrameSync(width, height)
     out, annot = [], []
     count = 0
@@ -830,7 +833,7 @@ def bin_filters(items, width, height, pixel_bits, bin_x, bin_y, border):
     input beat that completed the bin of every output pixel (-1 for a bin completed by a virtual pixel)."""
     assert border in ("valid", "zero", "replicate")
     ph, q = pixel_bits + log2ceil(bin_x), pixel_bits + log2ceil(bin_x * bin_y)
-    wo_h = width // bin_x if border == "valid" else -(-width // bin_x)
+    wo_h = bin_count(width, bin_x, border)
     hor = SumFilter(width, height, pixel_bits, bin_x, 1, border, ph) if bin_x > 1 else None
     ver = SumFilter(wo_h, height, ph, 1, bin_y, border, q) if bin_y > 1 else None
     fs = FrameSync(width, height) if hor is None and ver is None else None

@@ -20,6 +20,9 @@
 library ieee;
     use ieee.std_logic_1164.all;
 
+library std;
+    use std.textio.all;
+
 library uvvm_util;
     context uvvm_util.uvvm_util_context;
 
@@ -35,7 +38,9 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity isp_pkg_tb is
     generic (
-        runner_cfg : string
+        runner_cfg : string;
+        -- Table of the output dimensions from the reference model (test_dimensions, vunit_config.py)
+        DimFile_g  : string := ""
     );
 end entity;
 
@@ -64,6 +69,18 @@ begin
     p_main : process is
         variable Exp_v  : boolean;
         variable Bits_v : natural;
+        variable L_v    : line;
+        variable W_v    : string(1 to WordMax_c);
+        variable Len_v  : natural;
+        variable Kind_v : character;
+        variable N_v    : positive;
+        variable Win_v  : positive;
+        variable Str_v  : positive;
+        variable Got_v  : natural;
+        variable Ref_v  : natural;
+        variable Rows_v : natural;
+
+        file F_v : text;
     begin
         test_runner_setup(runner, runner_cfg);
 
@@ -131,6 +148,41 @@ begin
                     check_value(ispIsImageStart(Meta_c(i), "11"), false, ERROR, "metavalue in first, flags 11");
                 end loop;
 
+            elsif run("test_dimensions") then
+                -- PKG-06, PKG-07: every line of the table: W n win stride border expected, or B n factor border expected
+                file_open(F_v, DimFile_g, read_mode);
+                Rows_v := 0;
+
+                while not endfile(F_v) loop
+                    readline(F_v, L_v);
+                    readWord(L_v, W_v, Len_v);
+                    next when Len_v = 0;
+                    Kind_v := W_v(1);
+                    readWord(L_v, W_v, Len_v);
+                    N_v    := decToInt(W_v(1 to Len_v));
+                    readWord(L_v, W_v, Len_v);
+                    Win_v  := decToInt(W_v(1 to Len_v));
+                    if Kind_v = 'W' then
+                        readWord(L_v, W_v, Len_v);
+                        Str_v := decToInt(W_v(1 to Len_v));
+                    end if;
+                    readWord(L_v, W_v, Len_v);
+                    if Kind_v = 'W' then
+                        Got_v := ispWinOut(N_v, Win_v, Str_v, W_v(1 to Len_v));
+                    else
+                        Got_v := ispBinOut(N_v, Win_v, W_v(1 to Len_v));
+                    end if;
+                    readWord(L_v, W_v, Len_v);
+                    Ref_v := decToInt(W_v(1 to Len_v));
+                    if Got_v /= Ref_v then
+                        error(Kind_v & " n " & integer'image(N_v) & " size " & integer'image(Win_v) & ": " &
+                              integer'image(Got_v) & ", the model " & integer'image(Ref_v));
+                    end if;
+                    Rows_v := Rows_v + 1;
+                end loop;
+
+                file_close(F_v);
+                check_value(Rows_v > 40000, ERROR, "rows of the table: " & integer'image(Rows_v));
             end if;
         end loop;
 

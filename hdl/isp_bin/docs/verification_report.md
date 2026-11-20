@@ -93,7 +93,9 @@ tests: the 3 of `bin2_zero`, test_static of `bin2_valid` and `bin3x5_rep`, test_
 test_ecc of `ecc` and `bits1`, and test_rate of `rate_rep`, `rate_tall`, `rate_x_only`, `rate_y_only` and `rate_none`.
 Every one of the 13 mutants of the plan (section 6) fails at least one test, and the tests that fail include those the
 plan expects. A mutant that changes several places of the source carries all of them in one run. A first run on 2eb6d50,
-before the change of the probe wait, gave the same results.
+before the change of the probe wait, gave the same results. The width of the narrowed image moved into `isp_pkg`
+(`ispBinOut`); its mutant, now on the call of the function, ran alone on 2026-11-20 on commit 2d4b4c8 with the same 14
+tests and failed the same 4 tests.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
