@@ -24,6 +24,7 @@ library ieee;
 
 library olo;
     use olo.olo_base_pkg_math.all;
+    use olo.olo_base_pkg_attribute.all;
 
 library work;
     use work.isp_pkg.all;
@@ -187,6 +188,18 @@ architecture rtl of isp_conv is
 
     signal r, r_next : TwoProcess_r;
 
+    -- A copy of the valid flag of the output register for In_Ready alone: the enable of the stages drives every
+    -- register of the pipeline, and its fanout stays off the ready path of the module in front (architecture,
+    -- section 4). The synthesis keeps the copy as a register of its own.
+    signal OutVldDup : std_logic;
+
+    attribute dont_merge of OutVldDup   : signal is DontMerge_SuppressChanges_c;
+    attribute preserve of OutVldDup     : signal is Preserve_SuppressChanges_c;
+    attribute syn_preserve of OutVldDup : signal is SynPreserve_SuppressChanges_c;
+    attribute syn_keep of OutVldDup     : signal is SynKeep_SuppressChanges_c;
+    attribute dont_touch of OutVldDup   : signal is DontTouch_SuppressChanges_c;
+    attribute keep of OutVldDup         : signal is Keep_SuppressChanges_c;
+
     -- Register bus of the AXI4-Lite slave
     signal Rb_Addr    : std_logic_vector(11 downto 0);
     signal Rb_Wr      : std_logic;
@@ -282,13 +295,9 @@ begin
         v           := r;
         v.ErrConfig := '0';
 
-        -- All stages advance together when the output register is empty or its beat transfers
+        -- All stages advance together when the output register is empty or its beat transfers; In_Ready is the same
+        -- condition on the copy of the valid flag
         Advance_v := r.Flags(L_c + 2)(0) = '0' or Out_Ready = '1';
-        if Advance_v then
-            In_Ready <= '1';
-        else
-            In_Ready <= '0';
-        end if;
 
         if Advance_v then
             -- CV-3: output register, 0 for a negative sum, saturation to B bits
@@ -453,6 +462,7 @@ begin
         r_next <= v;
     end process;
 
+    In_Ready   <= '1' when OutVldDup = '0' or Out_Ready = '1' else '0';
     Out_Valid  <= r.Flags(L_c + 2)(0);
     Out_Data   <= r.OutData;
     Out_Last   <= r.Flags(L_c + 2)(1);
@@ -462,8 +472,10 @@ begin
     p_seq : process (Clk) is
     begin
         if rising_edge(Clk) then
-            r <= r_next;
+            r         <= r_next;
+            OutVldDup <= r_next.Flags(L_c + 2)(0);
             if Rst = '1' then
+                OutVldDup   <= '0';
                 r.Coef      <= GenCoefs_c;
                 r.Parity    <= GenParity_c;
                 r.Hold      <= '0';
