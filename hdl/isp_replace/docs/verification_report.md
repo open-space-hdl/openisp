@@ -6,6 +6,10 @@ Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 `python run.py -p 4`, 509 of 509 tests passed (84 of them `isp_replace`), 0 skipped.
 QuestaSim runs with the release regression (with and without code coverage).
 
+The status-output audit added a probe of `Stat_ImageOpen` and a read of `STATUS` while an image is open
+(test_input_stream, test_registers) and the exact count of `Scrub_EccDed` (test_scrub): `python run.py -p 4` on
+2026-11-20 on commit 399d8b9, 542 of 542 tests passed (84 of them `isp_replace`), 0 skipped.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-RPL-01) | 27 (with the sweeps) | 27 |
@@ -52,14 +56,16 @@ first. The simulation model of the RAM of Open Logic starts with zeros, which ar
   one `Stat_EccDed` per image), the sticky flags, a new write that ends the reports; a single error on a word that
   pixel (0, 0) reads ahead and a reset while word 0 is in use: no report, and one report in the next image.
 - Scrubber: single and double errors injected with the scrubber off, then the scrubber on without images: one
-  `Scrub_EccSec` per corrected word, `Scrub_EccDed` for the double error, `Scrub_PassDone`; an image after it reports
-  only the double error; images with the scrubber running. With the pacer (one tick per clock cycle at
-  `ClkFreqHz_g` 1000): 10 passes in 3000 cycles with a period of 300 cycles, no overrun; a period shorter than a
-  pass pulses `Scrub_Overrun`.
-- Registers: identification, dimensions, parameters, the words of the map, the reset values, every single byte
-  strobe on `MAP_ADDR`, a write of `MAP_DATA` with the strobe of byte 0 only (all 32 bits written), read-only and
-  write-only registers, unused addresses, every flag of `STATUS` set by its event, kept by a write of 0 and by a
-  write without the strobe of its byte, cleared by a write of 1. Every access was answered with OKAY.
+  `Scrub_EccSec` per corrected word, `Scrub_EccDed` once per pass for the double error in the last word of the map (the
+  exact count of the plan, section 5), `Scrub_PassDone`; an image after it reports only the double error; images with
+  the scrubber running. With the pacer (one tick per clock cycle at `ClkFreqHz_g` 1000): 10 passes in 3000 cycles with a
+  period of 300 cycles, no overrun; a period shorter than a pass pulses `Scrub_Overrun`.
+- `Stat_ImageOpen` is 1 while an image is open (an image cut after half of its pixels) and 0 after complete images.
+- Registers: identification, dimensions, parameters, the words of the map, `STATUS.IMAGE_OPEN` during an image, the
+  reset values, every single byte strobe on `MAP_ADDR`, a write of `MAP_DATA` with the strobe of byte 0 only (all 32
+  bits written), read-only and write-only registers, unused addresses, every flag of `STATUS` set by its event, kept by
+  a write of 0 and by a write without the strobe of its byte, cleared by a write of 1. Every access was answered with
+  OKAY.
 - Resets idle, held and running, of one and two cycles, during a line, while the window outputs the virtual columns
   of a line, and between two images: the registers return to their reset values, the map stays, the next images are
   correct. A reset of one cycle swept over the cycles of the map reads of pixel (0, 0), with the next image right
@@ -102,6 +108,12 @@ A first run on 6431301 kept two mutants alive, both equivalent for the tests of 
 mode mirror, which the plan now replaces by the window that carries the mark instead of the operational flag, and the
 division constant one bit shorter, which the configuration `exhaustive_p6` now kills.
 
+The mutation run was repeated on 2026-11-20 on commit 399d8b9 after the status-output audit (section 7), with the same
+14 tests and the three mutants of the audit; the table shows that run. Every one of the 19 mutants fails at least one
+test. The read-ahead across the image start is no longer killed by test_scrub: that test wrote its double error into a
+random word, in `g2` word 0, which the mutant reads before the injection; the double error is now in the last word of
+the map (plan, section 5). test_map_update, the test the plan names, kills it as before.
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (14 tests) | - |
@@ -112,7 +124,7 @@ division constant one bit shorter, which the configuration `exhaustive_p6` now k
 | A one-sided replacement from the wrong side | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
 | An unreplaced pixel output as 0 and not reported | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
 | The division constant one bit shorter (K = PixelBits_g + 7) | killed by 1 of 14 tests | test_exhaustive |
-| The read-ahead across the image start (words 0 and 1 read at the end of the image before) | killed by 10 of 14 tests | test_clear, test_map_update, test_registers, test_reset, test_scrub, test_static |
+| The read-ahead across the image start (words 0 and 1 read at the end of the image before) | killed by 9 of 14 tests | test_clear, test_map_update, test_registers, test_reset, test_static |
 | No new word at the first pixel of a line (the word counter not advanced at the end of a line) | killed by 12 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_reset, test_scrub, test_static |
 | MAP_ADDR cut to the width of the map address | killed by 3 of 14 tests | test_map_update, test_registers |
 | MAP_ADDR counted up by a write without effect | killed by 3 of 14 tests | test_clear, test_map_update |
@@ -121,6 +133,9 @@ division constant one bit shorter, which the configuration `exhaustive_p6` now k
 | Stat_Unreplaced pulsed when the pixel enters the output register (not when it leaves the module) | killed by 1 of 14 tests | test_reset |
 | No Stat_EccSec pulse with a read | killed by 2 of 14 tests | test_ecc, test_registers |
 | The error flags of a word reported when it is read, not when it comes in use | killed by 1 of 14 tests | test_ecc |
+| Stat_ImageOpen tied to 0 | killed by 1 of 14 tests | test_input_stream |
+| STATUS.IMAGE_OPEN tied to 0 | killed by 1 of 14 tests | test_registers |
+| Scrub_EccSec and Scrub_EccDed exchanged | killed by 1 of 14 tests | test_scrub |
 
 ## 5. Synthesis and timing
 
@@ -177,3 +192,4 @@ scrubber free running and paced, without latches; the netlist of the default con
 | `test_reset` placed its running reset at random. In a running reset the sink takes a random number of the dropped beats before the reset, so a dropped unreplaced pixel could leave the module and report: the count of `Stat_Unreplaced` differed from the model by one in two configurations | The running reset is placed where no dropped pixel is unreplaced; the held resets need no such care, since no dropped beat leaves the module |
 | The first mutation run (6431301) kept the mutant of the border mode mirror alive. It is equivalent: a place outside the image then reaches only a pixel that the search on the other side finds nearer, and the interpolation of a pixel with itself is that pixel; the border mode replicate is equivalent as well | The mutant of a place outside taken as operational is the window that carries the mark instead of the operational flag, so that the zero border reads as operational |
 | The first mutation run also kept the division constant one bit shorter alive: with 4-bit pixels it gives the right quotient for every reachable numerator. A model of the division over every width from 1 to 24 bits shows that K = P + 8 is exact and that K = P + 7 fails only at 5, 6, 9, 17, 18 and 21 bits (for d = 13, values near the top) | The configuration `exhaustive_p6` runs every pair of 6-bit values with every pair of distances |
+| The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found three gaps in this bench: `Stat_ImageOpen` probed only after complete images, where it is 0; `STATUS.IMAGE_OPEN` never read as 1; `Scrub_EccDed` checked only as at least one pulse, not against the count of the design | test_input_stream probes `Stat_ImageOpen` while an image is open; test_registers reads `STATUS` while an image is open; test_scrub checks `Scrub_EccDed` exactly, one pulse per pass for the word with the double error, which is now the last word of the map, and the bench switches the scrubber off only at the end of a pass (derivation in the plan, section 5). The mutants `Stat_ImageOpen` tied to 0, `STATUS.IMAGE_OPEN` tied to 0 and the exchange of `Scrub_EccSec` and `Scrub_EccDed` are killed (section 4). No change of the RTL |

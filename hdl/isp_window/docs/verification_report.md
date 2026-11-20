@@ -6,6 +6,9 @@ Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 `python run.py -p 4`, 303 of 303 tests passed (128 of them `isp_window`), 0 skipped. QuestaSim runs with the release
 regression (with and without code coverage).
 
+The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
+`python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (128 of them `isp_window`), 0 skipped.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-WIN-01) | 83 (with the sweeps) | 83 |
@@ -30,8 +33,8 @@ every test, and no window carried a metavalue.
   column window, the largest window (16 x 16 of 32-bit pixels), an image equal to the window, images of 65536 x 3 and
   3 x 65536 pixels, pixel widths of 1, 2, 6, 8, 12, 14, 16, 31 and 32 bits. Every image follows an image with other
   content, so a window element from a line of the image before would fail the comparison (WIN-FT-04).
-- Input streams in every division into packets and malformed: the output images are complete, `Err_Framing` and
-  `Stat_ImageOpen` follow the model.
+- Input streams in every division into packets and malformed: the output images are complete, `Err_Framing` follows
+  the model, and `Stat_ImageOpen` is 1 while an image is open and 0 after complete images.
 - Handshakes: the sink held during the virtual columns, during the windows of the lower border and while the first
   pixels of the next image arrive; gaps and stalls in most configurations.
 - ECC: per line buffer single errors on a data bit, a Hamming parity bit and the overall parity bit (corrected, one
@@ -86,6 +89,9 @@ image before, which are 0, so the mutant is equivalent wherever the rows above t
 lines (`AnchorY_g` <= Rb). A first run on a882181 without `col5` and `anchor_0_2_zero` kept it alive; the set of tests
 has them since.
 
+The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section 7) and ran alone on 2026-11-20 on
+commit 399d8b9 with the same 21 tests; the reference run passed again.
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (21 tests) | - |
@@ -104,6 +110,7 @@ has them since.
 | Injection patterns of the delays in reverse order | killed by 4 of 21 tests | test_ecc |
 | An event that does not wait for Out_Ready | killed by 15 of 21 tests | test_handshake, test_input_stream, test_reset, test_static |
 | Rows above the image taken from the line buffers (the image before) instead of 0 | killed by 3 of 21 tests | test_ecc, test_static |
+| Stat_ImageOpen tied to 0 | killed by 2 of 21 tests | test_input_stream |
 
 ## 5. Synthesis and timing
 
@@ -144,3 +151,4 @@ border mode and every line buffer resource, without latches; it gives no timing.
 | test_handshake, as first built, held the sink right after an image and then sent two pixels of the next image; with pixels of the image still in the input stage, the source waited on a beat that could not enter and never released the sink | The builder holds the sink only with no input pending and sends the first pixels of the next image from an idle module |
 | Review of the pull request: `Stat_EccSec` and `Stat_EccDed` were the OR over all line buffers in every pixel event, so the rows that the border rule replaces reported errors although their pixels never reach a window: the image before, and after power-up any content of a RAM that the device does not initialise | The flags of a line buffer count only when the row selection of the event uses it (WIN-FT-02, WIN-IF-04); `test_ecc` injects into replaced rows, the configurations `ecc_bottom` and `ecc_bottom_zero` read a last-line injection in the first line of the next image, and the plan has a mutant without the gate |
 | The anchors out of range failed at a derived constant before the check that names the generic; the comparisons of the virtual columns used `VCols_c - 1`, which is -1 without virtual columns | The derived constants are limited to 0 and the comparison is an integer comparison; the positions have one value more |
+| The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |

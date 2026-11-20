@@ -6,6 +6,9 @@ Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 `python run.py -p 4`, 124 of 124 tests passed (48 of them `isp_crop`), 0 skipped. QuestaSim runs with the release
 regression (with and without code coverage).
 
+The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
+`python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (48 of them `isp_crop`), 0 skipped.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-CRP-01) | 11 | 11 |
@@ -28,7 +31,8 @@ the source and stalls of the sink, and the contract checker of the sink found th
 image, as one pixel, a line, a column and the whole image, in images from 1 x 1 to 65536 x 1 and 1 x 65536 pixels.
 
 - Input streams in every division into packets and malformed (short images, pixels without an image start, wrong end
-  flags, random packets): the output images are complete, and the numbers of `Err_Framing` pulses equal the model.
+  flags, random packets): the output images are complete, the numbers of `Err_Framing` pulses equal the model, and
+  `Stat_ImageOpen` is 1 while an image is open and 0 after complete images.
 - Run-time positions: (0, 0), the largest valid position and random ones, a write during an image (used from the
   next image), writes with single byte strobes (the other bytes keep their value), each read back. Invalid positions
   (one column or line too far, both, 0xFFFF in both fields): the image uses the generics, `Err_Config` pulses once per
@@ -71,6 +75,9 @@ the 15 tests of the configurations `w8_h6_runtime`, `w8_h6_runtime_rate`, `w33_h
 of the plan (section 6) fails at least one test; the tests that fail are those the plan expects. The mutant without
 a range check changes the number of output pixels; the watchdog of the bench ends those tests.
 
+The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section 7) and ran alone on 2026-11-20 on
+commit 399d8b9 with the same 15 tests; the reference run passed again.
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (15 tests) | - |
@@ -87,6 +94,7 @@ a range check changes the number of output pixels; the watchdog of the bench end
 | Pixels outside the region wait for the output | killed by 1 of 15 tests | test_rate |
 | No Err_Config pulse | killed by 4 of 15 tests | test_flag_coincidence, test_invalid_position, test_parity, test_registers |
 | ROI_POS not set to the generics by the reset | killed by 5 of 15 tests | test_input_stream, test_rate, test_registers, test_reset, test_static |
+| Stat_ImageOpen tied to 0 | killed by 2 of 15 tests | test_input_stream |
 
 ## 5. Synthesis and timing
 
@@ -134,3 +142,4 @@ The register map of the specification and the register description agree (`tools
 | The first mutation run hung on a mutant that changed the number of output pixels: the sink waited for a beat that never came | Every testbench has a watchdog derived from the size of the test files (docs/testbench.md, section 6) |
 | The UVVM AXI4-Lite BFM rejects an address wider than the bus, also with zero upper bits | The register script gives the address in the width of the bus |
 | The flag sweep, as first built, started the clear after the pixel that causes the pulse: all steps lay after the pulse | The source pauses 4 cycles after the acknowledge; the sweep checks that it has steps before, at and after the pulse |
+| The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
