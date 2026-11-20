@@ -174,6 +174,33 @@ architecture rtl of isp_window is
         return Sel_v;
     end function;
 
+    -- Row selection of the line after line ye of the events: rowSelect(ye + 1), and rowSelect(0) after the last line
+    -- of an image. The selection differs from that of the lines without a border (ye + 1 from WinY_g - 1 to H - 1) only
+    -- for the lines of the upper border and the virtual lines: compares of ye with these few lines and constant
+    -- selections, no arithmetic on the line (architecture, section 7.1)
+    function nextRowSel (ye : unsigned) return RowSel_t is
+        variable Sel_v : RowSel_t := rowSelect(WinY_g - 1);
+    begin
+
+        for y in 1 to WinY_g - 2 loop
+            if ye = y - 1 then
+                Sel_v := rowSelect(y);
+            end if;
+        end loop;
+
+        for y in H_c to H_c - 1 + VLines_c loop
+            if ye = y - 1 then
+                Sel_v := rowSelect(y);
+            end if;
+        end loop;
+
+        if ye >= H_c - 1 + VLines_c then
+            Sel_v := rowSelect(0);
+        end if;
+
+        return Sel_v;
+    end function;
+
     -- Event states (architecture, section 5)
     type State_t is (Pix_s, HCol_s, VPix_s);
 
@@ -585,7 +612,7 @@ begin
                     Next_v := to_integer(Ye_v) + 1;
                 end if;
                 v.NextLine := to_unsigned(Next_v, YW_c);
-                v.RowSel   := rowSelect(Next_v);
+                v.RowSel   := nextRowSel(Ye_v);
             end if;
         end if;
 
