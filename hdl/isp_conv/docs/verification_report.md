@@ -83,9 +83,14 @@ the 24 tests of the configurations `mtf3`, `mtf5_const`, `ones4`, `exhaustive`, 
 test_static of `taps_5` and `taps_33` and test_registers of `wide`. Every mutant of the plan (section 6) fails at
 least one test, and the tests that fail include those the plan expects.
 
+The mutation run was repeated on 2026-11-20 on commit 208766e, the write decode with one address compare per
+coefficient (architecture, section 6), with the same 24 tests and four mutants of the write decode; the table shows
+that run. Every one of the 17 mutants fails at least one test. The write with byte enables merged into zeros is killed
+by test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-03).
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
-| None (reference) | passes (24 tests) | - |
+| None (reference) | passes (24 tests) |  |
 | A negative sum not set to 0 (wraps) | killed by 19 of 24 tests | test_exhaustive, test_flag_coincidence, test_hold, test_packets, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
 | No saturation below the full precision (truncation) | killed by 6 of 24 tests | test_exhaustive, test_packets, test_parity, test_registers, test_reset, test_static |
 | An element multiplied as a signed number (its top bit as sign) | killed by 24 of 24 tests | test_exhaustive, test_flag_coincidence, test_hold, test_packets, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
@@ -99,6 +104,10 @@ least one test, and the tests that fail include those the plan expects.
 | A coefficient read back without sign extension | killed by 6 of 24 tests | test_registers, test_reset, test_runtime |
 | Out_Last one stage early | killed by 24 of 24 tests | test_exhaustive, test_flag_coincidence, test_hold, test_packets, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
 | A stage that does not wait for the common enable (the adder tree advances in every cycle) | killed by 20 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
+| A coefficient write that lands in the coefficient after its address | killed by 9 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime |
+| The parity bit of a coefficient not set by its write | killed by 8 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime |
+| A write with byte enables merged into zeros instead of the stored coefficient | killed by 2 of 24 tests | test_registers |
+| INJECT.PARITY flips the parity bit of every coefficient | killed by 1 of 24 tests | test_parity |
 
 ## 5. Synthesis and timing
 
