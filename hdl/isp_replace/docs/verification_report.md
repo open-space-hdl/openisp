@@ -15,17 +15,17 @@ commit 4cef90a, 601 of 601 tests passed (84 of them `isp_replace`), 0 skipped; `
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
-| `test_static` (TC-RPL-01) | 27 (with the sweeps) | 27 |
+| `test_static` (TC-RPL-01) | 28 (with the sweeps) | 28 |
 | `test_input_stream` (TC-RPL-02) | 8 | 8 |
 | `test_map_update` (TC-RPL-03) | 8 | 8 |
 | `test_clear` (TC-RPL-04) | 1 | 1 |
-| `test_ecc` (TC-RPL-05) | 8 | 8 |
+| `test_ecc` (TC-RPL-05) | 9 | 9 |
 | `test_scrub` (TC-RPL-06) | 10 | 10 |
-| `test_registers` (TC-RPL-07) | 8 | 8 |
+| `test_registers` (TC-RPL-07) | 9 | 9 |
 | `test_flag_coincidence` (TC-RPL-08) | 1 | 1 |
 | `test_exhaustive` (TC-RPL-09) | 2 | 2 |
 | `test_reset` (TC-RPL-10) | 8 | 8 |
-| `test_rate` (TC-RPL-11) | 3 | 3 |
+| `test_rate` (TC-RPL-11) | 4 | 4 |
 | TC-RPL-12 (`lint/synth_check.py`) | 7 configurations synthesise without latches; 13 generics out of range stop the elaboration with a message naming the generic | 20 |
 | TC-RPL-13 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 | TC-RPL-14 (review) | Section 6 | Passed |
@@ -95,7 +95,7 @@ Measured timing (test_rate) and coincidence (test_flag_coincidence), with Lat = 
 | `PixelBits_g` | 1 to 24 | 1, 4, 6, 8, 10, 12, 24 | 1, 12, 24; 25 stops the elaboration |
 | `MaxGap_g` | 1 to 7 | every value | 1, 2, 7; 0 and 8 stop the elaboration |
 | `RamRdLatency_g` | 1 to 3 | every value, crossed with every `EccPipeline_g` | 1, 2, 3; 4 stops the elaboration |
-| `EccPipeline_g` | 0 to 2 | every value | 0, 1, 2; 3 stops the elaboration |
+| `EccPipeline_g` | 0 to 2 | every value; 1 also as the default of the entity (`defaults`, `defaults_rate`) | 0, 1 (the default, `rpl_default`), 2; 3 stops the elaboration |
 | `RamStyle_g` | values of Open Logic | the default (an attribute for the synthesis tool only) | the default |
 | `ClkFreqHz_g`, `ScrubPeriod_g` | 1000.0 to 2.14748e11 when paced; 0.0, or 0.001 to 1073741.823 s | 150 MHz free running (0.0); 1000 Hz with 300 ms and 5 ms | 150 MHz with 0.0, 1 ms and 1073741.823 s; 1 ms at 1000 Hz and at 2.14748e11 Hz; a negative period, 0.0005 and 1073741.824 s, 999 Hz and 2.14748001e11 Hz stop the elaboration |
 
