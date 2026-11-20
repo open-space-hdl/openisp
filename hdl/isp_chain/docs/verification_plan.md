@@ -260,8 +260,11 @@ plus the time of the writes.
   case.
 
 `small` (line period 7, P = 21): S_first = 14 and S_last = 14 + 6 (`isp_point`) + 1 + 4 (`isp_crop`) + 7 + 1 + 12
-(`isp_filter2d`) + 2 x 7 + 2 + 20 (`isp_bin`) = 81: Delta = 67 > P, so back-to-back images leave no window, and
-`test_registers` releases the sets in a pause between two images.
+(`isp_filter2d`) + 2 x 7 + 2 + 20 (`isp_bin`) = 81: Delta = 67 > P, so back-to-back images leave no window.
+`test_registers` runs the variant with a pause: the source stops after the last pixel of image k (18 cycles after
+its start), sets the release S_last + 1 = 82 cycles after the image start, and starts image k + 1 only after the
+writes (it waits for them). The pause between the two images is therefore at least Delta - P plus the time of the
+writes, and the window becomes S_last < t < S_first + P + the pause.
 
 The procedure as the user guide states it today (4.2) concerns one module. Applied to several modules at an arbitrary
 time, it can give one image different sets: a release between s_first(k) and s_last(k) gives image k the old set in the

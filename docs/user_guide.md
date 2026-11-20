@@ -157,7 +157,12 @@ time can give one image the old set in the first modules and the new one in the 
 Example: `isp_replace` (40 x 20 pixels, `MaxGap_g` 2), `isp_point`, `isp_crop` (32 x 16 at (4, 2)), a 3 x 3
 `isp_filter2d`, a 2 x 2 `isp_bin` and `isp_point`, with run-time sets in both `isp_point`, `isp_crop` and
 `isp_filter2d`: line period 42, P = 840, S_first = 2 + 14 = 16, S_last = 16 + 7 + 92 + 56 + 61 = 232; the window is
-232 < t < 856 cycles after the image start.
+232 < t < 856 cycles after the image start. The latencies of the table are the bounds of the specifications, so the
+window is conservative; the design values in the verification plans of the modules give a slightly wider one (14 and
+229 cycles in this example). Without a window: 5 x 3 pixels of 1 bit through `isp_replace` (`MaxGap_g` 2),
+`isp_point`, `isp_crop` (3 x 3 at (1, 0)), a 3 x 3 `isp_filter2d` and a 3 x 3 `isp_bin` to `isp_point`: P = 21,
+S_first = 16, S_last = 84. The source stops after an image, the release comes at least 84 cycles after its start,
+and the next image starts after the writes: a pause of at least 47 cycles plus the writes.
 
 ### 4.3 Parity of the parameter registers
 

@@ -335,13 +335,36 @@ def build_registers(rng, x):
         items += packets(pix[:k_mix], [k_mix], last=False) + acc + packets(pix[k_mix:], [x.n - k_mix], first=False)
         items += [("K", m)] + x.image(rng)
     else:
-        # small: the window of section 5.4 does not exist for back-to-back images (Delta > P); the release in a pause
-        # between two images
-        items += x.access(*release) + x.image(rng) + x.image(rng, "random")
+        # small: Delta = S_last - S_first is not shorter than P, back-to-back images leave no window (section 5.4).
+        # The source stops after the last pixel of image k, sets the release S_last + 1 cycles after the image start
+        # and starts image k + 1 only after the writes: the pause is at least Delta - P plus the time of the writes
+        s_first, s_last, period, last_pixel = release_times(c)
+        assert s_last - s_first >= period
+        acc, m = x.access_now(*release)
+        items += x.image(rng) + [("T", s_last + 1 - (last_pixel + 1))] + acc + [("K", m)]
+        items += x.image(rng) + x.image(rng, "random")
     items += x.access(*point_reads("point1"), *point_reads("point2"), ("crop", rd(CRP_ROI_POS)),
                       ("filter2d", rd(CNV_CTRL)), ("filter2d", rd(CNV_STATUS)), ("point1", rd(PNT_STATUS)),
                       ("point2", rd(PNT_STATUS)), ("crop", rd(CRP_STATUS)))
     return items + x.settle(8) + [("P",)]
+
+
+def release_times(c):
+    """S_first and S_last of section 5.4 (the delays of the image start to the first and the last isp_point, from the
+    design values of the module plans: the upper latencies), the image period P and the cycle of the last pixel of an
+    image after its start at the input, for the order typical with images back to back."""
+    w, h, g = c["w"], c["h"], c["rpl"]["g"]
+    line = w + g
+    s_first = g + 12
+    s = s_first + c["p1"]["stages"] + 5
+    r, f, b = c["crp"], c["flt"], c["bin"]
+    s += r["y"] * line + r["x"] + 4
+    rr = rb = (f["win"] - 1) // 2
+    s += rb * line + rr + 8 + log2ceil(f["win"] * f["win"])
+    lx, ly = log2ceil(b["x"]), log2ceil(b["y"])
+    s += (b["y"] - 1) * line + (b["x"] - 1) + 16 + lx + ly
+    period = h * line
+    return s_first, s, period, (h - 1) * line + w - 1
 
 
 def build_ecc(rng, x):
