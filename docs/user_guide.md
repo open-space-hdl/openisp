@@ -78,10 +78,14 @@ A module accepts one pixel per clock cycle within a line. It holds its input in 
 | Completion of a short image | every module with a frame sync | One cycle per missing pixel, when the next image starts |
 | Right border of every line | `isp_window`, `isp_filter2d` (border modes zero, replicate, mirror) | `WinX_g` - 1 - `AnchorX_g` cycles |
 | Right border of every line | `isp_bin` (border modes zero, replicate) | `BinX_g` - 1 cycles |
-| Right border of every line | `isp_replace` | `MaxGap_g` cycles; between the first pixels of lines 0 and 1 of an image max(`MaxGap_g`, `RamRdLatency_g` + `EccPipeline_g` + 1) cycles, the wait for word 0 of the defect map (RPL-PF-01) |
+| Right border of every line | `isp_replace` | `MaxGap_g` cycles; between the first pixels of lines 0 and 1 of an image the wait for word 0 of the defect map: `RamRdLatency_g` + `EccPipeline_g` + 1 cycles after an idle input, max(`MaxGap_g`, `RamRdLatency_g` + `EccPipeline_g` + 1) after an image (RPL-PF-01) |
 | Lower border of every image | `isp_window`, `isp_filter2d` (border modes zero, replicate, mirror) | `WinY_g` - 1 - `AnchorY_g` lines of the image width |
 | Lower border of every image | `isp_bin` (border modes zero, replicate) | At most max(0, (`BinY_g` - 1) x Wo + 2 - 2 x `BinX_g`) cycles, taken by the next image (BIN-PF-01; Wo = ceil(W / `BinX_g`)) |
 | Output stalled | every module | Until the consumer takes the output |
+
+The frame sync of a module takes three more pixels after the last pixel of a line before its input holds (its output
+register and the two entries of its input stage). The holds for the right border of a line therefore come at the
+start of the next line at the input, and those of the last line of an image at the start of the next image.
 
 ## 3. Clocks and reset
 
@@ -124,6 +128,43 @@ image. To change several registers for the same image:
 Without `CTRL.HOLD`, an image start between two writes takes a mixed set for one image. `isp_crop` has its position
 in one register and needs no `CTRL.HOLD`.
 
+In a chain every module takes its set at its own image start, when pixel (0, 0) of the image reaches it, and these
+starts come later from module to module. To give one image the new sets of several modules:
+
+1. Write 1 to `CTRL.HOLD` of every module whose set changes, and write the new sets.
+2. In the window below, write 0 to every `CTRL.HOLD` and write `ROI_POS` of `isp_crop`; every write ends before the
+   window ends.
+
+Every module then has image k open at the release and takes the new set at its start of image k + 1. The software
+times the release from the image start at the chain input (the frame start of the source). The image start reaches
+module j S_j cycles after it, the sum of the delays of the modules before j:
+
+| Module | Delay of the image start |
+| --- | --- |
+| `isp_point` | Its latency, `MultStages_g` + 5 (PNT-PF-02) |
+| `isp_replace` | `MaxGap_g` pixels and its latency, 13 + `RamRdLatency_g` + `EccPipeline_g` (RPL-PF-03) |
+| `isp_crop` | `RoiY_g` lines, `RoiX_g` pixels and its latency, 4 (CRP-PF-02) |
+| `isp_window`, `isp_filter2d` | Rb lines, Rr pixels (`WinY_g` - 1 lines and `WinX_g` - 1 pixels in the border mode valid) and the latency, 6 (WIN-PF-03) or log2ceil(T) + 9 (FLT-PF-02) |
+| `isp_bin` | `BinY_g` - 1 lines, `BinX_g` - 1 pixels and its latency, 16 + log2ceil(`BinX_g`) + log2ceil(`BinY_g`) with both filters, 8 + log2ceil of the factor with one |
+
+A line is the line period at the chain input (W plus the holds per line, section 2.4), a pixel one cycle. With
+S_first and S_last the delays to the first and the last module whose set changes and P the image period, the window
+is S_last < t < S_first + P after the image start. A window that holds in every case is narrower than the true one at
+both ends: its start takes S_last with the latency bounds of the specifications (the table), its end S_first with
+the pixel and line delays of the table only, without the latencies. When S_last - S_first is not shorter than P (a
+region near the lower edge of the image, large windows), back-to-back images leave no window: the source pauses
+after an image, the release comes S_last after its start, and the next image starts after the writes. A release at
+another time can give one image the old set in the first modules and the new one in the last.
+
+Example: `isp_replace` (40 x 20 pixels, `MaxGap_g` 2), `isp_point`, `isp_crop` (32 x 16 at (4, 2)), a 3 x 3
+`isp_filter2d`, a 2 x 2 `isp_bin` and `isp_point`, with run-time sets in both `isp_point`, `isp_crop` and
+`isp_filter2d`: line period 42, P = 840, S_last = 16 + 7 + 92 + 56 + 61 = 232 with the latency bounds, S_first = 2
+(the `MaxGap_g` pixels of `isp_replace`) without them; the window is 232 < t < 842 cycles after the image start. It
+lies inside the window of the design values of the module plans (229 < t < 852). Without a window: 5 x 3 pixels of 1
+bit through `isp_replace` (`MaxGap_g` 2), `isp_point`, `isp_crop` (3 x 3 at (1, 0)), a 3 x 3 `isp_filter2d` and a
+3 x 3 `isp_bin` to `isp_point`: P = 21, S_last = 84. The source stops after an image, the release comes at least 84
+cycles after its start, and the next image starts after the writes.
+
 ### 4.3 Parity of the parameter registers
 
 Every parameter register carries a parity bit, set with every write. At the image start the module checks it; after
@@ -140,7 +181,9 @@ The register `INJECT` inverts the parity bit of a parameter register, so that th
 The defect map has one bit per pixel, 1 for a non-operational pixel, in words of 32 bits; every line has its own
 `MAP_LINE` words. The software writes it word by word: `MAP_ADDR` with the first address, then `MAP_DATA` once per
 word, which counts `MAP_ADDR` up. `CTRL.CLEAR` writes 0 to every word (`STATUS.BUSY` meanwhile). A map written while
-images pass applies to an image in part; write it between images where that matters. The map is protected by its
+images pass applies to an image in part: the module reads the words in step with the pixels, not at the image start.
+A new map for one whole image is written while no image is open at the input of `isp_replace`; with back-to-back
+images the source pauses between two images for the writes. The map is protected by its
 ECC and scrubbed; `STATUS.ECC_DED` reports a word that the software has to write again. Open Logic does not
 initialise the RAM of the map: after power-up the software issues `CTRL.CLEAR` or writes every word before the
 first image, and clears the `STATUS` flags that the scrubber set for the content before.
@@ -154,7 +197,15 @@ first image, and clears the `STATUS` flags that the scrubber set for the content
 2. Scale the sums of filters and binning with an `isp_point` behind them: a kernel whose coefficients add up to 2^n
    is followed by a shift of n; the average of a bin of n pixels is a shift of log2(n), or the gain round(2^k / n)
    with the shift k when n is not a power of two.
-3. Put an `olo_ft_fifo_sync` in front of the chain when the source cannot wait (section 2.4).
+3. Put an `olo_ft_fifo_sync` in front of the chain when the source cannot wait. For a source of W pixels per line
+   at one per cycle with a line blanking L and an image blanking F: let r_y be the hold cycles of the chain input
+   between the first pixels of lines y and y + 1 (section 2.4: the holds of the first module, plus the waits of a
+   module behind it that the modules between do not take; `isp_crop` takes them with the pixels outside its region,
+   a binning with its idle output cycles), D_-1 = 0 and D_y = max(0, D_(y-1) + r_y - L). Then `Depth_g` >= max over
+   the lines of D_(y-1) + r_y, plus 4, and F >= D_(H-2) + r_(H-1) + 1, so that every image finds the FIFO empty; when
+   the source is faster than the chain over an image, no depth suffices. Example: `isp_replace` with `MaxGap_g` 2
+   first (r_y = 2), H = 20, L = 1: `Depth_g` 25 and F >= 22. The plain sum of the waits of all modules overestimates:
+   in that example the lower border of a filter behind `isp_crop` is taken by the pixels outside the region.
 4. Collect the ECC status pulses of the modules in an `olo_ft_ecc_monitor` and the error pulses in a status
    register of the system.
 
@@ -194,7 +245,7 @@ requirements of a mission is shown by a radiation test with the modules in opera
 | Constraint | Reason |
 | --- | --- |
 | TMR of the synthesis tool enabled for the modules | The modules protect their line buffers, the defect map and their parameter registers themselves and rely on TMR for all other logic (section 6) |
-| A source that cannot wait has a FIFO in front of the chain, or blanking between lines and images, that covers the waits of section 2.4 | The modules hold their input at the image borders and while they complete a short image |
+| A source that cannot wait has a FIFO in front of the chain, or blanking between lines and images, that covers the waits of section 2.4 (section 5, step 3) | The modules hold their input at the image borders and while they complete a short image |
 | After a lost packet the input waits as long as the lost data would have taken; the source has blanking per image of at least the largest loss to be tolerated, or the clock of the modules is faster than the pixel rate | A source at one pixel per clock cycle without blanking never catches up after a loss; with enough blanking the chain recovers within one image |
 | A packet protocol behind a chain whose data field is smaller than a line (W x pixel width bits; 65536 octets for a Space Packet) has a segmenting stage | Every output line is one packet |
 | The register bus is in the clock domain of the module, or the system provides a clock crossing | The AXI4-Lite slaves have no crossing of their own |
@@ -202,6 +253,7 @@ requirements of a mission is shown by a radiation test with the modules in opera
 | The defect map is written between images where an image must not see a partial update | The map is read in step with the pixels (section 4.4) |
 | After power-up the software clears the defect map (`CTRL.CLEAR`) or writes it completely before the first image, and repeats `CTRL.CLEAR` after a reset during a clear | The content of the RAM after configuration depends on the device; Open Logic does not initialise it |
 | A chain is reset together with its source, or between images | A reset inside a first or only packet of an image makes the rest of that packet an image start: one wrong image with `Err_Framing`, the next one correct (`isp_frame_sync` specification, section 6) |
+| A module of a chain is reset alone only between two packets of its output (between two lines) | A reset inside a packet cuts it: the module behind continues the packet with the next image, ends the image at its pixel count and discards the rest (`Err_Framing` twice), so that image is lost behind the reset module (CHN-FN-03) |
 
 ## 8. Resources and performance
 

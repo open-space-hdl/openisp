@@ -44,6 +44,13 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `rate_valid`, `rate_rep` | 16 x 8 | 12 | 4 x 2 | valid; replicate | AUTO, pipeline 1 | none | static, rate |
 | `rate_tall` | 16 x 16 | 12 | 2 x 8 (the vertical filter waits longer than the buffers of the horizontal one take) | replicate | AUTO, pipeline 1 | none | static, rate |
 | `rate_x_only`, `rate_y_only`, `rate_none` | 16 x 8 | 12 | 4 x 1; 1 x 4; 1 x 1 | replicate | AUTO, pipeline 1 | none | static, rate |
+| `rate_odd_w33`, `rate_odd_w33_tall` | 33 x 8; 33 x 16 | 12 | 2 x 2; 2 x 8 | replicate; zero | AUTO, pipeline 1 | none | static, rate |
+| `rate_odd_w13`, `rate_odd_w13_bx4` | 13 x 16; 13 x 8 | 12 | 2 x 8; 4 x 2 | replicate | AUTO, pipeline 1 | none | static, rate |
+| `rate_odd_w17_bx8`, `rate_odd_w17_bx8_tall`, `rate_odd_w17_bx16_tall` | 17 x 8; 17 x 16; 17 x 16 | 12 | 8 x 2; 8 x 16; 16 x 16 | zero; replicate; replicate | AUTO, pipeline 1 | none | static, rate |
+| `rate_odd_w3`, `rate_odd_w5_bx4` | 3 x 8; 5 x 8 | 12 | 2 x 2; 4 x 4 (W = `BinX_g` + 1) | replicate; zero | AUTO, pipeline 1 | none | static, rate |
+| `rate_odd_x_only`, `rate_odd_x_only_w3` | 9 x 6; 3 x 6 | 12 | 2 x 1 | replicate; zero | AUTO, pipeline 1 | none | static, rate |
+| `rate_range_w<W>_bx4`, W = 22, 21, 23, 16, 10 | W x 16 | 12 | 4 x 16 | replicate | AUTO, pipeline 1 | none | static, rate |
+| `rate_range_w12_bx2`, `rate_range_w9_bx2`, `rate_range_w20_bx8` | 12 x 16; 9 x 16; 20 x 16 | 12 | 2 x 8; 2 x 16; 8 x 16 | replicate | AUTO, pipeline 1 | none | static, rate |
 
 ### 2.2 Sweep (test `test_static`)
 
@@ -111,10 +118,10 @@ ly = log2ceil(`BinY_g`).
 | Bound | Design value | Derivation |
 | --- | --- | --- |
 | Hold cycles between the first pixels of two lines (BIN-PF-01) | `BinX_g` - 1 in the modes zero and replicate, 0 in the mode valid; in an image that follows an image one line interval also holds the wait for the virtual lines | The virtual columns of the horizontal filter (Rr = `BinX_g` - 1 with the anchor 0); the vertical filter has no virtual columns (`WinX_g` = 1) and takes one bin in `BinX_g` cycles |
-| Wait for the virtual lines of the vertical filter, in an image that follows an image (BIN-PF-01) | Exactly N + 8 + lx - `BinX_g` x (5 + c), c = ceil((3 + lx) / `BinX_g`), when the buffers fill within line 0 of the image (p = `BinX_g` x (4 + c) + 3 < W) and the value is positive; otherwise from max(0, d - A) to d cycles, d = max(0, N + 2 - 2 x `BinX_g`), A = `BinX_g` x (4 + c) + `BinX_g` + 2; with one filter or none exactly d = N | Below |
+| Wait for the virtual lines of the vertical filter, in an image that follows an image (BIN-PF-01) | Exactly N + 8 + lx + e - `BinX_g` x (5 + c), c = ceil((3 + lx) / `BinX_g`), e = (`BinX_g` - W mod `BinX_g`) mod `BinX_g` in the modes zero and replicate (0 for W a multiple of `BinX_g`), when the buffers fill within line 0 of the image (p = `BinX_g` x (4 + c) + 3 < W) and the value is positive; otherwise from max(0, d - A) to the bound of BIN-PF-01, max(0, N + 2 - 2 x `BinX_g`), with d = max(0, N + 2 + e - 2 x `BinX_g`) and A = `BinX_g` x (4 + c) + `BinX_g` + 2; with one filter or none exactly d = N | Below |
 | Image period (BIN-PF-02) | H x W in the mode valid; H x (W + `BinX_g` - 1) plus the wait in the modes zero and replicate; the same for every interval from the second on, the first interval after an idle module at most the largest value | The events of the horizontal filter: W pixels and `BinX_g` - 1 virtual columns per line; the wait adds what the buffers do not take |
 | Latency from the acceptance of the last pixel of a bin to its output | 12 + lx + ly to 16 + lx + ly with both filters; 6 + lx to 8 + lx or 6 + ly to 8 + ly with one; 2 with the frame sync alone | Per filter the window 3 (frame sync 2, event 1), up to 2 more for a pixel that the frame sync took while the filter held its input, and the kernel 3 + log2ceil(T) (FLT-PF-02); the frame sync alone 2 (FSY-PF-02) |
-| Fall of `Stat_ImageOpen` after the acceptance of the last pixel of an image | 7 + lx cycles with both filters; 1 cycle with one filter or the frame sync alone | Below |
+| Fall of `Stat_ImageOpen` after the acceptance of the last pixel of an image | 7 + lx + e + s cycles with both filters; 1 + s cycles with one filter or the frame sync alone; s = `BinX_g` - 1 in lines of at most 3 pixels in the modes zero and replicate, 0 otherwise | Below |
 
 **Rate configurations.**
 
@@ -126,13 +133,31 @@ ly = log2ceil(`BinY_g`).
 | `rate_x_only` | 0 | 0 | 0 | 152 |
 | `rate_y_only` | 48 (N = 48) | 0 | 48 | 176 = (H + 3) x W, the lower border of `isp_window` |
 | `rate_none` | 0 | 0 | 0 | 128 |
+| `rate_odd_w33` (e = 1) | 16 (N = 17) | 16 | 13 exactly (p = 15) | 285 |
+| `rate_odd_w33_tall` (e = 1) | 118 (N = 119) | 16 | 115 exactly (p = 15) | 659 |
+| `rate_odd_w13` (e = 1) | 48 (N = 49) | 16 | 32 to 47 (p = 15 >= W) | 256 to 271 |
+| `rate_odd_w13_bx4` (e = 3) | 1 (N = 4) | 30 | 0 (bound 0) | 128 |
+| `rate_odd_w17_bx8` (e = 7) | 0 (N = 3) | 50 | 0 | 192 |
+| `rate_odd_w17_bx8_tall` (e = 7) | 38 (N = 45) | 50 | 0 to 31 (p = 43 >= W) | 384 to 415 |
+| `rate_odd_w17_bx16_tall` (e = 15) | 15 (N = 30) | 98 | 0 (bound 0) | 512 |
+| `rate_odd_w3` (e = 1, s = 1) | 1 (N = 2) | 16 | 0 (bound 0) | 32 |
+| `rate_odd_w5_bx4` (e = 3) | 3 (N = 6) | 30 | 0 (bound 0) | 64 |
+| `rate_odd_x_only`, `rate_odd_x_only_w3` (s = 1) | 0 | 0 | 0 | 60; 24 |
+| `rate_range_w22_bx4` (e = 2) | 86 (N = 90) | 30 | 56 to 84 (p = 27 >= W) | 456 to 484 |
+| `rate_range_w21_bx4` (e = 3) | 87 (N = 90) | 30 | 57 to 84 | 441 to 468 |
+| `rate_range_w23_bx4` (e = 1) | 85 (N = 90) | 30 | 55 to 84 | 471 to 500 |
+| `rate_range_w16_bx4` (e = 0) | 54 (N = 60) | 30 | 24 to 54 | 328 to 358 |
+| `rate_range_w10_bx4` (e = 2) | 41 (N = 45) | 30 | 11 to 39 | 219 to 247 |
+| `rate_range_w12_bx2` (e = 0) | 40 (N = 42) | 16 | 24 to 40 (p = 15 >= W) | 232 to 248 |
+| `rate_range_w9_bx2` (e = 1) | 74 (N = 75) | 16 | 58 to 73 | 218 to 233 |
+| `rate_range_w20_bx8` (e = 4) | 35 (N = 45) | 50 | 0 to 31 (p = 43 >= W) | 432 to 463 |
 
-**The wait for the virtual lines.** After the PIX event of the last bin of an image (cycle v0) the vertical filter
-makes N VPIX events in N consecutive cycles, and its input waits. Without them, its first PIX event of the next image
-would come 2 x `BinX_g` - 1 cycles after v0: the horizontal filter makes `BinX_g` - 1 HCOL events after the last pixel
-of the image and then takes the `BinX_g` pixels of the first bin of the next one, and that bin passes the same
-pipeline of constant length to the vertical filter. The VPIX events therefore delay the events of the vertical filter
-by d = max(0, N + 2 - 2 x `BinX_g`) cycles, and the input waits at most d cycles. It waits less by what the buffers
+**The wait for the virtual lines.** After the PIX event of the last bin of an image (cycle v0) the vertical filter makes
+N VPIX events in N consecutive cycles, and its input waits. Without them, its first PIX event of the next image would
+come 2 x `BinX_g` - 1 cycles after v0: the horizontal filter makes `BinX_g` - 1 HCOL events after the last pixel of the
+image and then takes the `BinX_g` pixels of the first bin of the next one, and that bin passes the same pipeline of
+constant length to the vertical filter. The VPIX events therefore delay the events of the vertical filter by d = max(0,
+N + 2 + e - 2 x `BinX_g`) cycles (e below), and the input waits at most d cycles. It waits less by what the buffers
 between the window of the vertical filter and the input take meanwhile, at most A input cycles: the frame sync of the
 vertical filter (3 bins: its output register and the two entries of its input stage, an `olo_base_pl_stage` with a
 registered ready), the kernel of the horizontal filter (c = ceil(S / `BinX_g`) bins, S = 3 + lx stages, which freeze
@@ -142,32 +167,52 @@ virtual pixels, the lower border of `isp_window` (WIN-PF-01).
 
 The occupancy of these buffers is deterministic when the input runs without gaps and the sink without stalls, and it
 gives the wait exactly where the buffers fill within line 0. Let h0 be the PIX event of the horizontal filter for the
-last pixel of an image; the vertical filter makes its last PIX event at v0 = h0 + 6 + lx (the kernel, the two cycles
-of its frame sync and the event). Pixel x of line 0 of the next image is accepted at h0 + `BinX_g` + x - 2 (its event
-comes 2 cycles later, after the `BinX_g` - 1 HCOL events). The first bins of the next image fill the frame sync of the
+last pixel of an image; the vertical filter makes its last PIX event at v0 = h0 + 6 + lx (the kernel, the two cycles of
+its frame sync and the event). Pixel x of line 0 of the next image is accepted at h0 + `BinX_g` + x - 2 (its event comes
+2 cycles later, after the `BinX_g` - 1 HCOL events). The first bins of the next image fill the frame sync of the
 vertical filter (bins 0 to 2); the next bin reaches the output register of the kernel and cannot leave, so the kernel
 freezes with c bins; the next bin waits in the window register, the frame sync of the horizontal filter takes 3 more
 pixels, and pixel p = `BinX_g` x (4 + c) + 3 is the first that waits, at h0 + `BinX_g` + p - 2. The vertical filter
 makes its first PIX event at v0 + N + 1; its input stage is ready one cycle later (registered), the kernel and the
 window of the horizontal filter advance in that cycle, and the input stage of the horizontal filter is ready one more
 cycle later: the input is released at v0 + N + 3. The wait is therefore N + 8 + lx - `BinX_g` x (5 + c) when that is
-positive and p < W; `rate_tall` waits 51 cycles. Elsewhere the bench checks the range, which follows from the same
-buffers without fixing their occupancy.
+positive and p < W; `rate_tall` waits 51 cycles. This holds for W a multiple of `BinX_g`, as in every rate
+configuration: the PIX event of the last pixel completes the last bin. Otherwise (the modes zero and replicate) the e-th
+HCOL event after it completes the bin, e = (`BinX_g` - W mod `BinX_g`) mod `BinX_g`; v0 and the release of the input
+come e cycles later, while the pixels of the next image do not, and the wait is N + 8 + lx + e - `BinX_g` x (5 + c). The
+chain `reordered` of `isp_chain` (W = 33, `BinX_g` 2, e = 1) waits 36 cycles. Elsewhere the bench checks the range,
+which follows from the same buffers without fixing their occupancy.
+
+**The bound of BIN-PF-01.** BIN-PF-01 bounds the wait by max(0, N + 2 - 2 x `BinX_g`), the value of d without e. The
+exact wait stays below it for every `BinX_g` >= 2: the difference is 6 + lx + e - `BinX_g` x (3 + c), and with
+e <= `BinX_g` - 1 and c >= 1 it is negative (-2 or less for `BinX_g` 2, -5 for 3, -9 for 4, and less beyond). Where
+p >= W the bins that fill the buffers come from two or three lines: the last bin of a line has `BinX_g` - e pixels, the
+HCOL events of the line end hold the input and leave gaps between the bins, so the frozen kernel holds a different
+number of bins. The derivation fixes no exact value there (the exact formula is off by -3 to +1 cycles in the
+configurations `rate_range_*`); the bench checks the wait from max(0, d - A) up to the bound of BIN-PF-01, and for
+p >= W the requirement is verified by test on the configurations with p >= W: `BinX_g` 2, 4, 8 and 16, every e of
+`BinX_g` 4 (0 to 3), e 0 and 1 of `BinX_g` 2 and e up to 15, the bins of the buffers across one and two line
+boundaries (W from 3 to 23), N up to 90, and the bound 0 with a positive d (`rate_odd_w3`, `rate_odd_w5_bx4`,
+`rate_odd_w13_bx4`, `rate_odd_w17_bx16_tall`). The smallest margin to the bound comes with `BinX_g` 2, where the exact
+case leaves the least room.
 
 **`Stat_ImageOpen` and the probe of `test_rate`.** e0 is the edge that accepts the last pixel of the last image. The
-frame sync of the horizontal filter closes the image when the pixel moves from its input stage into its output
-register, at e0 + 1: at the end of a line its window takes one event per cycle (W is a multiple of `BinX_g` in every
-rate configuration). The window takes the pixel at e0 + 2 and completes the last bin; the kernel loads it at e0 + 3,
-multiplies at e0 + 4, adds in lx stages and loads its output register at e0 + 5 + lx; the frame sync of the vertical
-filter takes the bin at e0 + 6 + lx (the latency 6 + log2ceil(T) of `isp_filter2d`) and closes the image at
-e0 + 7 + lx. The probe ("T 4" after the last pixel) reads `Stat_ImageOpen` after e0 + 3: 2 cycles after the fall of
-the horizontal filter and 3 + lx (at least 4) cycles before the fall of the vertical one, so it reads 1 from the
-vertical filter alone. Only the configurations with both filters carry it (`rate_valid`, `rate_rep`, `rate_tall`);
-with one filter the port has a single source. The bench also measures the fall of the port after the last pixel of
-every image: with both filters the horizontal filter opens the next image (at e0 + 2) before the vertical filter
-closes the image before, so the port falls only after the last image, 7 + lx cycles after its last pixel; with one
-filter or the frame sync alone it falls 1 cycle after the last pixel of every image and rises again one cycle later
-with the next image.
+frame sync of the horizontal filter closes the image when the pixel moves from its input stage into its output register,
+at e0 + 1 + s. After the last pixel of a line the window makes `BinX_g` - 1 HCOL events, and the frame sync takes three
+more pixels before its input holds (its output register and the two entries of its input stage), so the hold comes in
+the fourth cycle after that pixel. A line of more than 3 pixels passes the hold before its last pixel, which then moves
+on at once (s = 0); in a line of at most 3 pixels the last pixel waits behind the `BinX_g` - 1 events (s = `BinX_g` -
+1). The window takes the pixel at e0 + 2 + s and completes the last bin with it, or e HCOL events later; the kernel
+loads the bin at e0 + 3 + e + s, multiplies one cycle later, adds in lx stages and loads its output register at e0 + 5 +
+lx + e + s; the frame sync of the vertical filter takes the bin at e0 + 6 + lx + e + s (the latency 6 + log2ceil(T) of
+`isp_filter2d`) and closes the image at e0 + 7 + lx + e + s. The probe ("T 4" after the last pixel) reads
+`Stat_ImageOpen` after e0 + 3: after the fall of the horizontal filter (e0 + 1 + s, s at most 2 with both filters)
+and at least 4 cycles before the fall of the vertical one, so it reads 1 from the vertical filter alone. Every rate
+configuration with both filters carries it; with one filter the port has a single source. The bench also measures the
+fall of the port after the last pixel of every image: with both filters the horizontal filter opens the next image
+before the vertical filter closes the image before, so the port falls only after the last image, 7 + lx + e + s cycles
+after its last pixel; with one filter or the frame sync alone it falls 1 + s cycles after the last pixel of every image
+and rises again with the next image.
 
 **The probes after complete images.** The probe of the shared components after complete images waits for the sink and
 8 cycles. In the mode valid with lines or columns that no bin uses, no output follows the last pixel of an image, so
