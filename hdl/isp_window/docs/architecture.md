@@ -152,6 +152,13 @@ xe = k for 1 <= k <= Ax in a PIX or VPIX at column k. Pixel (0, 0) needs the sta
 HCOL (xe >= W >= 1) and no VPIX (ye >= H) has that position, and a pixel (0, 0) of the next image that waits at the
 frame sync during the virtual events of an image is not taken before `Pix_s`.
 
+The row selection of the next line equals `rowSelect`(ye + 1) for the same reason of constant structure. For a next
+line n = ye + 1 from `WinY_g` - 1 to H - 1, the lines of its rows, n - (`WinY_g` - 1) + j for j = 0 to `WinY_g` - 1,
+all lie from 0 to H - 1: no border rule applies, and row j takes delay `WinY_g` - 1 - j, the same selection for every
+such n. Only the next lines 1 to `WinY_g` - 2 (rows above line 0) and H to H - 1 + Rb (the virtual lines) have other
+selections, and after the last line of an image the next line is 0; the event control compares ye with these lines
+(ye = n - 1) and takes `rowSelect`(n) as a constant.
+
 ## 8. Output (WN-5)
 
 The window of an event at (xe, ye) is valid when its pixel (x, y) = (xe - Rr, ye - Rb) is a reference pixel:
