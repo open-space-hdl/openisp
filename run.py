@@ -79,9 +79,10 @@ def own_sim_flags(get_command):
         config.sim_options = {**config.sim_options,
                               "ghdl.sim_flags": list(config.sim_options.get("ghdl.sim_flags", []))}
         if PORT_TRACE:
-            # args[0] is <test output>/ghdl; the name of the test output starts with <library>.<testbench>.
+            # args[0] is <test output>/ghdl; the wave option file is named after the testbench entity (the name of the
+            # test output can be shortened by VUnit on Windows)
             out = Path(args[0])
-            opt = PORT_TRACE_DIR / (out.parent.name.split(".")[1] + ".opt")
+            opt = PORT_TRACE_DIR / (config.entity_name + ".opt")
             config.sim_options["ghdl.sim_flags"] += [f"--vcd={out / 'port.vcd'}", f"--read-wave-opt={opt}"]
         cmd = get_command(self, config, *args, **kwargs)
         generics = [arg for arg in cmd if arg.startswith("-g")]
