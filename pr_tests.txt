@@ -85,13 +85,16 @@ openisp.isp_filter2d_tb.separable.test_static
 # isp_bin: every test (bin2_zero, ecc, rate_tall); the factors 1 with test_rate (rate_x_only, rate_y_only, rate_none);
 # the low bounds of the image size and the pixel width (min: 1 x 1 of 1 bit; image_equals_bin: the image of one bin;
 # bits1: 1 bit with both filters and EccPipeline_g 0); the border mode valid (bin2_valid); SRL and EccPipeline_g 0
-# (bin4); BRAM and the widest pixels (max)
+# (bin4); BRAM and the widest pixels (max); W not a multiple of BinX_g with the low bound W = BinX_g + 1 (rate_odd_w3)
+# and the exact wait (rate_odd_w33)
 openisp.isp_bin_tb.bin2_zero.*
 openisp.isp_bin_tb.ecc.*
 openisp.isp_bin_tb.rate_tall.*
 openisp.isp_bin_tb.rate_x_only.*
 openisp.isp_bin_tb.rate_y_only.*
 openisp.isp_bin_tb.rate_none.*
+openisp.isp_bin_tb.rate_odd_w3.*
+openisp.isp_bin_tb.rate_odd_w33.*
 openisp.isp_bin_tb.min.*
 openisp.isp_bin_tb.image_equals_bin.*
 openisp.isp_bin_tb.bits1.*
