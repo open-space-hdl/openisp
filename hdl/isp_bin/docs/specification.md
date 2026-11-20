@@ -45,7 +45,7 @@ completed, as the border mode says.
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| BIN-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input for at most `BinX_g` - 1 clock cycles between the acceptance of the first pixels of two consecutive lines of an image in the border modes zero and replicate, and for no clock cycle between the first and the last pixel of an image in the border mode valid. | ISP-STR-09 |
+| BIN-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input for at most `BinX_g` - 1 clock cycles between the acceptance of the first pixels of two consecutive lines of an image in the border modes zero and replicate, and for no clock cycle between the first and the last pixel of an image in the border mode valid; in the border modes zero and replicate the input of an image that follows an image also waits while the vertical filter generates the virtual lines of the image before, in total at most max(0, (`BinY_g` - 1) x Wo + 2 - 2 x `BinX_g`) clock cycles. | ISP-STR-09 |
 | BIN-PF-02 | In the border mode valid the interval between the starts of two consecutive images shall not exceed H x W + 16 clock cycles; in the border modes zero and replicate it shall not exceed H x (W + `BinX_g` - 1) + (`BinY_g` - 1) x Wo + 16 clock cycles. | ISP-STR-09 |
 
 ### 2.4 Error handling and fault tolerance
@@ -58,8 +58,10 @@ completed, as the border mode says.
 ### 2.5 Partner behaviour
 
 The partners of the input are those of `isp_frame_sync`. In the border modes zero and replicate the module holds the
-input for `BinX_g` - 1 cycles after every line and for `BinY_g` - 1 lines of the narrowed image after every image; in
-the border mode valid it never holds the input. The consumer of the output may hold `Out_Ready` low at any beat.
+input for `BinX_g` - 1 cycles after every line, and an image that follows an image waits while the vertical filter
+generates the `BinY_g` - 1 virtual lines of Wo pixels of the image before, at most max(0, (`BinY_g` - 1) x Wo + 2 -
+2 x `BinX_g`) cycles in total (BIN-PF-01); in the border mode valid it never holds the input. The consumer of the
+output may hold `Out_Ready` low at any beat.
 
 ## 3. Error conditions
 

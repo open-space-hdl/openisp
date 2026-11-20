@@ -5,7 +5,7 @@
 """Stimulus generation for the OpenISP testbenches (docs/testbench.md).
 
 A test is a list of input items (see tools/isp_model.py): beats ('B', pixel, last, user) and directives
-('G', n) pause, ('T', n) wait cycles, ('W',) wait for the sink, ('P',) probe, ('H', 0/1) hold the sink,
+('G', n) pause, ('T', n) wait cycles, ('W',) wait for the sink, ('P',) or ('P', value) probe, ('H', 0/1) hold the sink,
 ('M', n) marker, ('K', n) wait for the acknowledge, ('R', drop, mode, cycles) reset, ('A', marker, entries) register
 accesses, ('J', marker, pattern) error injection, ('S', marker, 0 or 1) scrubber enable. `write_test` runs the model
 of the module over the items and writes the stimulus file, the expected file and, where the test needs them, the
@@ -131,7 +131,9 @@ def write_test(stim_path, exp_path, items, model, data_bits, side=None, regs_pat
         elif kind == "W":
             stim.append("W {}".format(before[0]))
         elif kind == "P":
-            stim.append("P {}".format(1 if before[1] else 0))
+            # The probe expects the open flag of the model, or the value of the entry ("P", value): a value that
+            # depends on the timing (verification plan of the module)
+            stim.append("P {}".format(it[1] if len(it) > 1 else 1 if before[1] else 0))
         elif kind == "R":
             _, drop, mode, cycles = it
             stim.append("R {} {} {}".format(before[0] - drop, mode, cycles))

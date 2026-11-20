@@ -76,8 +76,11 @@ A module accepts one pixel per clock cycle within a line. It holds its input in 
 | Case | Module | Wait |
 | --- | --- | --- |
 | Completion of a short image | every module with a frame sync | One cycle per missing pixel, when the next image starts |
-| Right border of every line | `isp_window`, `isp_filter2d` (border modes zero, replicate, mirror), `isp_bin` (zero, replicate), `isp_replace` | `WinX_g` - 1 - `AnchorX_g` cycles (`isp_replace`: `MaxGap_g` cycles) |
-| Lower border of every image | `isp_window`, `isp_filter2d` (border modes zero, replicate, mirror), `isp_bin` (zero, replicate) | `WinY_g` - 1 - `AnchorY_g` lines of the image width |
+| Right border of every line | `isp_window`, `isp_filter2d` (border modes zero, replicate, mirror) | `WinX_g` - 1 - `AnchorX_g` cycles |
+| Right border of every line | `isp_bin` (border modes zero, replicate) | `BinX_g` - 1 cycles |
+| Right border of every line | `isp_replace` | `MaxGap_g` cycles; between the first pixels of lines 0 and 1 of an image max(`MaxGap_g`, `RamRdLatency_g` + `EccPipeline_g` + 1) cycles, the wait for word 0 of the defect map (RPL-PF-01) |
+| Lower border of every image | `isp_window`, `isp_filter2d` (border modes zero, replicate, mirror) | `WinY_g` - 1 - `AnchorY_g` lines of the image width |
+| Lower border of every image | `isp_bin` (border modes zero, replicate) | At most max(0, (`BinY_g` - 1) x Wo + 2 - 2 x `BinX_g`) cycles, taken by the next image (BIN-PF-01; Wo = ceil(W / `BinX_g`)) |
 | Output stalled | every module | Until the consumer takes the output |
 
 ## 3. Clocks and reset

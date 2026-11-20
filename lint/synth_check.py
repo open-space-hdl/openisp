@@ -146,6 +146,27 @@ CONFIGS += [
 ]
 
 
+
+def bin_(w, h, bits, bx, by, border, ecc=1, resource="AUTO"):
+    """Generics of isp_bin."""
+    return {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "PixelBits_g": str(bits), "BinX_g": str(bx),
+            "BinY_g": str(by), "BorderMode_g": border, "EccPipeline_g": str(ecc), "Resource_g": resource}
+
+
+# isp_bin (TC-BIN-07): the default (2 x 2 valid on lines of 4096 pixels), every border mode, the bounds of the image
+# size (the bin, 65536), of the pixel width (1, 28) and of the factors (1, 16, each without the other filter and
+# both 1: the frame sync alone), every line buffer resource and both values of EccPipeline_g
+CONFIGS += [
+    ("bin_default", "isp_bin", bin_(4096, 1024, 12, 2, 2, "valid")),
+    ("bin_4x4_rep", "isp_bin", bin_(4096, 1024, 12, 4, 4, "replicate")),
+    ("bin_3x5_zero", "isp_bin", bin_(1024, 1024, 12, 3, 5, "zero", ecc=0)),
+    ("bin_image_equals_bin", "isp_bin", bin_(2, 2, 1, 2, 2, "valid", ecc=0, resource="SRL")),
+    ("bin_1x1", "isp_bin", bin_(1, 1, 1, 1, 1, "valid")),
+    ("bin_16x1", "isp_bin", bin_(65536, 1, 28, 16, 1, "zero")),
+    ("bin_1x16", "isp_bin", bin_(1, 65536, 28, 1, 16, "replicate", resource="SRL")),
+    ("bin_max", "isp_bin", bin_(65536, 65536, 28, 16, 16, "replicate", resource="BRAM")),
+]
+
 def rpl(w, h, bits, g, lat=1, ecc=0, period_ms=0):
     """Generics of the wrapper isp_replace_synth (lint/isp_replace_synth.vhd)."""
     return {"ImageWidth_g": str(w), "ImageHeight_g": str(h), "PixelBits_g": str(bits), "MaxGap_g": str(g),
@@ -229,6 +250,22 @@ NEGATIVE += [
     ("flt_coef_bits_19", "isp_filter2d_synth", dict(FLT_OK, CoefBits_g="19"), "isp_conv: CoefBits_g must be 2 to 18"),
     ("flt_border", "isp_filter2d_synth", dict(FLT_OK, BorderMode_g="wrap"), "isp_window: BorderMode_g must be"),
     ("flt_coef_fewer", "isp_filter2d_synth", dict(FLT_OK, CoefCount_g="-1"), "isp_conv: Coef_g must have"),
+]
+
+BIN_OK = bin_(64, 32, 12, 2, 2, "valid")
+NEGATIVE += [
+    ("bin_x_17", "isp_bin", dict(BIN_OK, BinX_g="17"), "isp_bin: BinX_g must be 1 to 16"),
+    ("bin_y_17", "isp_bin", dict(BIN_OK, BinY_g="17"), "isp_bin: BinY_g must be 1 to 16"),
+    ("bin_bits_29", "isp_bin", dict(BIN_OK, PixelBits_g="29"), "isp_bin: PixelBits_g must be 1 to 28"),
+    ("bin_mirror", "isp_bin", dict(BIN_OK, BorderMode_g="mirror"),
+     "isp_bin: BorderMode_g must be valid, zero or replicate"),
+    ("bin_width_below", "isp_bin", dict(BIN_OK, ImageWidth_g="1"), "isp_bin: ImageWidth_g must be BinX_g to 65536"),
+    ("bin_width_65537", "isp_bin", dict(BIN_OK, ImageWidth_g="65537"),
+     "isp_bin: ImageWidth_g must be BinX_g to 65536"),
+    ("bin_height_below", "isp_bin", dict(BIN_OK, ImageHeight_g="1"),
+     "isp_bin: ImageHeight_g must be BinY_g to 65536"),
+    ("bin_bram_narrow", "isp_bin", dict(BIN_OK, ImageWidth_g="7", Resource_g="BRAM"),
+     "isp_bin: ImageWidth_g / BinX_g must be at least 3 + EccPipeline_g with Resource_g BRAM"),
 ]
 
 RPL_OK = rpl(40, 6, 12, 2)
