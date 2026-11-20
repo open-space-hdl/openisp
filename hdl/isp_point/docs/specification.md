@@ -68,7 +68,7 @@ dimensions; the pixel width changes from `InBits_g` to `OutBits_g`. The module h
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | PNT-FT-01 | The parameter set in use shall be loaded with every image start (PNT-FN-04), and the datapath shall keep no state between pixels, so that an upset of the datapath disturbs at most the image in progress. | ISP-FT-04 |
-| PNT-FT-02 | Every parameter register and `CTRL` shall carry one parity bit over its bits, set by the reset and by every write, and checked with every image start: `CTRL` always, the parameter registers when they are taken (PNT-ER-03, PNT-ER-04). | ISP-FT-05 |
+| PNT-FT-02 | Every parameter register and `CTRL` shall carry one parity bit over its bits, set by the reset and by the writes (PNT-RG-03), and checked with every image start: `CTRL` always, the parameter registers when they are taken (PNT-ER-03, PNT-ER-04). | ISP-FT-05 |
 | PNT-FT-03 | After the reset, `In_Ready`, `Out_Valid`, `Err_Framing`, `Err_Config` and `Stat_ImageOpen` shall be defined, and with defined input pixels every output beat shall be free of metavalues. | ISP-FT-04 |
 
 The module has no memory, so the requirements on memories (ISP-FT-01 to ISP-FT-03) do not apply to it.
@@ -86,7 +86,7 @@ The errors E1 to E4 of `isp_frame_sync` apply to the input stream; `Err_Framing`
 
 | ID | Condition | Detection | Response | Status |
 | --- | --- | --- | --- | --- |
-| E5 | `Runtime_g` true: the parity bit of a parameter register does not match its value at an image start with `CTRL.HOLD` 0 (upset of the register) | Parity check with the image start | The image is processed with the parameter set of the generics, and so is every further image until the register is written | `Err_Config`, `STATUS.ERR_CONFIG` |
+| E5 | `Runtime_g` true: the parity bit of a parameter register does not match its value at an image start with `CTRL.HOLD` 0 (upset of the register) | Parity check with the image start | The image is processed with the parameter set of the generics, and so is every further image until the register is written in full (every byte that holds bits of the register); a write that keeps a byte with bits of the register keeps the mismatch (PNT-RG-03) | `Err_Config`, `STATUS.ERR_CONFIG` |
 | E6 | `Runtime_g` true: the parity bit of `CTRL` does not match its value at an image start (upset of `CTRL.HOLD`) | Parity check with the image start | `CTRL.HOLD` counts as 0: the image takes the parameter registers (with their own parity check), and so does every further image until `CTRL` is written | `Err_Config`, `STATUS.ERR_CONFIG` |
 
 ## 4. Configuration parameters
@@ -172,6 +172,6 @@ fields have no effect; every access is answered with OKAY. With `Runtime_g` fals
 | --- | --- | --- |
 | PNT-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
 | PNT-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
-| PNT-RG-03 | A write to a parameter register shall change only the bytes that the write strobes select, and set the parity bit for the resulting value. | ISP-CFG-03, ISP-FT-05 |
+| PNT-RG-03 | A write to a parameter register shall change only the bytes that the write strobes select. A write of every byte that holds bits of the register shall set the parity bit for the written value; a write that keeps such a byte shall keep a parity mismatch (the parity bit changes with the parity of the written bytes against the bytes they replace), so that an upset in a kept byte is still reported, and an upset in a byte that the write replaces is reported as well, until the register is written in full (every byte that holds bits of the register) (PKG-08). | ISP-CFG-03, ISP-FT-05 |
 | PNT-RG-04 | A write of one to a bit of `INJECT` shall invert the parity bit of its register, so that the next image start that checks the register finds a mismatch. | ISP-FT-05 |
 | PNT-RG-05 | A read of a parameter register shall return the bits in use: `OFFSET_LO` and `OFFSET_HI` the offset sign-extended to 64 bits, `GAIN`, `LOW` and `HIGH` their bits zero-extended, `SHIFT` the 7 bits written. | ISP-CFG-03 |

@@ -182,6 +182,7 @@ def build_parity(rng, x):
         a, b = (0, t - 1)
         items += x.regs.access(write(CNV_INJECT, (a << 8) | 1), write(CNV_INJECT, (b << 8) | 1)) + x.image(rng)
         items += x.regs.access(write(CNV_INJECT, (a << 8) | 1), write(CNV_INJECT, (b << 8) | 1)) + x.image(rng)
+    items += build_partial_writes(rng, x, writes)
     # An index of T or above has no effect; without the strobe of byte 0 no injection
     items += x.regs.access(write(CNV_INJECT, (min(t, 255) << 8) | 1)) + x.image(rng)
     items += x.regs.access(write(CNV_INJECT, 3, 0xE)) + x.image(rng)
@@ -192,6 +193,31 @@ def build_parity(rng, x):
     items += x.regs.access(write(CNV_CTRL, 1), *x.set_writes(later)) + x.image(rng)
     items += x.regs.access(write(CNV_CTRL, 0), check(CNV_INJECT), check(CNV_STATUS)) + x.image(rng)
     return items + status()
+
+
+def build_partial_writes(rng, x, writes):
+    """CNV-RG-03, PKG-08: a mismatch (the injection gives the syndrome of an upset) survives a write that keeps a byte
+    with bits of the register and a write of only bytes without bits; a write of every byte with bits clears it; a
+    partial write of a register without a mismatch sets the parity for the resulting value. The model decides the
+    expected images and pulses."""
+    cb = x.c["cb"]
+    with_bits = (1 << ((cb + 7) // 8)) - 1           # the strobes of the bytes with bits of a coefficient
+    k = rng.randrange(x.t)
+    addr = CNV_COEF + 4 * k
+    items = []
+    keeps = []
+    if with_bits != 0x1:
+        keeps.append(with_bits & ~0x1)               # a write that keeps byte 0
+    if with_bits != 0xF:
+        keeps.append(0xF & ~with_bits)               # a write of only bytes without bits
+    for strobes in keeps:
+        items += x.regs.access(write(CNV_INJECT, (k << 8) | 1),
+                               write(addr, rng.getrandbits(32), strobes)) + x.image(rng) + x.image(rng)
+        items += x.regs.access(write(addr, rng.getrandbits(32), 0xF)) + x.image(rng)
+    # No mismatch: a partial write of byte 0 alone, then the set is used without an error
+    items += x.regs.access(write(addr, rng.getrandbits(32), 0x1)) + x.image(rng)
+    items += x.regs.access(writes[k]) + x.image(rng)
+    return items
 
 
 def build_registers(rng, x):

@@ -137,20 +137,6 @@ architecture rtl of isp_conv is
     constant GenCoefs_c  : Coefs_t                            := genCoefs;
     constant GenParity_c : std_logic_vector(T_c - 1 downto 0) := genParity;
 
-    -- Parity of the bits of byte B of a register word that a coefficient stores (the bits below CoefBits_g)
-    function storedBytePar (Word : std_logic_vector(31 downto 0); B : natural) return std_logic is
-        variable P_v : std_logic := '0';
-    begin
-
-        for i in 8 * B to 8 * B + 7 loop
-            if i < CB_c then
-                P_v := P_v xor Word(i);
-            end if;
-        end loop;
-
-        return P_v;
-    end function;
-
     -- Largest output value 2^B - 1 in the width of the sums (the largest positive sum when B is wider)
     function outMax return signed is
         variable M_v : signed(SW_c - 1 downto 0) := (others => '0');
@@ -274,7 +260,6 @@ begin
         variable Sum_v     : signed(SW_c - 1 downto 0);
         variable Word_v    : std_logic_vector(31 downto 0);
         variable Old_v     : std_logic_vector(31 downto 0);
-        variable Par_v     : std_logic;
         variable K_v       : natural;
         variable Addr_v    : natural;
         variable ClrCfg_v  : boolean;
@@ -390,22 +375,18 @@ begin
                     if Addr_v = RegCoef_c + RegCoefStride_c * k then
                         Old_v  := std_logic_vector(resize(r.Coef(k), 32));
                         Word_v := Old_v;
-                        Par_v  := '0';
 
-                        -- The parity of the resulting value from the parities of its bytes: a written byte brings the
-                        -- parity of the write data, a kept byte that of the stored bits
                         for b in 0 to 3 loop
                             if Rb_ByteEna(b) = '1' then
                                 Word_v(8 * b + 7 downto 8 * b) := Rb_WrData(8 * b + 7 downto 8 * b);
-                                Par_v                          := Par_v xor storedBytePar(Rb_WrData, b);
-                            else
-                                Par_v := Par_v xor storedBytePar(Old_v, b);
                             end if;
                         end loop;
 
-                        -- The bits above CoefBits_g are not stored; every write sets the parity bit (CNV-RG-03)
+                        -- The bits above CoefBits_g are not stored. The parity bit from the parities of the bytes: a
+                        -- write of every byte with bits of the register sets it for the written value, a write that
+                        -- keeps such a byte keeps a mismatch (CNV-RG-03, PKG-08)
                         v.Coef(k)   := signed(Word_v(CB_c - 1 downto 0));
-                        v.Parity(k) := Par_v;
+                        v.Parity(k) := ispWriteParity(Old_v, Rb_WrData, r.Parity(k), Rb_ByteEna, CB_c);
                     end if;
                 end loop;
 

@@ -207,6 +207,15 @@ def build_parity(rng, c):
     # An injection with the strobe of byte 0 off has no effect
     items += c.regs(write(CRP_INJECT, 1, 0xE))
     items += c.image(rng, "random")
+    # CRP-RG-03, PKG-08: the mismatch of an injection survives a write of the bytes of X alone (the bytes of Y kept),
+    # and a write of all four bytes clears it; without a mismatch such a write sets the parity for the resulting
+    # position. The model decides the expected images and pulses.
+    items += c.regs(write(CRP_INJECT, 1), write(CRP_ROI_POS, pos(*other), 0x3))
+    items += c.image(rng, "lines") + c.image(rng, "random")
+    items += c.regs(write(CRP_ROI_POS, pos(*other)))
+    items += c.image(rng, "lines")
+    items += c.regs(write(CRP_ROI_POS, pos(c.x, c.y), 0x3))
+    items += c.image(rng, "random")
     items += c.regs(check(CRP_STATUS))
     return items + status()
 
