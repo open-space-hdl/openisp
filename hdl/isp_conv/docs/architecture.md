@@ -83,9 +83,9 @@ register block answers a read in the following cycle and every access with OKAY.
 | --- | --- |
 | `ID`, `PARAM` | Constants from the generics |
 | `CTRL.HOLD` | One flip-flop with a parity flip-flop that the reset and every write of `CTRL` set; a mismatch at the image start counts as `HOLD` 0 and pulses `Err_Config` (`RuntimeCoef_g` true) |
-| `COEF[k]` | `CoefBits_g` flip-flops with the reset value `Coef_g`(k), written byte by byte with the write strobes; one parity flip-flop per register that the reset and every write set for the resulting value (`RuntimeCoef_g` true); constants otherwise |
+| `COEF[k]` | `CoefBits_g` flip-flops with the reset value `Coef_g`(k), written byte by byte with the write strobes; one parity flip-flop per register that the reset and every write set for the resulting value (`RuntimeCoef_g` true); constants otherwise. The write compares the address with the address of every register by itself: a register and its parity bit depend on their own value, the write data and one compare, not on a selection among the T registers. The parity of a write is the XOR of the parities of its bytes: of the write data for a written byte, of the stored bits for a kept one |
 | `STATUS.ERR_CONFIG` | Sticky flag set by `Err_Config`, cleared by a write of one, the pulse wins |
-| `INJECT.PARITY`, `INJECT.INDEX`, `INJECT.CTRL_PARITY` | Commands: invert the parity flip-flop of `COEF[INDEX]` and of `CTRL` |
+| `INJECT.PARITY`, `INJECT.INDEX`, `INJECT.CTRL_PARITY` | Commands: invert the parity flip-flop of `COEF[INDEX]` (one compare of `INDEX` per register) and of `CTRL` |
 
 The read multiplexer of the coefficients has T inputs; the read data is registered behind it.
 
