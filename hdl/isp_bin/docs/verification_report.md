@@ -93,8 +93,9 @@ requirement verified by test, plan section 5):
 | `rate_range_w9_bx2` (2 x 16, e = 1) | 71 | 58 to 73 | 73 | 71 | 231 | 9 |
 | `rate_range_w20_bx8` (8 x 16, e = 4) | 9 | 0 to 31 | 31 | 12 | 441 | 14 |
 
-The wait lies below the bound of BIN-PF-01 in every configuration, by at least 2 cycles (`BinX_g` 2). The exact formula
-does not hold for p >= W in general (`rate_range_w16_bx4` waits one cycle more, `rate_range_w10_bx4` one and
+The wait lies below the bound of BIN-PF-01 in every configuration. The smallest margin is 2 cycles, with `BinX_g` 2
+(`rate_odd_w13` and `rate_range_w9_bx2`): a change that lengthens the wait breaks the requirement there first. The exact
+formula does not hold for p >= W in general (`rate_range_w16_bx4` waits one cycle more, `rate_range_w10_bx4` one and
 `rate_range_w20_bx8` three cycles less), so the plan keeps the range there. The latency stayed in the design range of
 every configuration, and the fall of `Stat_ImageOpen` was 7 + lx + e + s in every configuration.
 
