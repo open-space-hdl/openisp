@@ -355,27 +355,37 @@ begin
                 if Rb_ByteEna(1) = '1' then
                     K_v := to_integer(unsigned(Rb_WrData(InjectIndexHi_c downto InjectIndexLo_c)));
                 end if;
-                if Rb_WrData(InjectParity_c) = '1' and K_v < T_c then
-                    v.Parity(K_v) := not r.Parity(K_v);
-                end if;
+
+                -- One compare per coefficient: the parity bit k depends on its own bit and the index only
+                for k in 0 to T_c - 1 loop
+                    if Rb_WrData(InjectParity_c) = '1' and K_v = k then
+                        v.Parity(k) := not r.Parity(k);
+                    end if;
+                end loop;
+
                 if Rb_WrData(InjectCtrlParity_c) = '1' then
                     v.CtrlPar := not r.CtrlPar;
                 end if;
             elsif RuntimeCoef_g and Addr_v >= RegCoef_c and Addr_v < RegCoef_c + RegCoefStride_c * T_c then
-                K_v := (Addr_v - RegCoef_c) / RegCoefStride_c;
-                if (Addr_v - RegCoef_c) mod RegCoefStride_c = 0 then
-                    Word_v := std_logic_vector(resize(r.Coef(K_v), 32));
+                -- One address compare per coefficient: coefficient k and its parity bit depend on their own register,
+                -- not on a selection among all coefficients
 
-                    for b in 0 to 3 loop
-                        if Rb_ByteEna(b) = '1' then
-                            Word_v(8 * b + 7 downto 8 * b) := Rb_WrData(8 * b + 7 downto 8 * b);
-                        end if;
-                    end loop;
+                for k in 0 to T_c - 1 loop
+                    if Addr_v = RegCoef_c + RegCoefStride_c * k then
+                        Word_v := std_logic_vector(resize(r.Coef(k), 32));
 
-                    -- The bits above CoefBits_g are not stored; every write sets the parity bit (CNV-RG-03)
-                    v.Coef(K_v)   := signed(Word_v(CB_c - 1 downto 0));
-                    v.Parity(K_v) := xor Word_v(CB_c - 1 downto 0);
-                end if;
+                        for b in 0 to 3 loop
+                            if Rb_ByteEna(b) = '1' then
+                                Word_v(8 * b + 7 downto 8 * b) := Rb_WrData(8 * b + 7 downto 8 * b);
+                            end if;
+                        end loop;
+
+                        -- The bits above CoefBits_g are not stored; every write sets the parity bit (CNV-RG-03)
+                        v.Coef(k)   := signed(Word_v(CB_c - 1 downto 0));
+                        v.Parity(k) := xor Word_v(CB_c - 1 downto 0);
+                    end if;
+                end loop;
+
             end if;
         end if;
 
