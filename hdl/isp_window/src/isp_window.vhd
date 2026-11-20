@@ -336,6 +336,10 @@ begin
         variable Ye_v    : unsigned(YW_c - 1 downto 0);
         variable Pixel_v : std_logic_vector(PB_c - 1 downto 0);
         variable Col_v   : Column_t;
+        variable Col0_v  : Column_t;
+        variable Start_v : boolean;
+        variable Left_v  : boolean;
+        variable LeftM_v : boolean;
         variable Old_v   : Window_t;
         variable EndLn_v : boolean;
         variable RefX_v  : boolean;
@@ -448,19 +452,31 @@ begin
             if Xe_v = 0 then
                 XStr_v := 0;
             end if;
-            if r.State = Pix_s and Xe_v = 0 and Ye_v = 0 then
+            -- Pixel (0, 0) from the position of the frame sync itself, not through the selection of the event position
+            Start_v := r.State = Pix_s and unsigned(FsPosX) = 0 and unsigned(FsPosY) = 0;
+            if Start_v then
                 Sel_v  := rowSelect(0);
                 YStr_v := 0;
             end if;
 
-            -- WN-4: the column of the event with the rows of the line (upper and lower border)
+            -- WN-4: the column of the event with the rows of the line (upper and lower border); the columns of the
+            -- registered selection and of the selection of line 0 are formed first, pixel (0, 0) chooses between them
             for j in 0 to WinY_g - 1 loop
-                if Sel_v(j) = WinY_g then
+                if r.RowSel(j) = WinY_g then
                     Col_v(j) := (others => '0');
                 else
-                    Col_v(j) := DlyOut(Sel_v(j));
+                    Col_v(j) := DlyOut(r.RowSel(j));
+                end if;
+                if rowSelect(0)(j) = WinY_g then
+                    Col0_v(j) := (others => '0');
+                else
+                    Col0_v(j) := DlyOut(rowSelect(0)(j));
                 end if;
             end loop;
+
+            if Start_v then
+                Col_v := Col0_v;
+            end if;
 
             -- ECC status of the line buffers, sampled in the pixel events (WIN-FT-02)
             -- Only the line buffers that the row selection of the event uses count: the lines above the image hold the
@@ -486,16 +502,23 @@ begin
 
             end if;
 
-            -- WN-4: left and right border
+            -- WN-4: left and right border; the decisions from the state and the registered column counter or the
+            -- position of the frame sync, not through the selection of the event position
             Old_v := r.Win;
-            if Xe_v >= W_c then
-                -- HCOL m = Xe_v - W + 1
+            if r.State = HCol_s then
+                -- HCOL m = VCol + 1 (event column W + VCol)
                 if Zero_c then
                     Col_v := (others => (others => '0'));
                 elsif Replicate_c then
                     Col_v := Old_v(WinX_g - 1);
                 elsif Mirror_c then
-                    Col_v := Old_v(WinX_g - 1 - (2 * (to_integer(Xe_v) - W_c + 1) - 1));
+
+                    for m in 0 to VCols_c - 1 loop
+                        if to_integer(r.VCol) = m then
+                            Col_v := Old_v(WinX_g - 2 - 2 * m);
+                        end if;
+                    end loop;
+
                 end if;
             end if;
 
@@ -506,7 +529,9 @@ begin
 
             v.Win(WinX_g - 1) := Col_v;
 
-            if Xe_v = 0 then
+            -- Column 0 of a line: a PIX at x = 0 or the first VPIX of a virtual line
+            Left_v := (r.State = Pix_s and unsigned(FsPosX) = 0) or (r.State = VPix_s and r.VCol = 0);
+            if Left_v then
                 if Zero_c then
                     v.Win             := (others => (others => (others => '0')));
                     v.Win(WinX_g - 1) := Col_v;
@@ -514,8 +539,15 @@ begin
                     v.Win := (others => Col_v);
                 end if;
             end if;
-            if Mirror_c and Xe_v >= 1 and Xe_v <= AnchorX_g and Xe_v < W_c then
-                v.Win(WinX_g - 1 - 2 * to_integer(Xe_v)) := Col_v;
+            if Mirror_c then
+
+                for m in 1 to AnchorX_g loop
+                    LeftM_v := (r.State = Pix_s and unsigned(FsPosX) = m) or (r.State = VPix_s and r.VCol = m);
+                    if m < W_c and LeftM_v then
+                        v.Win(WinX_g - 1 - 2 * m) := Col_v;
+                    end if;
+                end loop;
+
             end if;
 
             -- WN-5: a window of a reference pixel (x, y) = (xe - Rr, ye - Rb)
