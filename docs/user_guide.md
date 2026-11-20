@@ -183,9 +183,9 @@ therefore:
 | Register | Bytes with bits |
 | --- | --- |
 | `isp_conv` `COEF[k]` | `CoefBits_g` bits: byte 0 up to 8 bits, bytes 0 and 1 up to 16 bits, bytes 0 to 2 for 17 and 18 bits |
-| `isp_point` `OFFSET_LO`, `OFFSET_HI` | The offset of min(`InBits_g` + 1, 64) bits: `OFFSET_LO` its bits up to 31, `OFFSET_HI` the bits from 32 (none for `InBits_g` up to 31) |
+| `isp_point` `OFFSET_LO`, `OFFSET_HI` | The offset of min(`InBits_g` + 1, 64) bits: `OFFSET_LO` its bits up to 31, `OFFSET_HI` the bits from 32 (none for `InBits_g` up to 31: every write of `OFFSET_HI` is then a full write and sets its parity bit to 0) |
 | `isp_point` `GAIN` | `GainBits_g` bits |
-| `isp_point` `SHIFT` | Byte 0 (7 bits) |
+| `isp_point` `SHIFT` | Byte 0 (7 bits); a write without byte 0 leaves the register and its parity bit unchanged |
 | `isp_point` `LOW`, `HIGH` | `OutBits_g` bits |
 | `isp_crop` `ROI_POS` | All four bytes |
 | `CTRL` of `isp_conv` and `isp_point` | Byte 0 (`HOLD`) |

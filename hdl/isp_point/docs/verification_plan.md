@@ -107,7 +107,8 @@ the run-time parameters are swept exhaustively (`exhaustive`) cover them.
 | PNT-FT-01 | TC-PNT-05 (the set reloaded with every image) and review (no state between pixels) | Test and review |
 | PNT-FT-02 | TC-PNT-05 | Test |
 | PNT-FT-03 | TC-PNT-09 and the checks of section 3.1 | Test |
-| PNT-RG-01, PNT-RG-03, PNT-RG-05 | TC-PNT-03, 06 | Test |
+| PNT-RG-01, PNT-RG-05 | TC-PNT-03, 06 | Test |
+| PNT-RG-03 | TC-PNT-03, 05, 06 | Test |
 | PNT-RG-02 | TC-PNT-06, 07 | Test |
 | PNT-RG-04 | TC-PNT-05 | Test |
 | PNT-CF-01, PNT-CF-02 | TC-PNT-11 | Synthesis |

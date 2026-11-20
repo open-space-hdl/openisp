@@ -106,7 +106,8 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | CNV-FT-01 | TC-CNV-04, 09 and review (no state between windows) | Test and review |
 | CNV-FT-02 | TC-CNV-04 | Test |
 | CNV-FT-03 | TC-CNV-09 and the checks of section 3.1 | Test |
-| CNV-RG-01, CNV-RG-03 | TC-CNV-02, 05 | Test |
+| CNV-RG-01 | TC-CNV-02, 05 | Test |
+| CNV-RG-03 | TC-CNV-02, 04, 05 | Test |
 | CNV-RG-02 | TC-CNV-05, 06 | Test |
 | CNV-RG-04 | TC-CNV-04 | Test |
 | CNV-CF-01, CNV-CF-02 | TC-CNV-11 | Synthesis |
