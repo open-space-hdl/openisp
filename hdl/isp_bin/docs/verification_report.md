@@ -81,7 +81,7 @@ released at h0 + 66, after the registered ready of both input stages: 51 cycles.
 | `BinX_g`, `BinY_g` | 1 to 16 | every value | 1, 2, 3, 4, 5, 16; 17 stops the elaboration |
 | `BorderMode_g` | valid, zero, replicate | every value | every value; mirror stops the elaboration |
 | `EccPipeline_g` | as `isp_window` (0, 1) | 0, 1 | 0, 1; 2 stops the elaboration |
-| `Resource_g` | AUTO, SRL, BRAM | every value | every value; BRAM with Wo below 3 + `EccPipeline_g` and an unknown value (Open Logic) stop the elaboration |
+| `Resource_g` | AUTO, SRL, BRAM | every value | every value; BRAM with Wo below 3 + `EccPipeline_g` and an unknown value stop the elaboration |
 
 ## 4. Mutations
 
@@ -156,4 +156,4 @@ not connected; with constant coefficients they hold read-only registers only.
 | The shared probe after complete images (wait for the sink, 8 cycles, probe 0) failed in `sweep_03` and `sweep_12`: the vertical filter closes an image 7 + log2ceil(`BinX_g`) cycles after its last pixel, and in the mode valid with lines or columns that no bin uses no output follows the last pixel, so the wait for the sink ends at once | The probes of this bench after a wait for the sink wait 7 + log2ceil(`BinX_g`) + 8 cycles, the fall of the vertical filter plus the 8 cycles of the shared probe: the probe reads `Stat_ImageOpen` 7 cycles after the fall (plan, section 5) |
 | The model `bin_sum` emitted a line of bins at the end of the line; with a reset in the middle of a line the expected beats before the reset lacked the bins already complete. The model test against the two filters in series (`test_bin_filters_equal_definition` of `tools/tests/test_isp_model.py`) found it with `BinY_g` 1 | The model emits every bin with its last pixel, as the filters do; the sums are unchanged. `bin_sum` is used by `isp_bin` only: the test files of the other modules are unchanged (section 1) |
 | The width of the narrowed image was 0 for an `ImageWidth_g` below `BinX_g` in the mode valid, and the elaboration stopped with a range error before the check of `ImageWidth_g` | The width is at least 1, so the check names the generic (`bin_width_below`) |
-| The audit of the configuration checks found that `EccPipeline_g` 2, which the module passes to the vertical filter, stopped the elaboration with a range error that does not name the generic (BIN-CF-01) | `isp_window` checks it; the negatives `bin_ecc_2` and `bin_resource` show the messages through the module. The bench is unchanged |
+| The audit of the configuration checks found that `EccPipeline_g` 2 and an unknown `Resource_g`, which the module passes to the vertical filter, were not checked by a module of the suite (BIN-CF-01), and that the check of `Resource_g` BRAM compared with regard to case | `isp_window` checks both generics, the BRAM check compares without case as Open Logic does; the negatives `bin_ecc_2` and `bin_resource` show the messages through the module. The bench is unchanged |

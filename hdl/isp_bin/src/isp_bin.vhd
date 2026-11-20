@@ -23,6 +23,7 @@ library ieee;
 
 library olo;
     use olo.olo_base_pkg_math.all;
+    use olo.olo_base_pkg_string.all;
     use olo.olo_ft_pkg_ecc.all;
 
 library work;
@@ -138,7 +139,7 @@ begin
     assert BorderMode_g = "valid" or BorderMode_g = "zero" or BorderMode_g = "replicate"
         report "isp_bin: BorderMode_g must be valid, zero or replicate"
         severity failure;
-    assert Resource_g /= "BRAM" or BinY_g = 1 or WoH_c >= 3 + EccPipeline_g
+    assert not compareNoCase(Resource_g, "BRAM") or BinY_g = 1 or WoH_c >= 3 + EccPipeline_g
         report "isp_bin: ImageWidth_g / BinX_g must be at least 3 + EccPipeline_g with Resource_g BRAM"
         severity failure;
 

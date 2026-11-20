@@ -231,7 +231,9 @@ NEGATIVE += [
     ("win_mirror_anchor_y", "isp_window", dict(WIN_OK, BorderMode_g="mirror", AnchorY_g="2"),
      "mirror needs an odd WinY_g"),
     ("win_ecc_2", "isp_window", dict(WIN_OK, EccPipeline_g="2"), "isp_window: EccPipeline_g must be 0 or 1"),
-    ("win_resource", "isp_window", dict(WIN_OK, Resource_g="FIFO"), "Unknown Resource_g - FIFO"),
+    ("win_resource", "isp_window", dict(WIN_OK, Resource_g="FIFO"), "isp_window: Resource_g must be AUTO, SRL or BRAM"),
+    ("win_bram_narrow_case", "isp_window", dict(WIN_OK, Resource_g="bram", ImageWidth_g="3"),
+     "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g"),
     ("win_bram_narrow", "isp_window", dict(WIN_OK, Resource_g="BRAM", ImageWidth_g="3"),
      "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g"),
 ]
@@ -257,7 +259,8 @@ NEGATIVE += [
     ("flt_border", "isp_filter2d_synth", dict(FLT_OK, BorderMode_g="wrap"), "isp_window: BorderMode_g must be"),
     ("flt_coef_fewer", "isp_filter2d_synth", dict(FLT_OK, CoefCount_g="-1"), "isp_conv: Coef_g must have"),
     ("flt_ecc_2", "isp_filter2d_synth", dict(FLT_OK, EccPipeline_g="2"), "isp_window: EccPipeline_g must be 0 or 1"),
-    ("flt_resource", "isp_filter2d_synth", dict(FLT_OK, Resource_g="FIFO"), "Unknown Resource_g - FIFO"),
+    ("flt_resource", "isp_filter2d_synth", dict(FLT_OK, Resource_g="FIFO"),
+     "isp_window: Resource_g must be AUTO, SRL or BRAM"),
 ]
 
 BIN_OK = bin_(64, 32, 12, 2, 2, "valid")
@@ -273,7 +276,7 @@ NEGATIVE += [
     ("bin_height_below", "isp_bin", dict(BIN_OK, ImageHeight_g="1"),
      "isp_bin: ImageHeight_g must be BinY_g to 65536"),
     ("bin_ecc_2", "isp_bin", dict(BIN_OK, EccPipeline_g="2"), "isp_window: EccPipeline_g must be 0 or 1"),
-    ("bin_resource", "isp_bin", dict(BIN_OK, Resource_g="FIFO"), "Unknown Resource_g - FIFO"),
+    ("bin_resource", "isp_bin", dict(BIN_OK, Resource_g="FIFO"), "isp_window: Resource_g must be AUTO, SRL or BRAM"),
     ("bin_bram_narrow", "isp_bin", dict(BIN_OK, ImageWidth_g="7", Resource_g="BRAM"),
      "isp_bin: ImageWidth_g / BinX_g must be at least 3 + EccPipeline_g with Resource_g BRAM"),
 ]

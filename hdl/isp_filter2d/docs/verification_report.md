@@ -76,7 +76,7 @@ values below through the filter.
 | `StrideX_g`, `StrideY_g` | 1 to 16 | 1, 2, 3, 4 | 1, 2, 3, 4 |
 | `BorderMode_g` | valid, zero, replicate, mirror | every value | every value; an unknown mode stops the elaboration |
 | `EccPipeline_g` | as `isp_window` | 0, 1 | 1; 2 stops the elaboration |
-| `Resource_g` | AUTO, SRL, BRAM | every value | AUTO; an unknown value stops the elaboration (Open Logic) |
+| `Resource_g` | AUTO, SRL, BRAM | every value | AUTO; an unknown value stops the elaboration |
 | `CoefBits_g` | 2 to 18 | 2, 12, 16, 18 | 2, 16; 19 stops the elaboration |
 | `Coef_g` | as `isp_conv` | the MTF kernels, ones, random and asymmetric sets | both bounds, ones; T - 1 values stop the elaboration |
 | `RuntimeCoef_g` | false, true | both | both |
@@ -144,4 +144,4 @@ values of `RuntimeCoef_g` and every border mode, without latches; it gives no ti
 | The configurations of the plan held no low bound of the image size, `PixelBits_g`, `EccPipeline_g` or `Resource_g` | Configurations `min` and `small` (plan, section 2), `mtf5_mirror` on block RAM |
 | `lint/vivado_ooc.py` wrote string generics without quotes (`BorderMode_g`) | The script quotes strings; the top levels of the earlier configurations are unchanged |
 | The status-output audit found the probe of an open image in this bench only; the other benches probed `Stat_ImageOpen` after complete images only | The probe is part of the malformed streams of `tools/isp_tbgen.py` for every module (`open_image_probe`, with a random generator of its own); test_input_stream uses it there instead of its own cut image. The mutation run on 399d8b9 gives the same results (section 4) |
-| The audit of the configuration checks found that `EccPipeline_g` 2, which the filter passes to `isp_window`, stopped the elaboration with a range error that does not name the generic (FLT-CF-01) | `isp_window` checks it; the negatives `flt_ecc_2` and `flt_resource` show the messages through the filter (the synthesis wrapper takes both generics). The bench is unchanged |
+| The audit of the configuration checks found that `EccPipeline_g` 2 and an unknown `Resource_g`, which the filter passes to `isp_window`, were not checked by a module of the suite (FLT-CF-01) | `isp_window` checks both; the negatives `flt_ecc_2` and `flt_resource` show its messages through the filter (the synthesis wrapper takes both generics). The bench is unchanged |

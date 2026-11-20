@@ -18,7 +18,7 @@ The status-output audit added a probe of `Stat_ImageOpen` while an image is open
 | `test_reset` (TC-WIN-05) | 11 | 11 |
 | `test_rate` (TC-WIN-06) | 4 | 4 |
 | TC-WIN-07 (review) | Section 6 | Passed |
-| TC-WIN-08 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 17 generics out of range stop the elaboration with a message naming the generic | 25 |
+| TC-WIN-08 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 18 generics out of range stop the elaboration with a message naming the generic | 26 |
 | TC-WIN-09 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
@@ -74,7 +74,7 @@ further interval equals the design value.
 | `StrideX_g`, `StrideY_g` | 1 to 16 | every value | 1, 2, 3, 16; 17 stops the elaboration |
 | `BorderMode_g` | valid, zero, replicate, mirror | every value | every value; an unknown mode, mirror with an even window or an anchor beside the middle stop the elaboration |
 | `EccPipeline_g` | 0, 1 | both | both; 2 stops the elaboration |
-| `Resource_g` | AUTO, SRL, BRAM | every value | every value; BRAM with `ImageWidth_g` below 3 + `EccPipeline_g` and an unknown value (Open Logic) stop the elaboration |
+| `Resource_g` | AUTO, SRL, BRAM | every value | every value; BRAM with `ImageWidth_g` below 3 + `EccPipeline_g` and an unknown value stop the elaboration |
 
 ## 4. Mutations
 
@@ -151,4 +151,4 @@ border mode and every line buffer resource, without latches; it gives no timing.
 | Review of the pull request: `Stat_EccSec` and `Stat_EccDed` were the OR over all line buffers in every pixel event, so the rows that the border rule replaces reported errors although their pixels never reach a window: the image before, and after power-up any content of a RAM that the device does not initialise | The flags of a line buffer count only when the row selection of the event uses it (WIN-FT-02, WIN-IF-04); `test_ecc` injects into replaced rows, the configurations `ecc_bottom` and `ecc_bottom_zero` read a last-line injection in the first line of the next image, and the plan has a mutant without the gate |
 | The anchors out of range failed at a derived constant before the check that names the generic; the comparisons of the virtual columns used `VCols_c - 1`, which is -1 without virtual columns | The derived constants are limited to 0 and the comparison is an integer comparison; the positions have one value more |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
-| An audit of the configuration checks of every module found `EccPipeline_g` without a check: the specification declares 0 and 1, and a value of 2 stopped the elaboration inside the delay of Open Logic with a range error that does not name the generic (WIN-CF-01) | A check names `EccPipeline_g`; the delays receive the value limited to 1, so that the elaboration reaches the check. The negatives `win_ecc_2` and `win_resource` (an unknown `Resource_g`, checked by Open Logic with a message that names it) are part of TC-WIN-08. The bench is unchanged |
+| An audit of the configuration checks of every module found `EccPipeline_g` and `Resource_g` without a check of the module: `EccPipeline_g` 2 stopped the elaboration inside the delay of Open Logic with a range error that does not name the generic, an unknown `Resource_g` only at an assertion of Open Logic of severity error, which not every tool stops at (WIN-CF-01); and the check of WIN-CF-05 compared `Resource_g` with "BRAM" with regard to case, while Open Logic takes "bram" as block RAM | The module checks both generics with severity failure and gives the delays the values in range, so that the elaboration reaches the checks; WIN-CF-05 compares without case. Negatives `win_ecc_2`, `win_resource` and `win_bram_narrow_case` (TC-WIN-08). The bench is unchanged |

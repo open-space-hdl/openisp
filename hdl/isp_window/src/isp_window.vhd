@@ -22,6 +22,8 @@ library ieee;
     use ieee.numeric_std.all;
 
 library olo;
+    use olo.olo_base_pkg_math.all;
+    use olo.olo_base_pkg_string.all;
     use olo.olo_ft_pkg_ecc.all;
 
 library work;
@@ -132,9 +134,13 @@ architecture rtl of isp_window is
     constant XL_c : natural  := X0_c + (Wo_c - 1) * StrideX_g;
     constant YL_c : natural  := Y0_c + (Ho_c - 1) * StrideY_g;
 
-    -- EccPipeline_g limited to the range of the Open Logic delay, so that a value out of range elaborates the delays
-    -- and stops at the configuration check, which names the generic
-    constant EccPipe_c : natural := minimum(EccPipeline_g, 1);
+    -- EccPipeline_g limited to the range of the Open Logic delay and an unknown Resource_g replaced by AUTO, so that a
+    -- value out of range elaborates the delays and stops at the configuration check, which names the generic.
+    -- Open Logic takes Resource_g without regard to case
+    constant EccPipe_c    : natural := minimum(EccPipeline_g, 1);
+    constant Bram_c       : boolean := compareNoCase(Resource_g, "BRAM");
+    constant ResourceOk_c : boolean := compareNoCase(Resource_g, "AUTO") or compareNoCase(Resource_g, "SRL") or Bram_c;
+    constant Resource_c   : string  := choose(ResourceOk_c, Resource_g, "AUTO");
 
     -- Event positions: columns up to W + Rr - 1, lines up to H + Rb - 1; one value more, so that the column W and
     -- the line H have a value also where no virtual column or line exists
@@ -258,7 +264,10 @@ begin
     assert EccPipeline_g <= 1
         report "isp_window: EccPipeline_g must be 0 or 1"
         severity failure;
-    assert Resource_g /= "BRAM" or WinY_g = 1 or ImageWidth_g >= 3 + EccPipeline_g
+    assert ResourceOk_c
+        report "isp_window: Resource_g must be AUTO, SRL or BRAM"
+        severity failure;
+    assert not Bram_c or WinY_g = 1 or ImageWidth_g >= 3 + EccPipeline_g
         report "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g for Resource_g BRAM"
         severity failure;
 
@@ -303,7 +312,7 @@ begin
             generic map (
                 Width_g       => PB_c,
                 Delay_g       => W_c,
-                Resource_g    => Resource_g,
+                Resource_g    => Resource_c,
                 RstState_g    => true,
                 RamStyle_g    => RamStyle_g,
                 EccPipeline_g => EccPipe_c
