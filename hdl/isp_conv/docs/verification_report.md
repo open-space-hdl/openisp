@@ -12,6 +12,8 @@ The write decode with one address compare per coefficient and the parity of a wr
 between commit ac061ff (before the change) and commit dbcce6e, and the generated stimuli and expected outputs of every
 configuration are unchanged (488 files). The test bench, the model and the shared bench sources are the same in both
 commits.
+`python run.py -p 4` on 2026-11-20 on commit 1a42dba, 668 of 668 tests passed (122 of them `isp_conv`), 0 skipped;
+`lint/synth_check.py` (TC-CNV-11) passed.
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
