@@ -51,7 +51,11 @@ CONFIGS = [
     ("w1_h4", 1, 4, 12, 12, 16, 28, 2, False, (-100, 1229, 10, 0, -1), 10, 10, ["test_static"]),
     ("generic_bounds", 4, 3, 32, 32, 18, 50, 2, False, (-2 ** 31, 2 ** 18 - 1, 50, 2 ** 31 - 1, -1), 0, 0,
      ["test_static", "test_registers"]),
+    # The module at the defaults of its entity (DutDefaults_g): the model and the bench take the defaults of the
+    # specification, GainBits_g 16 and MaxShift_g InBits_g + GainBits_g (PARAM.MAX_SHIFT)
+    ("defaults", 6, 4, 12, 12, 16, 12 + 16, 2, False, DEFAULTS, 20, 20, ["test_static", "test_registers"]),
 ]
+DUT_DEFAULTS = ("defaults",)
 
 
 class Cfg:
@@ -315,4 +319,4 @@ def configure(lib, out_dir):
                 "RegsFile_g": files["regs"].as_posix(), "TimFile_g": files["tim"].as_posix(),
                 "GapPct_g": gap, "StallPct_g": stall, "Seed_g": seed_for(MODULE, name, test),
                 "ExpFraming_g": res["errors"], "ExpConfig_g": res["config"], "SweepSteps_g": SWEEP_STEPS,
-                "WatchdogUs_g": watchdog_us(files["stim"], files["exp"])})
+                "DutDefaults_g": name in DUT_DEFAULTS, "WatchdogUs_g": watchdog_us(files["stim"], files["exp"])})

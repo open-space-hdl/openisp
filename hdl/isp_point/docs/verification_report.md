@@ -15,17 +15,17 @@ The status-output audit added a probe of `Stat_ImageOpen` while an image is open
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
-| `test_static` (TC-PNT-01) | 15 | 15 |
+| `test_static` (TC-PNT-01) | 16 | 16 |
 | `test_input_stream` (TC-PNT-02) | 5 | 5 |
 | `test_runtime` (TC-PNT-03) | 4 | 4 |
 | `test_hold` (TC-PNT-04) | 1 | 1 |
 | `test_parity` (TC-PNT-05) | 7 | 7 |
-| `test_registers` (TC-PNT-06) | 8 | 8 |
+| `test_registers` (TC-PNT-06) | 9 | 9 |
 | `test_flag_coincidence` (TC-PNT-07) | 1 | 1 |
 | `test_exhaustive` (TC-PNT-08) | 1 | 1 |
 | `test_reset` (TC-PNT-09) | 5 | 5 |
 | `test_rate` (TC-PNT-10) | 5 | 5 |
-| TC-PNT-11 (`lint/synth_check.py`) | 7 configurations synthesise without latches; 13 generics out of range stop the elaboration with a message naming the generic | 20 |
+| TC-PNT-11 (`lint/synth_check.py`) | 9 configurations synthesise without latches (2 with the defaults of the entity); 13 generics out of range stop the elaboration with a message naming the generic | 22 |
 | TC-PNT-12 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
@@ -77,7 +77,7 @@ Measured timing (test_rate) and coincidence (test_flag_coincidence):
 | `InBits_g` | 1 to 64 | 1, 4, 8, 12, 16, 32, 64 | 1, 16, 32, 64; 65 stops the elaboration |
 | `OutBits_g` | 1 to 32 | 1, 4, 8, 12, 32 | 1, 12, 32; 33 stops the elaboration |
 | `GainBits_g` | 1 to 18 | 1, 3, 16, 18 | 1, 16, 18; 19 stops the elaboration |
-| `MaxShift_g` | 0 to `InBits_g` + `GainBits_g` + 1 | 0, 6, 8, 9, 28, 32, 50, 83 | 0, 3, 32, 50, 83; above the bound stops the elaboration |
+| `MaxShift_g` | 0 to `InBits_g` + `GainBits_g` + 1 | 0, 6, 8, 9, 28 (also as the default of the entity), 32, 50, 83 | 0, 3, 28 and 80 (the default of the entity), 32, 50, 83; above the bound stops the elaboration |
 | `MultStages_g` | 1 to 4 | every value | 1, 2, 3, 4; 0 and 5 stop the elaboration |
 | `Runtime_g` | false, true | both | both |
 | `Offset_g`, `Gain_g`, `Shift_g`, `Low_g`, `High_g` | Specification, section 4 | the bounds and typical values | the bounds; values out of range stop the elaboration |
@@ -165,3 +165,4 @@ The register map of the specification and the register description agree (`tools
 | `CTRL.HOLD` had no protection: an upset that set it would have frozen the parameter set without a report (lead decision Q-PNT-1) | `CTRL` has a parity bit; a mismatch counts as `HOLD` 0 and pulses `Err_Config` (PNT-ER-04); tested through `INJECT` bit 6 |
 | The plan named 82 as the upper bound of `MaxShift_g` for 64-bit pixels and an 18-bit gain; the bound is `InBits_g` + `GainBits_g` + 1 = 83 | Plan corrected; `wide` simulates 83 |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
+| The default of `MaxShift_g` in the entity was 82; the specification gives `InBits_g` + `GainBits_g`. The range check of the module (at most `InBits_g` + `GainBits_g` + 1) rejects 82 for every input below 64 bits with an 18-bit gain, so the module did not elaborate with `MaxShift_g` left at its default. Every configuration of the benches and of `lint/synth_check.py` set the generic; the synthesis wrapper of the chain test (`isp_chain`) was the first to rely on the default | The default is `InBits_g` + `GainBits_g` (a generic of the same list, VHDL-2008). The configuration `defaults` simulates the module with every generic but the dimensions and the pixel bits at its default and reads `PARAM.MAX_SHIFT`; `pnt_defaults` and `pnt_defaults_64` synthesise it. A mutant with the old default is killed (section 4). The defaults of every entity of the suite were compared with the tables of generics of their specifications: no other differs |
