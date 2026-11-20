@@ -87,6 +87,9 @@ entity isp_replace_tb is
         MinPassDone_g    : natural  := 0;
         MaxPassDone_g    : natural  := natural'high;
         ExpOverrun_g     : boolean  := false;
+        -- The module with the defaults of its entity for every generic but the dimensions and the pixel bits; the
+        -- generics of the bench above then have the values of the specification
+        DutDefaults_g    : boolean  := false;
         -- Steps of the sweeps of test_flag_coincidence
         SweepSteps_g     : positive := 12;
         -- Watchdog: the test fails when it has not ended after this time (docs/testbench.md, section 6)
@@ -102,15 +105,15 @@ architecture sim of isp_replace_tb is
     constant FlipW_c     : positive := eccCodewordWidth(32);
     -- Design values of the timing (verification plan, section 5)
     constant LatMin_c    : positive := 10;
-    constant LatMax_c    : positive := maximum(12, 11 + RdLat_c);
+    constant LatMax_c    : positive := 12 + RdLat_c;
     -- Hold cycles between the first pixels of lines 0 and 1: the wait for word 0 of the map after an idle module;
     -- after an image it runs beside the G virtual columns of the last line of that image
-    constant HoldIdle_c  : positive := RdLat_c + 1;
-    constant HoldFirst_c : positive := maximum(G_c, RdLat_c + 1);
+    constant HoldIdle_c  : positive := RdLat_c + 2;
+    constant HoldFirst_c : positive := maximum(G_c, RdLat_c + 2);
     -- Image period: the first interval after an idle module holds the virtual columns of H - 1 lines and the wait
     -- for word 0; every further one the virtual columns of H lines and the part of the wait beyond them
-    constant PerIdle_c   : positive := ImageHeight_g * ImageWidth_g + (ImageHeight_g - 1) * G_c + RdLat_c + 1;
-    constant Period_c    : positive := ImageHeight_g * (ImageWidth_g + G_c) + maximum(0, RdLat_c + 1 - G_c);
+    constant PerIdle_c   : positive := ImageHeight_g * ImageWidth_g + (ImageHeight_g - 1) * G_c + RdLat_c + 2;
+    constant Period_c    : positive := ImageHeight_g * (ImageWidth_g + G_c) + maximum(0, RdLat_c + 2 - G_c);
     -- Drain time of the test end: the latency bound of RPL-PF-03 after the last pixel, plus G and 21
     -- (docs/testbench.md, section 6)
     constant Drain_c     : positive := 13 + RdLat_c + G_c + 21;
@@ -207,60 +210,121 @@ begin
 
     test_runner_watchdog(runner, WatchdogUs_g * 1 us);
 
-    i_dut : entity work.isp_replace
-        generic map (
-            ImageWidth_g   => ImageWidth_g,
-            ImageHeight_g  => ImageHeight_g,
-            PixelBits_g    => PixelBits_g,
-            MaxGap_g       => MaxGap_g,
-            RamRdLatency_g => RamRdLatency_g,
-            EccPipeline_g  => EccPipeline_g,
-            ClkFreqHz_g    => real(ClkFreqHz_g),
-            ScrubPeriod_g  => scrubPeriod
-        )
-        port map (
-            Clk               => Clk,
-            Rst               => Rst,
-            In_Valid          => In_Valid,
-            In_Ready          => In_Ready,
-            In_Data           => In_Data,
-            In_Last           => In_Last,
-            In_User           => In_User,
-            Out_Valid         => Out_Valid,
-            Out_Ready         => Out_Ready,
-            Out_Data          => Out_Data,
-            Out_Last          => Out_Last,
-            Out_User          => Out_User,
-            S_AxiLite_ArAddr  => Axi.read_address_channel.araddr,
-            S_AxiLite_ArValid => Axi.read_address_channel.arvalid,
-            S_AxiLite_ArReady => Axi.read_address_channel.arready,
-            S_AxiLite_AwAddr  => Axi.write_address_channel.awaddr,
-            S_AxiLite_AwValid => Axi.write_address_channel.awvalid,
-            S_AxiLite_AwReady => Axi.write_address_channel.awready,
-            S_AxiLite_WData   => Axi.write_data_channel.wdata,
-            S_AxiLite_WStrb   => Axi.write_data_channel.wstrb,
-            S_AxiLite_WValid  => Axi.write_data_channel.wvalid,
-            S_AxiLite_WReady  => Axi.write_data_channel.wready,
-            S_AxiLite_BResp   => Axi.write_response_channel.bresp,
-            S_AxiLite_BValid  => Axi.write_response_channel.bvalid,
-            S_AxiLite_BReady  => Axi.write_response_channel.bready,
-            S_AxiLite_RData   => Axi.read_data_channel.rdata,
-            S_AxiLite_RResp   => Axi.read_data_channel.rresp,
-            S_AxiLite_RValid  => Axi.read_data_channel.rvalid,
-            S_AxiLite_RReady  => Axi.read_data_channel.rready,
-            Err_Framing       => Err_Framing,
-            Stat_ImageOpen    => Stat_ImageOpen,
-            Stat_Unreplaced   => Stat_Unreplaced,
-            Stat_EccSec       => Stat_EccSec,
-            Stat_EccDed       => Stat_EccDed,
-            ErrInj_BitFlip    => ErrInj_BitFlip,
-            ErrInj_Valid      => ErrInj_Valid,
-            Scrub_Enable      => Scrub_Enable,
-            Scrub_EccSec      => Scrub_EccSec,
-            Scrub_EccDed      => Scrub_EccDed,
-            Scrub_PassDone    => Scrub_PassDone,
-            Scrub_Overrun     => Scrub_Overrun
-        );
+    assert not DutDefaults_g or (MaxGap_g = 2 and RamRdLatency_g = 2 and EccPipeline_g = 1 and
+                                 ClkFreqHz_g = 150000000 and ScrubPeriodMs_g = 0)
+        report "isp_replace_tb: DutDefaults_g needs the generics of the bench at the defaults of the specification"
+        severity failure;
+
+    g_dut : if DutDefaults_g generate
+
+        i_dut : entity work.isp_replace
+            generic map (
+                ImageWidth_g  => ImageWidth_g,
+                ImageHeight_g => ImageHeight_g,
+                PixelBits_g   => PixelBits_g
+            )
+            port map (
+                Clk               => Clk,
+                Rst               => Rst,
+                In_Valid          => In_Valid,
+                In_Ready          => In_Ready,
+                In_Data           => In_Data,
+                In_Last           => In_Last,
+                In_User           => In_User,
+                Out_Valid         => Out_Valid,
+                Out_Ready         => Out_Ready,
+                Out_Data          => Out_Data,
+                Out_Last          => Out_Last,
+                Out_User          => Out_User,
+                S_AxiLite_ArAddr  => Axi.read_address_channel.araddr,
+                S_AxiLite_ArValid => Axi.read_address_channel.arvalid,
+                S_AxiLite_ArReady => Axi.read_address_channel.arready,
+                S_AxiLite_AwAddr  => Axi.write_address_channel.awaddr,
+                S_AxiLite_AwValid => Axi.write_address_channel.awvalid,
+                S_AxiLite_AwReady => Axi.write_address_channel.awready,
+                S_AxiLite_WData   => Axi.write_data_channel.wdata,
+                S_AxiLite_WStrb   => Axi.write_data_channel.wstrb,
+                S_AxiLite_WValid  => Axi.write_data_channel.wvalid,
+                S_AxiLite_WReady  => Axi.write_data_channel.wready,
+                S_AxiLite_BResp   => Axi.write_response_channel.bresp,
+                S_AxiLite_BValid  => Axi.write_response_channel.bvalid,
+                S_AxiLite_BReady  => Axi.write_response_channel.bready,
+                S_AxiLite_RData   => Axi.read_data_channel.rdata,
+                S_AxiLite_RResp   => Axi.read_data_channel.rresp,
+                S_AxiLite_RValid  => Axi.read_data_channel.rvalid,
+                S_AxiLite_RReady  => Axi.read_data_channel.rready,
+                Err_Framing       => Err_Framing,
+                Stat_ImageOpen    => Stat_ImageOpen,
+                Stat_Unreplaced   => Stat_Unreplaced,
+                Stat_EccSec       => Stat_EccSec,
+                Stat_EccDed       => Stat_EccDed,
+                ErrInj_BitFlip    => ErrInj_BitFlip,
+                ErrInj_Valid      => ErrInj_Valid,
+                Scrub_Enable      => Scrub_Enable,
+                Scrub_EccSec      => Scrub_EccSec,
+                Scrub_EccDed      => Scrub_EccDed,
+                Scrub_PassDone    => Scrub_PassDone,
+                Scrub_Overrun     => Scrub_Overrun
+            );
+
+    else generate
+
+        i_dut : entity work.isp_replace
+            generic map (
+                ImageWidth_g   => ImageWidth_g,
+                ImageHeight_g  => ImageHeight_g,
+                PixelBits_g    => PixelBits_g,
+                MaxGap_g       => MaxGap_g,
+                RamRdLatency_g => RamRdLatency_g,
+                EccPipeline_g  => EccPipeline_g,
+                ClkFreqHz_g    => real(ClkFreqHz_g),
+                ScrubPeriod_g  => scrubPeriod
+            )
+            port map (
+                Clk               => Clk,
+                Rst               => Rst,
+                In_Valid          => In_Valid,
+                In_Ready          => In_Ready,
+                In_Data           => In_Data,
+                In_Last           => In_Last,
+                In_User           => In_User,
+                Out_Valid         => Out_Valid,
+                Out_Ready         => Out_Ready,
+                Out_Data          => Out_Data,
+                Out_Last          => Out_Last,
+                Out_User          => Out_User,
+                S_AxiLite_ArAddr  => Axi.read_address_channel.araddr,
+                S_AxiLite_ArValid => Axi.read_address_channel.arvalid,
+                S_AxiLite_ArReady => Axi.read_address_channel.arready,
+                S_AxiLite_AwAddr  => Axi.write_address_channel.awaddr,
+                S_AxiLite_AwValid => Axi.write_address_channel.awvalid,
+                S_AxiLite_AwReady => Axi.write_address_channel.awready,
+                S_AxiLite_WData   => Axi.write_data_channel.wdata,
+                S_AxiLite_WStrb   => Axi.write_data_channel.wstrb,
+                S_AxiLite_WValid  => Axi.write_data_channel.wvalid,
+                S_AxiLite_WReady  => Axi.write_data_channel.wready,
+                S_AxiLite_BResp   => Axi.write_response_channel.bresp,
+                S_AxiLite_BValid  => Axi.write_response_channel.bvalid,
+                S_AxiLite_BReady  => Axi.write_response_channel.bready,
+                S_AxiLite_RData   => Axi.read_data_channel.rdata,
+                S_AxiLite_RResp   => Axi.read_data_channel.rresp,
+                S_AxiLite_RValid  => Axi.read_data_channel.rvalid,
+                S_AxiLite_RReady  => Axi.read_data_channel.rready,
+                Err_Framing       => Err_Framing,
+                Stat_ImageOpen    => Stat_ImageOpen,
+                Stat_Unreplaced   => Stat_Unreplaced,
+                Stat_EccSec       => Stat_EccSec,
+                Stat_EccDed       => Stat_EccDed,
+                ErrInj_BitFlip    => ErrInj_BitFlip,
+                ErrInj_Valid      => ErrInj_Valid,
+                Scrub_Enable      => Scrub_Enable,
+                Scrub_EccSec      => Scrub_EccSec,
+                Scrub_EccDed      => Scrub_EccDed,
+                Scrub_PassDone    => Scrub_PassDone,
+                Scrub_Overrun     => Scrub_Overrun
+            );
+
+    end generate;
 
     i_source : entity work.isp_tb_source
         generic map (

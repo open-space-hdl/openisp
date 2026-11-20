@@ -42,13 +42,13 @@ equal the model, also the modules that report nothing.
   input pixel (0, 10) of an image: that image keeps the old sets, the next one takes the new sets in every module. A
   release of the two `isp_point` alone at input pixel (37, 2) gives that image the old set in the first and the new
   one in the second, as the model predicts. In `small` (no window for back-to-back images) the source pauses after
-  an image, the release is set 84 cycles after its start (S_last + 1 = 82 derived), its writes end at 108, and the
+  an image, the release is set 85 cycles after its start (S_last + 1 = 83 derived), its writes end at 109, and the
   next image follows them. The times of the register script in `typical`, logged by the bench:
 
   | Release (`typical`) | Set after the image start | Done after the image start | Window of section 5.4 |
   | --- | --- | --- | --- |
-  | Four writes at input pixel (0, 10) | 420 cycles | 444 cycles | 229 < t < 852 |
-  | Two writes at input pixel (37, 2) | 123 cycles | 135 cycles | after S_first = 14, before s_last of the lower latencies 221 |
+  | Four writes at input pixel (0, 10) | 421 cycles | 445 cycles | 230 < t < 853 |
+  | Two writes at input pixel (37, 2) | 124 cycles | 136 cycles | after S_first = 15, before s_last of the lower latencies 222 |
 
 - ECC: in `typical` the defect map reports 9 single and 10 double errors, `isp_filter2d` 2 and 2, `isp_bin` 1 and 1;
   in `small` 11 and 12, 2 and 2, 2 and 2. Every double error changes the chain output (the model shows it before the
@@ -63,13 +63,13 @@ equal the model, also the modules that report nothing.
 
   | Chain | Hold cycles per line interval | Lines 0 and 1 | Image intervals | Latency of every output pixel |
   | --- | --- | --- | --- | --- |
-  | `typical` | 2 | 2 (the wait for word 0 of the defect map) | 840, 840, 840 | 52 (design 52 to 61) |
+  | `typical` | 2 | 3 (the wait for word 0 of the defect map) | 841, 841, 841 | 52 (design 52 to 62) |
   | `reordered` | 1 | 0 in the first image, 37 in every further one | 407, 444, 444 | 29 (design 29 to 35) |
 
   Every output pixel leaves at the lower bound of the latency: no module holds a beat that completes an output pixel
   in these streams; the upper bound covers a pixel that a frame sync takes while its module holds the input.
-- FIFO in front of `typical` (a source of one pixel per cycle within a line, line blanking 1, image blanking 22): at
-  the depth of the rule, 25 entries, the FIFO never holds the source, its largest `In_Level` is 24 as derived, and
+- FIFO in front of `typical` (a source of one pixel per cycle within a line, line blanking 1, image blanking 23): at
+  the depth of the rule, 26 entries, the FIFO never holds the source, its largest `In_Level` is 25 as derived, and
   every image finds it empty. One entry less holds the source for 4 cycles; one cycle of image blanking less leaves
   one pixel of the image before in the FIFO at every further image. Both are detected (`neg_fifo_depth`,
   `neg_fifo_drain`).
@@ -131,3 +131,4 @@ modules is in their verification reports; the chain adds no logic between them.
 | The first check of the drained FIFO read `In_Level` at the first pixel of an image and reported pixels of the image before at F = 23. `In_Level` shows a read one cycle late: a pixel read in the cycle before still counts. A measurement artefact of the check, not a property of the design | The check counts the writes of the source and the reads of the FIFO (a read in the cycle of the write counts): the FIFO is empty at every image start from F = 22 on, measured at F = 22 and F = 21 |
 | The plan placed the mixed release at input pixel (37, 2) 121 cycles after the image start; the virtual columns of line 1 hold the input at the start of line 2, so it is 123 cycles; the plan counted six writes for the release, which has four | Plan 5.4 corrected; the bench logs the times of the register script (section 2) |
 | The synthesis wrapper of the chain was the first instance of `isp_point` that left `MaxShift_g` at its default: the entity default was 82, which the range check of the module rejects for every input below 64 bits with an 18-bit gain, while the specification gives `InBits_g` + `GainBits_g` | Corrected in `isp_point` (its verification report, section 7); the chain sets `MaxShift_g` to the value of the specification |
+| `isp_replace` registers the read request of its defect map and its defaults became `RamRdLatency_g` 2 and `EccPipeline_g` 1 (its verification report, sections 5.1 and 7). The chain sets `RamRdLatency_g` 1 and `EccPipeline_g` 0 and keeps the cycle of the registered request: the wait for word 0 between lines 0 and 1 is 3 cycles, one more than G | Plan 5.1 to 5.4 and the bench values follow: the image period 841, the upper latency 62, r_0 = 3, the largest `In_Level` 25, the depth 26, the image blanking F >= 23, S_last 230 (222 with the lower latencies), S_first 15 with the upper latency; the values in the findings above are those of the chain before this change. The user guide examples (4.2, section 5) follow |

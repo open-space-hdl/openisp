@@ -59,6 +59,11 @@ CONFIGS = [
     cfg("rate_g2", 40, 6, 12, 2, gap=0, stall=0, tests=["test_rate"]),
     cfg("rate_g7", 15, 6, 12, 7, 2, 1, gap=0, stall=0, tests=["test_rate"]),
     cfg("rate_w33", 33, 6, 12, 1, 3, 2, gap=0, stall=0, tests=["test_rate"]),
+    # The module at the defaults of its entity (DutDefaults_g): G 2, RamRdLatency_g 2, EccPipeline_g 1, the scrubber
+    # free running; the timing of test_rate shows the read path of the map (line 0 holds 5 cycles, the period
+    # H x (W + G) + 3)
+    cfg("defaults", 40, 6, 12, 2, 2, 1, tests=["test_static", "test_registers", "test_ecc", "test_reset"]),
+    cfg("defaults_rate", 40, 6, 12, 2, 2, 1, gap=0, stall=0, tests=["test_rate"]),
 ]
 # Sweeps: every G, every read latency of the map with the shortest word
 CONFIGS += [cfg("gap_{}".format(g), 4 * g + 5, 6, 10, g, tests=["test_static"]) for g in range(1, 8)]
@@ -242,6 +247,14 @@ def build_ecc(rng, x):
         m = rng.randint(x.g + 1, min(x.w, 32) - 1) if min(x.w, 32) - 1 > x.g + 1 else min(x.w, 32) - 1
         beats = packets(random_image(rng, x.w, x.h, x.bits), [x.w] * x.h)
         items += beats[:m] + [("W",), ("T", 4), ("R", 0, 0, 1)] + x.image(rng)
+        # The registered read request (RPL-IF-04): a single error in word 2, which the image reads ahead in its first
+        # cycles and uses many pixels later; a reset 0 to 6 cycles after pixel (0, 0), before, in and after the cycles
+        # in which the reads of words 0 to 2 are decided and requested, drops the words read ahead: no report for the
+        # cut image, one report of word 2 in every following image that uses it
+        for k in range(7):
+            items += x.inject(1 << POS[rng.randrange(32)]) + x.regs.access(*x.write_words(2, [x.map[2]]))
+            pix = random_image(rng, x.w, x.h, x.bits)
+            items += packets(pix[:1], [1], last=False) + [("T", k), ("R", 0, 0, 1)] + x.image(rng)
     return items + status()
 
 
@@ -455,6 +468,7 @@ def configure(lib, out_dir):
                 "TimFile_g": files["tim"].as_posix(), "GapPct_g": c["gap"], "StallPct_g": c["stall"],
                 "Seed_g": seed_for(MODULE, c["name"], test), "ExpFraming_g": res["errors"],
                 "ExpUnreplaced_g": res["unreplaced"], "ExpSec_g": res["sec"], "ExpDed_g": res["ded"],
-                "SweepSteps_g": SWEEP_STEPS, "WatchdogUs_g": watchdog_us(files["stim"], files["exp"])}
+                "SweepSteps_g": SWEEP_STEPS, "DutDefaults_g": c["name"].startswith("defaults"),
+                "WatchdogUs_g": watchdog_us(files["stim"], files["exp"])}
             generics.update(expect)
             tb.test(test).add_config(name=c["name"], generics=generics)

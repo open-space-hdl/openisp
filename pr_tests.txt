@@ -103,10 +103,13 @@ openisp.isp_bin_tb.bin4.*
 openisp.isp_bin_tb.max.*
 
 # isp_replace: every test (g2, flags, rate_g2, exhaustive, clear); G = 1 with the narrowest image; G = 7; 1 bit; a
-# map of one word; the longest read latency; the scrubber overrun
+# map of one word; the longest read latency; the scrubber overrun; the defaults of the entity (defaults,
+# defaults_rate)
 openisp.isp_replace_tb.g2.*
 openisp.isp_replace_tb.flags.*
 openisp.isp_replace_tb.rate_g2.*
+openisp.isp_replace_tb.defaults.*
+openisp.isp_replace_tb.defaults_rate.*
 openisp.isp_replace_tb.exhaustive.*
 openisp.isp_replace_tb.clear.*
 openisp.isp_replace_tb.g1_min.*
