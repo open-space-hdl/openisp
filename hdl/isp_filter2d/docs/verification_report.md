@@ -10,6 +10,10 @@ The status-output audit moved the probe of the open image of test_input_stream i
 `tools/isp_tbgen.py`, which every module uses: `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests
 passed (32 of them `isp_filter2d`), 0 skipped.
 
+The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
+commit 4cef90a, 601 of 601 tests passed (32 of them `isp_filter2d`), 0 skipped; `lint/synth_check.py` (TC-FLT-07)
+passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-FLT-01) | 14 | 14 |
@@ -18,8 +22,8 @@ passed (32 of them `isp_filter2d`), 0 skipped.
 | `test_errors` (TC-FLT-04) | 3 | 3 |
 | `test_reset` (TC-FLT-05) | 5 | 5 |
 | `test_rate` (TC-FLT-06) | 2 | 2 |
-| TC-FLT-07 (`lint/synth_check.py`) | 6 configurations synthesise without latches; 4 generics out of range stop the elaboration with the message of the part that checks them | 10 |
-| TC-FLT-08 (`lint/vivado_ooc.py`) | Section 5 | Not run (device) |
+| TC-FLT-07 (`lint/synth_check.py`) | 6 configurations synthesise without latches; 6 generics out of range stop the elaboration with the message of the part that checks them | 12 |
+| TC-FLT-08 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
 
@@ -75,8 +79,8 @@ values below through the filter.
 | `AnchorX_g`, `AnchorY_g` | as `isp_window` | 0, 1, the middle | 0, 1, the middle |
 | `StrideX_g`, `StrideY_g` | 1 to 16 | 1, 2, 3, 4 | 1, 2, 3, 4 |
 | `BorderMode_g` | valid, zero, replicate, mirror | every value | every value; an unknown mode stops the elaboration |
-| `EccPipeline_g` | as `isp_window` | 0, 1 | 1 |
-| `Resource_g` | AUTO, SRL, BRAM | every value | AUTO |
+| `EccPipeline_g` | as `isp_window` | 0, 1 | 1; 2 stops the elaboration |
+| `Resource_g` | AUTO, SRL, BRAM | every value | AUTO; an unknown value stops the elaboration |
 | `CoefBits_g` | 2 to 18 | 2, 12, 16, 18 | 2, 16; 19 stops the elaboration |
 | `Coef_g` | as `isp_conv` | the MTF kernels, ones, random and asymmetric sets | both bounds, ones; T - 1 values stop the elaboration |
 | `RuntimeCoef_g` | false, true | both | both |
@@ -112,10 +116,9 @@ stream generator (section 7), with the same 11 tests: every result is the same.
 
 ## 5. Synthesis and timing
 
-Not run. TC-FLT-08 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10). The licence for the reference device has expired on the development host,
-and the device for the proxy runs is not installed yet; the run is open. The script `lint/vivado_ooc.py` is ready with
-the configuration `flt_mtf5` (5 x 5 mirror, 12-bit pixels, 16-bit run-time coefficients, 4096 pixels per line).
+Not run yet: TC-FLT-08 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
+(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
+configuration `flt_mtf5` (5 x 5 mirror, 12-bit pixels, 16-bit run-time coefficients, 4096 pixels per line).
 
 The GHDL synthesis of TC-FLT-07 shows that the module is synthesisable in the configurations of the suite with both
 values of `RuntimeCoef_g` and every border mode, without latches; it gives no timing.
@@ -145,3 +148,4 @@ values of `RuntimeCoef_g` and every border mode, without latches; it gives no ti
 | The configurations of the plan held no low bound of the image size, `PixelBits_g`, `EccPipeline_g` or `Resource_g` | Configurations `min` and `small` (plan, section 2), `mtf5_mirror` on block RAM |
 | `lint/vivado_ooc.py` wrote string generics without quotes (`BorderMode_g`) | The script quotes strings; the top levels of the earlier configurations are unchanged |
 | The status-output audit found the probe of an open image in this bench only; the other benches probed `Stat_ImageOpen` after complete images only | The probe is part of the malformed streams of `tools/isp_tbgen.py` for every module (`open_image_probe`, with a random generator of its own); test_input_stream uses it there instead of its own cut image. The mutation run on 399d8b9 gives the same results (section 4) |
+| The audit of the configuration checks found that `EccPipeline_g` 2 and an unknown `Resource_g`, which the filter passes to `isp_window`, were not checked by a module of the suite (FLT-CF-01) | `isp_window` checks both; the negatives `flt_ecc_2` and `flt_resource` show its messages through the filter (the synthesis wrapper takes both generics). The bench is unchanged |

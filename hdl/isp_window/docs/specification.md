@@ -118,7 +118,7 @@ first image read only in such rows.
 | `StrideY_g` | 1 | 1 to 16 | Distance of the lines with reference pixels |
 | `BorderMode_g` | "replicate" | "valid", "zero", "replicate", "mirror" | Border mode (section 6) |
 | `EccPipeline_g` | 1 | 0, 1 | Output register of the ECC decoder of every line buffer (Open Logic `EccPipeline_g`) |
-| `Resource_g` | "AUTO" | Values of Open Logic | Implementation of the line buffers: block RAM or shift registers (Open Logic `Resource_g`) |
+| `Resource_g` | "AUTO" | "AUTO", "SRL", "BRAM" (as Open Logic, without regard to case) | Implementation of the line buffers: block RAM or shift registers (Open Logic `Resource_g`) |
 | `RamStyle_g` | "auto" | Values of Open Logic | RAM implementation of the line buffers (Open Logic `RamStyle_g`) |
 
 The line buffers hold (`WinY_g` - 1) x `ImageWidth_g` pixels of `PixelBits_g` bits plus the SECDED check bits of

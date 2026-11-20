@@ -71,7 +71,7 @@ Checks besides the regression:
 ```shell
 python lint/lint.py                 # VSG, no errors and no warnings
 python lint/synth_check.py          # synthesizability of the module top levels with GHDL
-python lint/vivado_ooc.py --out C:/osh/isp_ooc fsy_max  # timing at 150 MHz, Vivado with a device licence
+python lint/vivado_ooc.py --out ooc fsy_max   # timing at 150 MHz (Vivado)
 python tools/compliance.py --check  # every core requirement and module requirement traced to a test case
 python run.py --compile-order       # regenerates compile_order.txt (the CI fails when it is not current)
 python tools/ci_subset.py --check   # the rules of the pull-request test list pr_tests.txt

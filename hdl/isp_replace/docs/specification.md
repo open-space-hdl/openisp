@@ -120,8 +120,8 @@ outputs, also of the content of the RAM after power-up until the software clears
 | `RamRdLatency_g` | 1 | 1 to 3 | Read latency of the RAM of the defect map (Open Logic `RamRdLatency_g`) |
 | `EccPipeline_g` | 0 | 0 to 2 | Pipeline stages of its ECC decoder (Open Logic `EccPipeline_g`) |
 | `RamStyle_g` | "auto" | Values of Open Logic | Implementation of the RAM (Open Logic `RamStyle_g`) |
-| `ClkFreqHz_g` | 150.0e6 | Range of Open Logic | Clock frequency, for the scrub period |
-| `ScrubPeriod_g` | 0.0 | Range of Open Logic | Time for one scrub pass over the defect map; 0.0 scrubs in every free cycle |
+| `ClkFreqHz_g` | 150.0e6 | 1000.0 to 2.14748e11 when `ScrubPeriod_g` is above 0.0 (the pacer of Open Logic divides the clock to a tick of 1 kHz; `olo_base_strobe_gen` checks FreqClkHz_g / FreqStrobeHz_g <= 214748000.0, so 214748000 x 1000 Hz); any value with `ScrubPeriod_g` 0.0 | Clock frequency, for the scrub period |
+| `ScrubPeriod_g` | 0.0 | 0.0, or 0.001 to 1073741.823 s, rounded to whole milliseconds (the pacer of Open Logic counts the period in milliseconds, at most 2^30 - 1) | Time for one scrub pass over the defect map; 0.0 scrubs in every free cycle |
 
 Output image: `ImageWidth_g` x `ImageHeight_g` pixels of `PixelBits_g` bits. The defect map holds H x ceil(W / 32)
 words of 32 bits plus 7 check bits each: about 2.6 Mbit for an image of 2048 x 1024 pixels.

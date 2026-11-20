@@ -17,7 +17,7 @@ regression (with and without code coverage).
 | `test_rate` (TC-FSY-07) | 3 | 3 |
 | `test_random_streams` (TC-FSY-08) | 8 | 8 |
 | TC-FSY-09 (`lint/synth_check.py`) | 5 configurations synthesise without latches; 6 generics out of range stop the elaboration with their message | 11 |
-| TC-FSY-10 (`lint/vivado_ooc.py`) | Section 5 | Not run (licence) |
+| TC-FSY-10 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
 
@@ -74,10 +74,9 @@ plan (section 6) fails at least one test; the tests that fail are those the plan
 
 ## 5. Synthesis and timing
 
-Not run. TC-FSY-10 needs Vivado synthesis for the Versal device of the reference systems (xcvc1902-vsva2197-2MP-e-S);
-the licence for that device has expired on the development host (Vivado 2025.2, 2026-11-19: "A license feature for
-Synthesis was found but is expired"). The run is open until a licence or another host is available; the script
-(`lint/vivado_ooc.py`, configuration `fsy_max`) is ready.
+Not run yet: TC-FSY-10 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
+(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
+configuration `fsy_max`.
 
 The GHDL synthesis of TC-FSY-09 shows that the module is synthesisable at every bound of its generics without latches;
 it gives no timing.

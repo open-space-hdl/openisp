@@ -17,6 +17,7 @@ library ieee;
     use ieee.std_logic_1164.all;
 
 library olo;
+    use olo.olo_base_pkg_math.all;
     use olo.olo_ft_pkg_ecc.all;
 
 ---------------------------------------------------------------------------------------------------
@@ -31,7 +32,11 @@ entity isp_replace_synth is
         RamRdLatency_g  : positive := 1;
         EccPipeline_g   : natural  := 0;
         ClkFreqHz_g     : positive := 150000000;
-        ScrubPeriodMs_g : natural  := 0
+        -- Above 0: the clock frequency in kHz, for frequencies beyond the integer range in Hz
+        ClkFreqKHz_g    : natural  := 0;
+        -- The scrub period: ScrubPeriodMs_g ms plus ScrubPeriodUs_g us
+        ScrubPeriodMs_g : integer  := 0;
+        ScrubPeriodUs_g : natural  := 0
     );
     port (
         Clk               : in    std_logic;
@@ -93,8 +98,8 @@ begin
             MaxGap_g       => MaxGap_g,
             RamRdLatency_g => RamRdLatency_g,
             EccPipeline_g  => EccPipeline_g,
-            ClkFreqHz_g    => real(ClkFreqHz_g),
-            ScrubPeriod_g  => real(ScrubPeriodMs_g) * 1.0e-3
+            ClkFreqHz_g    => choose(ClkFreqKHz_g > 0, real(ClkFreqKHz_g) * 1.0e3, real(ClkFreqHz_g)),
+            ScrubPeriod_g  => real(ScrubPeriodMs_g) * 1.0e-3 + real(ScrubPeriodUs_g) * 1.0e-6
         )
         port map (
             Clk               => Clk,

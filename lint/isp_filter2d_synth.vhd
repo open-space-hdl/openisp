@@ -39,6 +39,8 @@ entity isp_filter2d_synth is
         StrideX_g     : positive := 1;
         StrideY_g     : positive := 1;
         BorderMode_g  : string   := "replicate";
+        EccPipeline_g : natural  := 1;
+        Resource_g    : string   := "AUTO";
         CoefBits_g    : positive := 16;
         RuntimeCoef_g : boolean  := false;
         OutBits_g     : natural  := 0;
@@ -122,6 +124,8 @@ begin
             StrideX_g     => StrideX_g,
             StrideY_g     => StrideY_g,
             BorderMode_g  => BorderMode_g,
+            EccPipeline_g => EccPipeline_g,
+            Resource_g    => Resource_g,
             CoefBits_g    => CoefBits_g,
             Coef_g        => coefs,
             RuntimeCoef_g => RuntimeCoef_g,

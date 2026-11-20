@@ -9,6 +9,9 @@ regression (with and without code coverage).
 The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
 `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (128 of them `isp_window`), 0 skipped.
 
+The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
+commit 4cef90a, 601 of 601 tests passed (128 of them `isp_window`), 0 skipped; `lint/synth_check.py` (TC-WIN-08) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-WIN-01) | 83 (with the sweeps) | 83 |
@@ -18,8 +21,8 @@ The status-output audit added a probe of `Stat_ImageOpen` while an image is open
 | `test_reset` (TC-WIN-05) | 11 | 11 |
 | `test_rate` (TC-WIN-06) | 4 | 4 |
 | TC-WIN-07 (review) | Section 6 | Passed |
-| TC-WIN-08 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 15 generics out of range stop the elaboration with a message naming the generic | 23 |
-| TC-WIN-09 (`lint/vivado_ooc.py`) | Section 5 | Not run (device) |
+| TC-WIN-08 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 18 generics out of range stop the elaboration with a message naming the generic | 26 |
+| TC-WIN-09 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
 
@@ -73,8 +76,8 @@ further interval equals the design value.
 | `AnchorX_g`, `AnchorY_g` | 0 to `WinX_g` - 1, 0 to `WinY_g` - 1 | every value of the window 4 x 3, the middle of every size, 0 and the last | 0, the middle, the last; `WinX_g` and `WinY_g` stop the elaboration |
 | `StrideX_g`, `StrideY_g` | 1 to 16 | every value | 1, 2, 3, 16; 17 stops the elaboration |
 | `BorderMode_g` | valid, zero, replicate, mirror | every value | every value; an unknown mode, mirror with an even window or an anchor beside the middle stop the elaboration |
-| `EccPipeline_g` | 0, 1 | both | both |
-| `Resource_g` | AUTO, SRL, BRAM | every value | every value; BRAM with `ImageWidth_g` below 3 + `EccPipeline_g` stops the elaboration |
+| `EccPipeline_g` | 0, 1 | both | both; 2 stops the elaboration |
+| `Resource_g` | AUTO, SRL, BRAM | every value | every value; BRAM with `ImageWidth_g` below 3 + `EccPipeline_g` and an unknown value stop the elaboration |
 
 ## 4. Mutations
 
@@ -114,9 +117,8 @@ commit 399d8b9 with the same 21 tests; the reference run passed again.
 
 ## 5. Synthesis and timing
 
-Not run. TC-WIN-09 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10). The licence for the reference device has expired on the development host,
-and the device for the proxy runs is not installed yet; the runs are open. The script `lint/vivado_ooc.py` is ready.
+Not run yet: TC-WIN-09 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
+(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready.
 
 The GHDL synthesis of TC-WIN-08 shows that the module is synthesisable at the bounds of its generics, with every
 border mode and every line buffer resource, without latches; it gives no timing.
@@ -152,3 +154,4 @@ border mode and every line buffer resource, without latches; it gives no timing.
 | Review of the pull request: `Stat_EccSec` and `Stat_EccDed` were the OR over all line buffers in every pixel event, so the rows that the border rule replaces reported errors although their pixels never reach a window: the image before, and after power-up any content of a RAM that the device does not initialise | The flags of a line buffer count only when the row selection of the event uses it (WIN-FT-02, WIN-IF-04); `test_ecc` injects into replaced rows, the configurations `ecc_bottom` and `ecc_bottom_zero` read a last-line injection in the first line of the next image, and the plan has a mutant without the gate |
 | The anchors out of range failed at a derived constant before the check that names the generic; the comparisons of the virtual columns used `VCols_c - 1`, which is -1 without virtual columns | The derived constants are limited to 0 and the comparison is an integer comparison; the positions have one value more |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
+| An audit of the configuration checks of every module found `EccPipeline_g` and `Resource_g` without a check of the module: `EccPipeline_g` 2 stopped the elaboration inside the delay of Open Logic with a range error that does not name the generic, an unknown `Resource_g` only at an assertion of Open Logic of severity error, which not every tool stops at (WIN-CF-01); and the check of WIN-CF-05 compared `Resource_g` with "BRAM" with regard to case, while Open Logic takes "bram" as block RAM | The module checks both generics with severity failure and gives the delays the values in range, so that the elaboration reaches the checks; WIN-CF-05 compares without case. Negatives `win_ecc_2`, `win_resource` and `win_bram_narrow_case` (TC-WIN-08). The bench is unchanged |

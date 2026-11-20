@@ -7,6 +7,9 @@ Run on 2026-11-20 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 again on 4ba63f8, which changes only the wait of the probes after complete images (section 7): 59 of 59 passed, 0
 skipped. QuestaSim runs with the release regression (with and without code coverage).
 
+The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
+commit 4cef90a, 601 of 601 tests passed (59 of them `isp_bin`), 0 skipped; `lint/synth_check.py` (TC-BIN-07) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-BIN-01) | 35 (with the sweep) | 35 |
@@ -15,8 +18,8 @@ skipped. QuestaSim runs with the release regression (with and without code cover
 | `test_reset` (TC-BIN-04) | 7 | 7 |
 | `test_rate` (TC-BIN-05) | 6 | 6 |
 | TC-BIN-06 (review) | Section 6 | Passed |
-| TC-BIN-07 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 8 generics out of range stop the elaboration with a message naming the generic | 16 |
-| TC-BIN-08 (`lint/vivado_ooc.py`) | Section 5 | Not run (device) |
+| TC-BIN-07 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 10 generics out of range stop the elaboration with a message naming the generic | 18 |
+| TC-BIN-08 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
 
@@ -80,8 +83,8 @@ released at h0 + 66, after the registered ready of both input stages: 51 cycles.
 | `PixelBits_g` | 1 to 28 | 1, 8, 12, 16, 28 | 1, 12, 28; 29 stops the elaboration |
 | `BinX_g`, `BinY_g` | 1 to 16 | every value | 1, 2, 3, 4, 5, 16; 17 stops the elaboration |
 | `BorderMode_g` | valid, zero, replicate | every value | every value; mirror stops the elaboration |
-| `EccPipeline_g` | as `isp_window` (0, 1) | 0, 1 | 0, 1 |
-| `Resource_g` | AUTO, SRL, BRAM | every value | every value; BRAM with Wo below 3 + `EccPipeline_g` stops the elaboration |
+| `EccPipeline_g` | as `isp_window` (0, 1) | 0, 1 | 0, 1; 2 stops the elaboration |
+| `Resource_g` | AUTO, SRL, BRAM | every value | every value; BRAM with Wo below 3 + `EccPipeline_g` and an unknown value stop the elaboration |
 
 ## 4. Mutations
 
@@ -116,10 +119,9 @@ filters.
 
 ## 5. Synthesis and timing
 
-Not run. TC-BIN-08 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10). The licence for the reference device has expired on the development host,
-and the device for the proxy runs is not installed yet; the run is open. The script `lint/vivado_ooc.py` is ready with
-the configurations `bin_default` (2 x 2 valid, 12-bit pixels, 4096 pixels per line) and `bin_4x4_rep`.
+Not run yet: TC-BIN-08 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
+(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
+configurations `bin_default` (2 x 2 valid, 12-bit pixels, 4096 pixels per line) and `bin_4x4_rep`.
 
 The GHDL synthesis of TC-BIN-07 shows that the module is synthesisable at the bounds of its generics, in every border
 mode and with every line buffer resource, without latches; it gives no timing.
@@ -157,3 +159,4 @@ not connected; with constant coefficients they hold read-only registers only.
 | The shared probe after complete images (wait for the sink, 8 cycles, probe 0) failed in `sweep_03` and `sweep_12`: the vertical filter closes an image 7 + log2ceil(`BinX_g`) cycles after its last pixel, and in the mode valid with lines or columns that no bin uses no output follows the last pixel, so the wait for the sink ends at once | The probes of this bench after a wait for the sink wait 7 + log2ceil(`BinX_g`) + 8 cycles, the fall of the vertical filter plus the 8 cycles of the shared probe: the probe reads `Stat_ImageOpen` 7 cycles after the fall (plan, section 5) |
 | The model `bin_sum` emitted a line of bins at the end of the line; with a reset in the middle of a line the expected beats before the reset lacked the bins already complete. The model test against the two filters in series (`test_bin_filters_equal_definition` of `tools/tests/test_isp_model.py`) found it with `BinY_g` 1 | The model emits every bin with its last pixel, as the filters do; the sums are unchanged. `bin_sum` is used by `isp_bin` only: the test files of the other modules are unchanged (section 1) |
 | The width of the narrowed image was 0 for an `ImageWidth_g` below `BinX_g` in the mode valid, and the elaboration stopped with a range error before the check of `ImageWidth_g` | The width is at least 1, so the check names the generic (`bin_width_below`) |
+| The audit of the configuration checks found that `EccPipeline_g` 2 and an unknown `Resource_g`, which the module passes to the vertical filter, were not checked by a module of the suite (BIN-CF-01), and that the check of `Resource_g` BRAM compared with regard to case | `isp_window` checks both generics, the BRAM check compares without case as Open Logic does; the negatives `bin_ecc_2` and `bin_resource` show the messages through the module. The bench is unchanged |

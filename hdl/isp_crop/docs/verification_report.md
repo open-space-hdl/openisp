@@ -21,7 +21,7 @@ The status-output audit added a probe of `Stat_ImageOpen` while an image is open
 | `test_reset` (TC-CRP-08) | 5 | 5 |
 | `test_rate` (TC-CRP-09) | 3 | 3 |
 | TC-CRP-10 (`lint/synth_check.py`) | 9 configurations synthesise without latches; 9 generics out of range stop the elaboration with a message naming the generic | 18 |
-| TC-CRP-11 (`lint/vivado_ooc.py`) | Section 5 | Not run (licence) |
+| TC-CRP-11 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
 
@@ -98,10 +98,9 @@ commit 399d8b9 with the same 15 tests; the reference run passed again.
 
 ## 5. Synthesis and timing
 
-Not run. TC-CRP-11 needs Vivado synthesis for the Versal device of the reference systems (xcvc1902-vsva2197-2MP-e-S);
-the licence for that device has expired on the development host. The run is open until a licence or another host is
-available; the script (`lint/vivado_ooc.py`, configuration `crp_default`: 4096 x 4096 pixels of 12 bits, a region of
-1024 x 1024 with the position at run time) is ready.
+Not run yet: TC-CRP-11 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
+(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
+configuration `crp_default` (4096 x 4096 pixels of 12 bits, a region of 1024 x 1024 with the position at run time).
 
 The GHDL synthesis of TC-CRP-10 shows that the module is synthesisable at every bound of its generics, with both
 values of `RuntimeRoi_g`, without latches; it gives no timing.

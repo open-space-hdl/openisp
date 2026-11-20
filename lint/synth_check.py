@@ -174,9 +174,13 @@ def rpl(w, h, bits, g, lat=1, ecc=0, period_ms=0):
             "ScrubPeriodMs_g": str(period_ms)}
 
 
-# isp_replace (TC-RPL-12): the bounds of every numeric generic, the scrubber free running and paced (1 ms)
+# isp_replace (TC-RPL-12): the bounds of every numeric generic, the scrubber free running and paced (1 ms), the
+# bounds of the scrub period (1 ms, 2^30 - 1 ms) and of the clock of a paced scrubber (1 kHz, 2.14748e11 Hz)
 CONFIGS += [
     ("rpl_default", "isp_replace_synth", rpl(2048, 1024, 12, 2)),
+    ("rpl_period_max", "isp_replace_synth", dict(rpl(40, 6, 12, 2), ScrubPeriodMs_g="1073741823")),
+    ("rpl_clk_min", "isp_replace_synth", dict(rpl(40, 6, 12, 2, period_ms=1), ClkFreqHz_g="1000")),
+    ("rpl_clk_max", "isp_replace_synth", dict(rpl(40, 6, 12, 2, period_ms=1), ClkFreqKHz_g="214748000")),
     ("rpl_min", "isp_replace_synth", rpl(3, 1, 1, 1)),
     ("rpl_max", "isp_replace_synth", rpl(65536, 1, 24, 7, 3, 2, 1)),
     ("rpl_h_max", "isp_replace_synth", rpl(15, 65536, 12, 7, 2, 1)),
@@ -226,6 +230,10 @@ NEGATIVE += [
      "mirror needs an odd WinX_g"),
     ("win_mirror_anchor_y", "isp_window", dict(WIN_OK, BorderMode_g="mirror", AnchorY_g="2"),
      "mirror needs an odd WinY_g"),
+    ("win_ecc_2", "isp_window", dict(WIN_OK, EccPipeline_g="2"), "isp_window: EccPipeline_g must be 0 or 1"),
+    ("win_resource", "isp_window", dict(WIN_OK, Resource_g="FIFO"), "isp_window: Resource_g must be AUTO, SRL or BRAM"),
+    ("win_bram_narrow_case", "isp_window", dict(WIN_OK, Resource_g="bram", ImageWidth_g="3"),
+     "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g"),
     ("win_bram_narrow", "isp_window", dict(WIN_OK, Resource_g="BRAM", ImageWidth_g="3"),
      "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g"),
 ]
@@ -250,6 +258,9 @@ NEGATIVE += [
     ("flt_coef_bits_19", "isp_filter2d_synth", dict(FLT_OK, CoefBits_g="19"), "isp_conv: CoefBits_g must be 2 to 18"),
     ("flt_border", "isp_filter2d_synth", dict(FLT_OK, BorderMode_g="wrap"), "isp_window: BorderMode_g must be"),
     ("flt_coef_fewer", "isp_filter2d_synth", dict(FLT_OK, CoefCount_g="-1"), "isp_conv: Coef_g must have"),
+    ("flt_ecc_2", "isp_filter2d_synth", dict(FLT_OK, EccPipeline_g="2"), "isp_window: EccPipeline_g must be 0 or 1"),
+    ("flt_resource", "isp_filter2d_synth", dict(FLT_OK, Resource_g="FIFO"),
+     "isp_window: Resource_g must be AUTO, SRL or BRAM"),
 ]
 
 BIN_OK = bin_(64, 32, 12, 2, 2, "valid")
@@ -264,6 +275,8 @@ NEGATIVE += [
      "isp_bin: ImageWidth_g must be BinX_g to 65536"),
     ("bin_height_below", "isp_bin", dict(BIN_OK, ImageHeight_g="1"),
      "isp_bin: ImageHeight_g must be BinY_g to 65536"),
+    ("bin_ecc_2", "isp_bin", dict(BIN_OK, EccPipeline_g="2"), "isp_window: EccPipeline_g must be 0 or 1"),
+    ("bin_resource", "isp_bin", dict(BIN_OK, Resource_g="FIFO"), "isp_window: Resource_g must be AUTO, SRL or BRAM"),
     ("bin_bram_narrow", "isp_bin", dict(BIN_OK, ImageWidth_g="7", Resource_g="BRAM"),
      "isp_bin: ImageWidth_g / BinX_g must be at least 3 + EccPipeline_g with Resource_g BRAM"),
 ]
@@ -282,6 +295,16 @@ NEGATIVE += [
     ("rpl_lat_4", "isp_replace_synth", dict(RPL_OK, RamRdLatency_g="4"),
      "isp_replace: RamRdLatency_g must be 1 to 3"),
     ("rpl_ecc_3", "isp_replace_synth", dict(RPL_OK, EccPipeline_g="3"), "isp_replace: EccPipeline_g must be 0 to 2"),
+    ("rpl_period_negative", "isp_replace_synth", dict(RPL_OK, ScrubPeriodMs_g="-1"),
+     "isp_replace: ScrubPeriod_g must be 0.0 or 0.001 to 1073741.823"),
+    ("rpl_period_below", "isp_replace_synth", dict(RPL_OK, ScrubPeriodUs_g="500"),
+     "isp_replace: ScrubPeriod_g must be 0.0 or 0.001 to 1073741.823"),
+    ("rpl_period_above", "isp_replace_synth", dict(RPL_OK, ScrubPeriodMs_g="1073741823", ScrubPeriodUs_g="1000"),
+     "isp_replace: ScrubPeriod_g must be 0.0 or 0.001 to 1073741.823"),
+    ("rpl_clk_low", "isp_replace_synth", dict(RPL_OK, ClkFreqHz_g="999", ScrubPeriodMs_g="300"),
+     "isp_replace: ClkFreqHz_g must be 1000.0 to 2.14748e11"),
+    ("rpl_clk_high", "isp_replace_synth", dict(RPL_OK, ClkFreqKHz_g="214748001", ScrubPeriodMs_g="300"),
+     "isp_replace: ClkFreqHz_g must be 1000.0 to 2.14748e11"),
 ]
 
 PNT_OK = pnt(8, 6, 12, 12, 16, 28, 2, True)

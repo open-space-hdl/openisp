@@ -10,6 +10,9 @@ The status-output audit added a probe of `Stat_ImageOpen` and a read of `STATUS`
 (test_input_stream, test_registers) and the exact count of `Scrub_EccDed` (test_scrub): `python run.py -p 4` on
 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (84 of them `isp_replace`), 0 skipped.
 
+The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
+commit 4cef90a, 601 of 601 tests passed (84 of them `isp_replace`), 0 skipped; `lint/synth_check.py` (TC-RPL-12) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-RPL-01) | 27 (with the sweeps) | 27 |
@@ -23,8 +26,8 @@ The status-output audit added a probe of `Stat_ImageOpen` and a read of `STATUS`
 | `test_exhaustive` (TC-RPL-09) | 2 | 2 |
 | `test_reset` (TC-RPL-10) | 8 | 8 |
 | `test_rate` (TC-RPL-11) | 3 | 3 |
-| TC-RPL-12 (`lint/synth_check.py`) | 4 configurations synthesise without latches; 8 generics out of range stop the elaboration with a message naming the generic | 12 |
-| TC-RPL-13 (`lint/vivado_ooc.py`) | Section 5 | Not run (device) |
+| TC-RPL-12 (`lint/synth_check.py`) | 7 configurations synthesise without latches; 13 generics out of range stop the elaboration with a message naming the generic | 20 |
+| TC-RPL-13 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 | TC-RPL-14 (review) | Section 6 | Passed |
 
 ## 2. Summary
@@ -94,7 +97,7 @@ Measured timing (test_rate) and coincidence (test_flag_coincidence), with Lat = 
 | `RamRdLatency_g` | 1 to 3 | every value, crossed with every `EccPipeline_g` | 1, 2, 3; 4 stops the elaboration |
 | `EccPipeline_g` | 0 to 2 | every value | 0, 1, 2; 3 stops the elaboration |
 | `RamStyle_g` | values of Open Logic | the default (an attribute for the synthesis tool only) | the default |
-| `ClkFreqHz_g`, `ScrubPeriod_g` | range of Open Logic | 150 MHz free running (0.0); 1000 Hz with 300 ms and 5 ms | 150 MHz with 0.0 and 1 ms |
+| `ClkFreqHz_g`, `ScrubPeriod_g` | 1000.0 to 2.14748e11 when paced; 0.0, or 0.001 to 1073741.823 s | 150 MHz free running (0.0); 1000 Hz with 300 ms and 5 ms | 150 MHz with 0.0, 1 ms and 1073741.823 s; 1 ms at 1000 Hz and at 2.14748e11 Hz; a negative period, 0.0005 and 1073741.824 s, 999 Hz and 2.14748001e11 Hz stop the elaboration |
 
 ## 4. Mutations
 
@@ -139,11 +142,10 @@ the map (plan, section 5). test_map_update, the test the plan names, kills it as
 
 ## 5. Synthesis and timing
 
-Not run. TC-RPL-13 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10). The licence for the reference device has expired on the development host,
-and the device for the proxy runs is not installed yet; the runs are open. The script `lint/vivado_ooc.py` is ready
-with the configurations `rpl_default` (2048 x 1024 pixels of 12 bits, G = 2, a map of 65536 words) and `rpl_g7`
-(24-bit pixels, G = 7).
+Not run yet: TC-RPL-13 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
+(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
+configurations `rpl_default` (2048 x 1024 pixels of 12 bits, G = 2, a map of 65536 words) and `rpl_g7` (24-bit pixels, G
+= 7).
 
 The GHDL synthesis of TC-RPL-12 shows that the module is synthesisable at the bounds of its generics, with the
 scrubber free running and paced, without latches; the netlist of the default configuration holds the map as a RAM of
@@ -193,3 +195,4 @@ scrubber free running and paced, without latches; the netlist of the default con
 | The first mutation run (6431301) kept the mutant of the border mode mirror alive. It is equivalent: a place outside the image then reaches only a pixel that the search on the other side finds nearer, and the interpolation of a pixel with itself is that pixel; the border mode replicate is equivalent as well | The mutant of a place outside taken as operational is the window that carries the mark instead of the operational flag, so that the zero border reads as operational |
 | The first mutation run also kept the division constant one bit shorter alive: with 4-bit pixels it gives the right quotient for every reachable numerator. A model of the division over every width from 1 to 24 bits shows that K = P + 8 is exact and that K = P + 7 fails only at 5, 6, 9, 17, 18 and 21 bits (for d = 13, values near the top) | The configuration `exhaustive_p6` runs every pair of 6-bit values with every pair of distances |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found three gaps in this bench: `Stat_ImageOpen` probed only after complete images, where it is 0; `STATUS.IMAGE_OPEN` never read as 1; `Scrub_EccDed` checked only as at least one pulse, not against the count of the design | test_input_stream probes `Stat_ImageOpen` while an image is open; test_registers reads `STATUS` while an image is open; test_scrub checks `Scrub_EccDed` exactly, one pulse per pass for the word with the double error, which is now the last word of the map, and the bench switches the scrubber off only at the end of a pass (derivation in the plan, section 5). The mutants `Stat_ImageOpen` tied to 0, `STATUS.IMAGE_OPEN` tied to 0 and the exchange of `Scrub_EccSec` and `Scrub_EccDed` are killed (section 4). No change of the RTL |
+| The audit of the configuration checks found the ranges of `ClkFreqHz_g` and `ScrubPeriod_g` stated as "range of Open Logic" and unchecked in the module: the scrubber of Open Logic checks 1000.0 Hz and 1 ms with messages that name its own generics, treats a negative period as free running, and the divider of the period fails above 2^30 - 1 ms with an integer overflow in `log2ceil` (Open Logic states 2^31 - 1 ms) | The specification states the ranges (the period rounded to whole milliseconds), the module checks both and passes the scrubber in-range values only; negatives for a negative, a too short and a too long period and a too low and a too high clock, and the bounds synthesised (TC-RPL-12). The bench is unchanged |
