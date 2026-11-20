@@ -151,6 +151,24 @@ stored bits for a kept one), so that the byte merge feeds only the register:
 the 256 coefficient registers, which answers a read in the cycle after it (CV-4). A register stage there would add a
 cycle to every register read; the configuration is recorded instead.
 
+### 5.2 The ready path
+
+In `isp_filter2d` 5 x 5 mirror (`flt_mtf5`) `In_Ready` of the module was the condition of the common enable of the
+stages, a net with 890 loads, and the window and its frame sync decided their events and the data of the line buffers
+from it. Once the window computed its decisions without the selection of the event position, that path limited
+`flt_mtf5`: 115.1 MHz (122.2 MHz before the window change, with the window path). `In_Ready` now comes from a copy of
+the valid flag of the output register (architecture, section 4):
+
+| Configuration | Before (MHz, 4LUT) | With the copy (MHz, 4LUT) | Worst path with the copy |
+| --- | --- | --- | --- |
+| `flt_mtf5` (`isp_filter2d` 5 x 5 mirror) | 115.1, 4765 | 146.0, 4741 | the window state -> the row select register (7 logic levels) |
+| `cnv_mtf3` | 178.8, 1061 | 177.2, 1056 | the image-start load of the working set (4) |
+| `cnv_mtf5` | 156.2, 2758 | 155.6, 2787 | a coefficient -> the working set (8) |
+| `win_mirror5` | 139.5, 2329 | 139.5, 2329 | the state -> the row select register (8) |
+
+The worst paths of `cnv_mtf3` and `cnv_mtf5` are those before the change and do not contain the copy; the LUT counts
+differ slightly, so the mapping differs; the estimates differ by less than 1 % and stay above 125 MHz.
+
 ## 6. Requirement coverage
 
 | Requirement | Test cases | Status |
