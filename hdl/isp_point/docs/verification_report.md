@@ -13,6 +13,12 @@ tests passed (52 of them `isp_point`), 0 skipped.
 The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
 `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (52 of them `isp_point`), 0 skipped.
 
+The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`: a write that keeps a byte with bits of the
+register keeps a mismatch, a write of only bytes without bits leaves the parity bit unchanged) came with the partial
+writes of test_parity; the configuration `defaults` (2 tests) came before with the default of `MaxShift_g` (section 7):
+`python run.py -p 4` on 2026-11-20 on commit e9116a7 (with develop fbc18fd), 669 of 669 tests passed (54 of them
+`isp_point`), 0 skipped; `lint/synth_check.py` (TC-PNT-11) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-PNT-01) | 16 | 16 |
@@ -50,7 +56,12 @@ every test.
   `Err_Config` until the register is written; the injection into `CTRL` with `CTRL.HOLD` 1 makes every image start
   take the held set with one `Err_Config` until `CTRL` is written; two injections at once, a second injection that
   restores the parity, an injection without the strobe of byte 0 and injections with `Runtime_g` false have no effect
-  beyond the model.
+  beyond the model. Partial writes (PKG-08), for every parameter register: after an injection, a write that keeps
+  a byte with bits of the register and a write of only bytes without bits keep the mismatch (the next images use
+  the generics with `Err_Config`), and a write of every byte with bits clears it; each kind of write the width of
+  the register allows (`SHIFT` and the registers of up to 8 bits only the write of bytes without bits, for `SHIFT`
+  the write without byte 0; `OFFSET_HI` without bits, an offset of up to 32 bits: every write is full and clears
+  the mismatch). A partial write of `GAIN` without a mismatch is taken.
 - Registers: identification, dimensions and widths, the reset values (also `HIGH` from the sentinel -1 and
   `OFFSET_HI` as the sign of the offset), every single byte strobe on every parameter register with random data and
   its read-back (the offset sign-extended, the other registers zero-extended), read-only registers and unused
@@ -94,28 +105,42 @@ again). The first mutation run, on 3c5cc2c, kept the mutant without the limit of
 The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section 7) and ran alone on 2026-11-20 on
 commit 399d8b9 with the same 14 tests; the reference run passed again.
 
+The mutation run was repeated on 2026-11-20 on commit 2189d17, the parity bit of a write from `ispWriteParity` of
+`isp_pkg` (PKG-08), with the 14 tests and test_static and test_registers of the configuration `defaults`, which the
+mutant of the old default of `MaxShift_g` needs (section 7); the table shows that run, and the sources of the module are
+the same at e9116a7. Five mutants of `ispWriteParity` came with it: the parity of a kept byte from the write data, of a
+written byte from the stored bits, a write that keeps a byte with bits sets the parity bit for the resulting value (the
+rule before PKG-08), a write of every byte with bits keeps the syndrome, and a write of only bytes without bits sets the
+parity bit. Every one of the 24 mutants fails at least one test; the mutants of PKG-08 are killed by test_parity.
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
-| None (reference) | passes (14 tests) | - |
-| No lower clamp | killed by 9 of 14 tests | test_exhaustive, test_hold, test_parity, test_registers, test_reset, test_runtime, test_static |
-| No upper clamp | killed by 8 of 14 tests | test_exhaustive, test_hold, test_parity, test_registers, test_runtime, test_static |
-| A logical instead of an arithmetic shift | killed by 6 of 14 tests | test_exhaustive, test_hold, test_parity, test_runtime, test_static |
-| The offset not sign-extended | killed by 5 of 14 tests | test_exhaustive, test_parity, test_runtime, test_static |
-| The top bit of the gain dropped | killed by 3 of 14 tests | test_exhaustive, test_hold, test_runtime |
-| A shift above MaxShift_g not limited | killed by 2 of 14 tests | test_exhaustive, test_runtime |
-| CTRL.HOLD without effect | killed by 2 of 14 tests | test_hold, test_parity |
-| No parity check of GAIN | killed by 3 of 14 tests | test_flag_coincidence, test_hold, test_parity |
-| No parity check of CTRL | killed by 1 of 14 tests | test_parity |
-| No parity check of OFFSET_HI | killed by 1 of 14 tests | test_parity |
-| The thresholds taken from the registers, not from the working set | killed by 4 of 14 tests | test_hold, test_parity, test_registers, test_runtime |
-| Out_Last one stage early | killed by 14 of 14 tests | test_exhaustive, test_flag_coincidence, test_hold, test_input_stream, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
-| One multiplier stage too few against the packet signals | killed by 14 of 14 tests | test_exhaustive, test_flag_coincidence, test_hold, test_input_stream, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
-| No Err_Config pulse for a rejected parameter set | killed by 4 of 14 tests | test_flag_coincidence, test_hold, test_parity, test_registers |
-| No Err_Config pulse for a CTRL of wrong parity | killed by 1 of 14 tests | test_parity |
-| The parity bit of GAIN not set by a write | killed by 5 of 14 tests | test_exhaustive, test_hold, test_parity, test_runtime |
-| The offset stored with the sign of the 64-bit value (resize) instead of its lower bits | killed by 4 of 14 tests | test_exhaustive, test_parity, test_runtime |
-| The clear of ERR_CONFIG wins over the event | killed by 1 of 14 tests | test_flag_coincidence |
-| Stat_ImageOpen tied to 0 | killed by 1 of 14 tests | test_input_stream |
+| None (reference) | passes (16 tests) | - |
+| No lower clamp | killed by 9 of 16 tests | test_exhaustive, test_hold, test_parity, test_registers, test_reset, test_runtime, test_static |
+| No upper clamp | killed by 8 of 16 tests | test_exhaustive, test_hold, test_parity, test_registers, test_runtime, test_static |
+| A logical instead of an arithmetic shift | killed by 6 of 16 tests | test_exhaustive, test_hold, test_parity, test_runtime, test_static |
+| The offset not sign-extended | killed by 5 of 16 tests | test_exhaustive, test_parity, test_runtime, test_static |
+| The top bit of the gain dropped | killed by 3 of 16 tests | test_exhaustive, test_hold, test_runtime |
+| A shift above MaxShift_g not limited | killed by 2 of 16 tests | test_exhaustive, test_runtime |
+| CTRL.HOLD without effect | killed by 2 of 16 tests | test_hold, test_parity |
+| No parity check of GAIN | killed by 3 of 16 tests | test_flag_coincidence, test_hold, test_parity |
+| No parity check of CTRL | killed by 1 of 16 tests | test_parity |
+| No parity check of OFFSET_HI | killed by 1 of 16 tests | test_parity |
+| The thresholds taken from the registers, not from the working set | killed by 4 of 16 tests | test_hold, test_parity, test_registers, test_runtime |
+| Out_Last one stage early | killed by 16 of 16 tests | test_exhaustive, test_flag_coincidence, test_hold, test_input_stream, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
+| One multiplier stage too few against the packet signals | killed by 16 of 16 tests | test_exhaustive, test_flag_coincidence, test_hold, test_input_stream, test_parity, test_rate, test_registers, test_reset, test_runtime, test_static |
+| No Err_Config pulse for a rejected parameter set | killed by 4 of 16 tests | test_flag_coincidence, test_hold, test_parity, test_registers |
+| No Err_Config pulse for a CTRL of wrong parity | killed by 1 of 16 tests | test_parity |
+| The parity bit of GAIN not set by a write | killed by 5 of 16 tests | test_exhaustive, test_hold, test_parity, test_runtime |
+| The offset stored with the sign of the 64-bit value (resize) instead of its lower bits | killed by 5 of 16 tests | test_exhaustive, test_hold, test_parity, test_runtime |
+| The clear of ERR_CONFIG wins over the event | killed by 1 of 16 tests | test_flag_coincidence |
+| Stat_ImageOpen tied to 0 | killed by 1 of 16 tests | test_input_stream |
+| MaxShift_g default 82 | killed by 2 of 16 tests | test_registers, test_static |
+| The parity of a kept byte taken from the write data | killed by 1 of 16 tests | test_parity |
+| The parity of a written byte taken from the stored bits | killed by 6 of 16 tests | test_exhaustive, test_hold, test_parity, test_reset, test_runtime |
+| A write that keeps a byte with bits sets the parity for the resulting value (the re-seal before PKG-08) | killed by 1 of 16 tests | test_parity |
+| A write of every byte with bits keeps the syndrome | killed by 2 of 16 tests | test_hold, test_parity |
+| A write of only bytes without bits sets the parity for the stored value | killed by 1 of 16 tests | test_parity |
 
 ## 5. Synthesis and timing
 
@@ -126,6 +151,12 @@ stages).
 
 The GHDL synthesis of TC-PNT-11 shows that the module is synthesisable at every bound of its generics without latches;
 it gives no timing.
+
+The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`) in the preliminary synthesis on PolarFire MPF100T
+(Libero, Synplify Pro) with a clock of 125 MHz, pre-layout estimates, not a timing closure and not on the reference
+device. `pnt_default` gives 170.7 MHz with 942 4LUT on develop fbc18fd and 172.6 MHz with 917 4LUT on commit e9116a7.
+The worst path of both is the flags of the multiplier pipeline -> the input stage of the frame sync (5 and 4 logic
+levels); it does not contain the parity of the writes.
 
 ## 6. Requirement coverage
 
@@ -147,7 +178,8 @@ it gives no timing.
 | PNT-FT-01 | TC-PNT-05 and review: the stages hold no state between pixels; the working set is loaded with pixel (0, 0) of every image | Passed |
 | PNT-FT-02 | TC-PNT-05 | Passed |
 | PNT-FT-03 | TC-PNT-09 and the monitor of every test | Passed |
-| PNT-RG-01, PNT-RG-03, PNT-RG-05 | TC-PNT-03, 06 | Passed |
+| PNT-RG-01, PNT-RG-05 | TC-PNT-03, 06 | Passed |
+| PNT-RG-03 | TC-PNT-03, 05, 06 | Passed |
 | PNT-RG-02 | TC-PNT-06, 07 | Passed |
 | PNT-RG-04 | TC-PNT-05 | Passed |
 | PNT-CF-01, PNT-CF-02 | TC-PNT-11 | Passed |
@@ -166,3 +198,5 @@ The register map of the specification and the register description agree (`tools
 | The plan named 82 as the upper bound of `MaxShift_g` for 64-bit pixels and an 18-bit gain; the bound is `InBits_g` + `GainBits_g` + 1 = 83 | Plan corrected; `wide` simulates 83 |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
 | The default of `MaxShift_g` in the entity was 82; the specification gives `InBits_g` + `GainBits_g`. The range check of the module (at most `InBits_g` + `GainBits_g` + 1) rejects 82 for every input below 64 bits with an 18-bit gain, so the module did not elaborate with `MaxShift_g` left at its default. Every configuration of the benches and of `lint/synth_check.py` set the generic; the synthesis wrapper of the chain test (`isp_chain`) was the first to rely on the default | The default is `InBits_g` + `GainBits_g` (a generic of the same list, VHDL-2008). The configuration `defaults` simulates the module with every generic but the dimensions and the pixel bits at its default and reads `PARAM.MAX_SHIFT`; `pnt_defaults` and `pnt_defaults_64` synthesise it. A mutant with the old default is killed (section 4). The defaults of every entity of the suite were compared with the tables of generics of their specifications: no other differs |
+| A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example while `CTRL.HOLD` is 1 and the registers are not checked, therefore became a valid word with the next partial write: masked, not detected (a review of the lead) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; PNT-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
+| A write of `SHIFT` without the strobe of byte 0 stores none of its 7 bits but set the parity bit again, the same masking for a write of only bytes without bits | Such a write leaves the parity bit unchanged (PKG-08); test_parity writes `SHIFT` without byte 0 after an injection |

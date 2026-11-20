@@ -25,7 +25,7 @@ implements it, and with the test cases that verify these module requirements.
 | ISP-STR-10 | Status of an open image | `isp_frame_sync` | BIN-IF-03, CRP-IF-03, FLT-IF-04, FSY-IF-05, PNT-IF-04, RPL-IF-04, WIN-IF-04 | TC-BIN-02, TC-BIN-03, TC-BIN-05, TC-CRP-02, TC-FLT-02, TC-FLT-04, TC-FSY-06, TC-PNT-02, TC-RPL-02, TC-RPL-05, TC-RPL-10, TC-WIN-02 | Verified |
 | ISP-CFG-01 | Structure by generics with checked ranges | `isp_frame_sync` | BIN-CF-01, CNV-CF-01, CRP-CF-01, FLT-CF-01, FSY-CF-01, PNT-CF-01, RPL-CF-01, WIN-CF-01, WIN-CF-02, WIN-CF-05 | TC-BIN-07, TC-CNV-11, TC-CRP-10, TC-FLT-07, TC-FSY-09, TC-PNT-11, TC-RPL-12, TC-WIN-08 | Verified |
 | ISP-CFG-02 | Run-time parameters as registers | `isp_crop` | CNV-FN-04, CRP-ER-03, CRP-FN-06, CRP-IF-06, PNT-FN-04, RPL-FN-04 | TC-CNV-02, TC-CNV-03, TC-CNV-08, TC-CRP-01, TC-CRP-03, TC-CRP-04, TC-PNT-03, TC-PNT-04, TC-RPL-03 | Verified |
-| ISP-CFG-03 | AXI4-Lite slave per module with registers | `isp_crop` | CHN-IF-01, CNV-IF-03, CNV-RG-01, CNV-RG-02, CNV-RG-03, CRP-IF-05, CRP-RG-01, CRP-RG-02, CRP-RG-03, FLT-IF-03, PNT-IF-03, PNT-RG-01, PNT-RG-02, PNT-RG-03, PNT-RG-05, RPL-ER-04, RPL-IF-03, RPL-RG-01, RPL-RG-02 | TC-CHN-03, TC-CNV-02, TC-CNV-05, TC-CNV-06, TC-CRP-03, TC-CRP-06, TC-CRP-07, TC-FLT-03, TC-PNT-03, TC-PNT-06, TC-PNT-07, TC-RPL-01, TC-RPL-03, TC-RPL-04, TC-RPL-07, TC-RPL-08 | Verified |
+| ISP-CFG-03 | AXI4-Lite slave per module with registers | `isp_crop` | CHN-IF-01, CNV-IF-03, CNV-RG-01, CNV-RG-02, CNV-RG-03, CRP-IF-05, CRP-RG-01, CRP-RG-02, CRP-RG-03, FLT-IF-03, PNT-IF-03, PNT-RG-01, PNT-RG-02, PNT-RG-03, PNT-RG-05, RPL-ER-04, RPL-IF-03, RPL-RG-01, RPL-RG-02 | TC-CHN-03, TC-CNV-02, TC-CNV-04, TC-CNV-05, TC-CNV-06, TC-CRP-03, TC-CRP-05, TC-CRP-06, TC-CRP-07, TC-FLT-03, TC-PNT-03, TC-PNT-05, TC-PNT-06, TC-PNT-07, TC-RPL-01, TC-RPL-03, TC-RPL-04, TC-RPL-07, TC-RPL-08 | Verified |
 | ISP-CRP-01 | Region of interest | `isp_crop` | CRP-FN-01, CRP-FN-06 | TC-CRP-01, TC-CRP-03 | Verified |
 | ISP-PNT-01 | Offset, gain, shift, clamp | `isp_point` | PNT-FN-01 | TC-PNT-01, TC-PNT-03, TC-PNT-08 | Verified |
 | ISP-PNT-02 | Parameters by generics or at run time | `isp_point` | PNT-FN-03, PNT-FN-04, PNT-FN-05 | TC-PNT-01, TC-PNT-03, TC-PNT-04, TC-PNT-08 | Verified |
@@ -42,7 +42,7 @@ implements it, and with the test cases that verify these module requirements.
 | ISP-FT-02 | Error injection | `isp_window` | BIN-IF-03, CHN-IF-02, FLT-IF-04, RPL-IF-05, WIN-IF-05 | TC-BIN-02, TC-BIN-03, TC-BIN-05, TC-CHN-04, TC-FLT-02, TC-FLT-04, TC-RPL-05, TC-RPL-06, TC-WIN-04 | Verified |
 | ISP-FT-03 | Scrubbing of long-lived tables | `isp_replace` | RPL-FT-01, RPL-IF-05 | TC-RPL-05, TC-RPL-06 | Verified |
 | ISP-FT-04 | Recovery from any state | `isp_frame_sync` | BIN-FT-01, CNV-FT-01, CNV-FT-03, CRP-FT-01, CRP-FT-02, FLT-FT-01, FSY-FN-06, FSY-FT-01, FSY-FT-02, PNT-FT-01, PNT-FT-03, RPL-FT-02, RPL-FT-03, WIN-FT-03, WIN-FT-04 | TC-BIN-03, TC-BIN-04, TC-CNV-04, TC-CNV-09, TC-CRP-05, TC-CRP-08, TC-FLT-04, TC-FLT-05, TC-FSY-03, TC-FSY-05, TC-FSY-06, TC-FSY-08, TC-PNT-05, TC-PNT-09, TC-RPL-10, TC-RPL-14, TC-WIN-01, TC-WIN-05, TC-WIN-07 | Verified |
-| ISP-FT-05 | Parity of long-lived registers | `isp_crop` | CNV-ER-01, CNV-ER-02, CNV-FT-02, CNV-IF-04, CNV-RG-03, CNV-RG-04, CRP-ER-04, CRP-FT-03, CRP-RG-03, CRP-RG-04, FLT-FT-01, FLT-IF-04, PNT-ER-03, PNT-ER-04, PNT-FT-02, PNT-IF-04, PNT-RG-03, PNT-RG-04 | TC-CNV-02, TC-CNV-04, TC-CNV-05, TC-CRP-03, TC-CRP-05, TC-FLT-02, TC-FLT-04, TC-FLT-05, TC-PNT-02, TC-PNT-03, TC-PNT-05, TC-PNT-06 | Verified |
+| ISP-FT-05 | Parity of long-lived registers | `isp_crop` | CNV-ER-01, CNV-ER-02, CNV-FT-02, CNV-IF-04, CNV-RG-03, CNV-RG-04, CRP-ER-04, CRP-FT-03, CRP-RG-03, CRP-RG-04, FLT-FT-01, FLT-IF-04, PKG-08, PNT-ER-03, PNT-ER-04, PNT-FT-02, PNT-IF-04, PNT-RG-03, PNT-RG-04 | TC-CNV-02, TC-CNV-04, TC-CNV-05, TC-CRP-03, TC-CRP-05, TC-FLT-02, TC-FLT-04, TC-FLT-05, TC-PKG-04, TC-PNT-02, TC-PNT-03, TC-PNT-05, TC-PNT-06 | Verified |
 | ISP-GEN-01 | VHDL-2008, GHDL synthesis, Open Logic | `isp_frame_sync` | BIN-CF-02, BIN-IF-04, CHN-CF-01, CNV-CF-02, CNV-IF-05, CRP-CF-02, CRP-IF-04, FLT-CF-02, FLT-IF-05, FSY-CF-02, FSY-IF-06, PKG-04, PNT-CF-02, PNT-IF-05, RPL-CF-02, RPL-IF-06, WIN-CF-03, WIN-FT-01, WIN-IF-06 | TC-BIN-04, TC-BIN-07, TC-CHN-08, TC-CNV-09, TC-CNV-11, TC-CRP-08, TC-CRP-10, TC-FLT-05, TC-FLT-07, TC-FSY-05, TC-FSY-09, TC-PKG-02, TC-PNT-09, TC-PNT-11, TC-RPL-10, TC-RPL-12, TC-WIN-04, TC-WIN-05, TC-WIN-08 | Verified |
 | ISP-GEN-02 | Specific functions as configurations | `isp_filter2d` | BIN-FN-04, CHN-FN-01, CHN-FN-04, FLT-FN-03, RPL-FN-07 | TC-BIN-01, TC-BIN-05, TC-BIN-06, TC-CHN-01, TC-CHN-04, TC-FLT-01, TC-FLT-02, TC-FLT-03, TC-RPL-14 | Verified |
 | ISP-GEN-03 | 150 MHz | `isp_frame_sync` | BIN-CF-03, CNV-CF-03, CRP-CF-03, FLT-CF-03, FSY-CF-03, PNT-CF-03, RPL-CF-03, WIN-CF-04 | TC-BIN-08, TC-CNV-12, TC-CRP-11, TC-FLT-08, TC-FSY-10, TC-PNT-12, TC-RPL-13, TC-WIN-09 | Verified |
@@ -62,9 +62,9 @@ requirement included).
 | `isp_crop` | 29 | 29 | - |
 | `isp_filter2d` | 15 | 15 | - |
 | `isp_frame_sync` | 28 | 28 | - |
-| `isp_pkg` | 7 | 7 | - |
+| `isp_pkg` | 8 | 8 | - |
 | `isp_point` | 28 | 28 | - |
 | `isp_replace` | 30 | 30 | - |
 | `isp_window` | 27 | 27 | - |
 
-Requirements: 212; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 213; without a test case: 0; test cases of the plans not run by a testbench: 0.

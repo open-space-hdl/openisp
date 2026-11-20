@@ -87,7 +87,7 @@ register block answers a read in the following cycle and every access with OKAY.
 | --- | --- |
 | `ID`, `PARAM` | Constants from the generics |
 | `CTRL.HOLD` | One flip-flop with a parity flip-flop that the reset and every write of `CTRL` set; a mismatch at the image start counts as `HOLD` 0 and pulses `Err_Config` (`RuntimeCoef_g` true) |
-| `COEF[k]` | `CoefBits_g` flip-flops with the reset value `Coef_g`(k), written byte by byte with the write strobes; one parity flip-flop per register that the reset and every write set for the resulting value (`RuntimeCoef_g` true); constants otherwise. The write compares the address with the address of every register by itself: a register and its parity bit depend on their own value, the write data and one compare, not on a selection among the T registers. The parity of a write is the XOR of the parities of its bytes: of the write data for a written byte, of the stored bits for a kept one |
+| `COEF[k]` | `CoefBits_g` flip-flops with the reset value `Coef_g`(k), written byte by byte with the write strobes; one parity flip-flop per register that the reset sets, and a write by `ispWriteParity` of `isp_pkg` (PKG-08): a write of every byte that holds bits of the register sets it for the written value, a write that keeps one of these bytes keeps a mismatch (`RuntimeCoef_g` true); constants otherwise. The write compares the address with the address of every register by itself: a register and its parity bit depend on their own value, the write data and one compare, not on a selection among the T registers. The parity bit after a write comes from the parities of the bytes with bits: of the write data for a written byte, of the stored bits for a kept one |
 | `STATUS.ERR_CONFIG` | Sticky flag set by `Err_Config`, cleared by a write of one, the pulse wins |
 | `INJECT.PARITY`, `INJECT.INDEX`, `INJECT.CTRL_PARITY` | Commands: invert the parity flip-flop of `COEF[INDEX]` (one compare of `INDEX` per register) and of `CTRL` |
 
@@ -105,11 +105,12 @@ the common enable with a fanout that grows with T, replicated by the synthesis t
 
 ## 8. Fault tolerance
 
-The module has no memory. The datapath holds no state between windows, and the working coefficient set is loaded
-with every image: an upset of either disturbs at most one image. The coefficient registers live until they are
-written; their parity bits detect an upset of one bit at the next image start, the generic then applies and
-`Err_Config` and `STATUS.ERR_CONFIG` report it until the software writes the register again. Triple modular
-redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
+The module has no memory. The datapath holds no state between windows, and the working coefficient set is loaded with
+every image: an upset of either disturbs at most one image. The coefficient registers live until they are written; their
+parity bits detect an upset of one bit at the next image start, the generic then applies and `Err_Config` and
+`STATUS.ERR_CONFIG` report it until the software writes the register in full (every byte that holds bits of it); a write
+that keeps one of these bytes keeps the mismatch, so that a partial write cannot turn the upset into a valid word.
+Triple modular redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
 
 An upset of one of the two copies of the output valid flag lets them disagree for one cycle; the next cycle loads both
 from the same value. With the copy 0 and the flag 1 while the sink holds, `In_Ready` accepts a window that the stages

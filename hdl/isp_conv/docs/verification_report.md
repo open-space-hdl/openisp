@@ -22,6 +22,11 @@ identical in every time step between commit 572dbd7 (before the change) and comm
 `python run.py -p 4` on 2026-11-20 on commit 3ca7d40 (with develop 0b4d974), 668 of 668 tests passed (122 of them
 `isp_conv`), 0 skipped; `lint/synth_check.py` (TC-CNV-11) passed.
 
+The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`: a write that keeps a byte with bits of the
+register keeps a mismatch; architecture, section 6) came with the partial writes of test_parity: `python run.py -p 4` on
+2026-11-20 on commit e9116a7 (with develop fbc18fd), 669 of 669 tests passed (122 of them `isp_conv`), 0 skipped;
+`lint/synth_check.py` (TC-CNV-11) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-CNV-01) | 42 (with the sweeps) | 42 |
@@ -62,6 +67,10 @@ test with well-formed window streams.
   injection into `CTRL` with `CTRL.HOLD` 1 makes every image start take the held set with one `Err_Config` until
   `CTRL` is written; two injections in one set, a second injection that restores the parity, an index of T or above,
   an injection without the strobe of byte 0 and injections with `RuntimeCoef_g` false have no effect beyond the model.
+  Partial writes (PKG-08): after an injection, a write that keeps a byte with bits of the register and a write of
+  only bytes without bits keep the mismatch (the next images use the generic with `Err_Config`), a write of every
+  byte with bits clears it, and a partial write without a mismatch is taken (one random coefficient per
+  configuration; both kinds of write where `CoefBits_g` is above 8 and below 25).
 - Registers: identification, the window and the widths, the reset values of all coefficients (the generic,
   sign-extended), every single byte strobe on the first, the middle and the last coefficient, read-only registers,
   the gaps, the address above the last coefficient and the end of the address space, the sticky flag. Every access
@@ -106,10 +115,16 @@ The write with byte enables merged into zeros and the parity of a kept byte take
 test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-03).
 
 The mutation run was repeated again on 2026-11-20 on commit 76f82e0, `In_Ready` from a copy of the output valid flag
-(architecture, section 4), with the same 24 tests and two mutants of the copy; the table shows that run. Every one of
-the 21 mutants fails at least one test. The two mutants of the copy are killed by every test with stalls of the sink
-(20 and 17 tests); the plan first named TC-CNV-10 for them as well, which runs without stalls and cannot see the ready
-path, and was corrected.
+(architecture, section 4), with the same 24 tests and two mutants of the copy. Every one of the 21 mutants fails at
+least one test. The two mutants of the copy are killed by every test with stalls of the sink (20 and 17 tests); the plan
+first named TC-CNV-10 for them as well, which runs without stalls and cannot see the ready path, and was corrected.
+
+The mutation run was repeated on 2026-11-20 on commit 2189d17, the parity bit of a write from `ispWriteParity` of
+`isp_pkg` (PKG-08), with the same 24 tests; the table shows that run, and the sources of the module are the same at
+e9116a7. The two mutants of the byte parities now change the function, and three mutants of PKG-08 came with it: a write
+that keeps a byte with bits sets the parity bit for the resulting value (the rule before PKG-08), a write of every byte
+with bits keeps the syndrome, and a write of only bytes without bits sets the parity bit. Every one of the 24 mutants
+fails at least one test; the three mutants of PKG-08 are killed by test_parity.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -129,12 +144,15 @@ path, and was corrected.
 | A stage that does not wait for the common enable (the adder tree advances in every cycle) | killed by 20 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
 | A coefficient write that lands in the coefficient after its address | killed by 9 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime |
 | The parity bit of a coefficient not set by its write | killed by 8 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime |
-| A write with byte enables merged into zeros instead of the stored coefficient | killed by 2 of 24 tests | test_registers |
-| The parity of a kept byte taken from the write data | killed by 2 of 24 tests | test_registers |
-| The parity of a written byte taken from the stored bits | killed by 7 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_reset, test_runtime |
+| A write with byte enables merged into zeros instead of the stored coefficient | killed by 3 of 24 tests | test_parity, test_registers |
 | In_Ready from a copy of the output valid flag stuck at 0 (always ready) | killed by 20 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
 | The copy of the output valid flag one advance late | killed by 17 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
 | INJECT.PARITY flips the parity bit of every coefficient | killed by 1 of 24 tests | test_parity |
+| The parity of a kept byte taken from the write data | killed by 2 of 24 tests | test_parity, test_registers |
+| The parity of a written byte taken from the stored bits | killed by 8 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime |
+| A write that keeps a byte with bits sets the parity for the resulting value (the re-seal before PKG-08) | killed by 1 of 24 tests | test_parity |
+| A write of every byte with bits keeps the syndrome | killed by 2 of 24 tests | test_hold, test_parity |
+| A write of only bytes without bits sets the parity for the stored value | killed by 1 of 24 tests | test_parity |
 
 ## 5. Synthesis and timing
 
@@ -184,6 +202,25 @@ the valid flag of the output register (architecture, section 4):
 The worst paths of `cnv_mtf3` and `cnv_mtf5` are those before the change and do not contain the copy; the LUT counts
 differ slightly, so the mapping differs; the estimates differ by less than 1 % and stay above 125 MHz.
 
+### 5.3 The parity of a partial write
+
+The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`) needs, for every coefficient register, the parity
+of the written and of the stored bits of each byte and a selection by the strobes among the parity of the written value,
+the kept syndrome and the old parity bit. Preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro) with a clock
+of 125 MHz, pre-layout estimates, not a timing closure and not on the reference device, on develop fbc18fd and on commit
+e9116a7:
+
+| Configuration | Develop fbc18fd (MHz, 4LUT) | With PKG-08 (MHz, 4LUT) | Worst path with PKG-08 |
+| --- | --- | --- | --- |
+| `cnv_mtf3` | 177.2, 1056 | 177.1, 1094 | the image-start load of the working set (4 logic levels), as on develop |
+| `cnv_mtf5` | 155.6, 2787 | 149.8, 2835 | a coefficient -> its parity -> the parity check of the set at the image start -> the enable of the working set (8), as on develop with another coefficient |
+| `cnv_max` | 114.2, 24511 | 112.1, 25660 | the register address -> the read data, the read multiplexer of 256 coefficients (17; 15 on develop) |
+
+The parity of the writes costs 38, 48 and 1149 4LUT (3.6 %, 1.7 % and 4.7 %), in `cnv_max` about 4.5 4LUT per
+coefficient register. It feeds only the parity registers, and no worst path ends there. The estimate of `cnv_mtf5` is
+5.8 MHz (3.7 %) lower on the same path and stays above 125 MHz; `cnv_max`, not a default, stays below 125 MHz on the
+read multiplexer (section 5.1).
+
 ## 6. Requirement coverage
 
 | Requirement | Test cases | Status |
@@ -202,7 +239,8 @@ differ slightly, so the mapping differs; the estimates differ by less than 1 % a
 | CNV-FT-01 | TC-CNV-04, 09 and review: the stages hold no state between windows; the working set is loaded with every image start | Passed |
 | CNV-FT-02 | TC-CNV-04 | Passed |
 | CNV-FT-03 | TC-CNV-09 and the monitor of every test | Passed |
-| CNV-RG-01, CNV-RG-03 | TC-CNV-02, 05 | Passed |
+| CNV-RG-01 | TC-CNV-02, 05 | Passed |
+| CNV-RG-03 | TC-CNV-02, 04, 05 | Passed |
 | CNV-RG-02 | TC-CNV-05, 06 | Passed |
 | CNV-RG-04 | TC-CNV-04 | Passed |
 | CNV-CF-01, CNV-CF-02 | TC-CNV-11 | Passed |
@@ -216,3 +254,4 @@ differ slightly, so the mapping differs; the estimates differ by less than 1 % a
 | `test_static` sent one image as a single packet with the flags "11", which `isp_window` never delivers; the contract checker of the sink rejected it. `test_reset` resumed the interrupted image after the reset, which a window stream does not do either, since `isp_window` is reset with the module and restarts at an image start | `test_static` sends window streams of one packet per line (the other packet shapes stay in `test_packets`, with the checker off); `test_reset` stops the window stream at the reset and sends the next image; the plan states it. No change of the RTL |
 | `lint/vivado_ooc.py` read one declaration per line and wrote generic values as plain text: the port `Out_Data` of `isp_conv` continues on a second line, and `Coef_g` is a vector | The script joins continued declarations and writes lists as named aggregates; the top levels of the earlier configurations are unchanged, byte for byte |
 | The preliminary synthesis at 125 MHz on PolarFire MPF100T found the write of a coefficient register on the worst path of every configuration with run-time coefficients (`cnv_mtf5` 124.4 MHz, `cnv_max` 79.4 MHz, in `isp_filter2d` 108.0 MHz): the register selected by an index computed from the address for the merge of the written bytes and the parity | One address compare per coefficient and the parity of a write from the parities of its bytes (architecture, section 6; section 5.1): `cnv_mtf3` 178.8 MHz, `cnv_mtf5` 156.2 MHz, with fewer LUT than before; no cycle changes (section 1); four mutants of the write decode (plan, section 6) |
+| A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example while `CTRL.HOLD` is 1 and the registers are not checked, therefore became a valid word with the next partial write: masked, not detected (a review of the lead) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; CNV-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |

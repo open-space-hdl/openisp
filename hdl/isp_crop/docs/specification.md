@@ -69,14 +69,14 @@ lines of the output image. The module has no memory.
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
 | CRP-FT-01 | The selection shall use the position that `isp_frame_sync` delivers with every pixel and keep no pixel position of its own; the limits of the ROI in use shall be loaded from `ROI_POS` with every image. An upset of the datapath then disturbs at most the image in progress, and the module realigns with the next image start. | ISP-FT-04 |
-| CRP-FT-03 | `ROI_POS` shall carry one parity bit over its 32 bits, set by the reset and by every write, and checked with every image start (CRP-ER-04). | ISP-FT-05 |
+| CRP-FT-03 | `ROI_POS` shall carry one parity bit over its 32 bits, set by the reset and by the writes (CRP-RG-03), and checked with every image start (CRP-ER-04). | ISP-FT-05 |
 | CRP-FT-02 | After the reset, `In_Ready`, `Out_Valid`, `Err_Framing`, `Err_Config` and `Stat_ImageOpen` shall be defined, and with defined input pixels every output beat shall be free of metavalues. | ISP-FT-04 |
 
 The module has no memory, so the requirements on memories (ISP-FT-01 to ISP-FT-03) do not apply to it. Its registers
 are flip-flops; their mitigation by triple modular redundancy is a choice of the integrator in the synthesis tool
 (user guide, section "Protection scope"). `ROI_POS` holds its value until it is written: its parity bit
 detects an upset of one bit at the next image start, the images are then processed with the position of the generics
-and `STATUS.ERR_CONFIG` tells the software to write the register again.
+and `STATUS.ERR_CONFIG` tells the software to write the register again in full.
 
 ### 2.6 Partner behaviour
 
@@ -93,7 +93,7 @@ condition:
 | ID | Condition | Detection | Response | Status |
 | --- | --- | --- | --- | --- |
 | E5 | `RuntimeRoi_g` true: the position read from `ROI_POS` with an image start places the ROI partly outside the image | Range check with the image start | The image is processed with the position of the generics | `Err_Config`, `STATUS.ERR_CONFIG` |
-| E6 | `RuntimeRoi_g` true: the parity bit of `ROI_POS` does not match its value at an image start (upset of the register) | Parity check with the image start | The image is processed with the position of the generics, and so is every further image until `ROI_POS` is written | `Err_Config`, `STATUS.ERR_CONFIG` |
+| E6 | `RuntimeRoi_g` true: the parity bit of `ROI_POS` does not match its value at an image start (upset of the register) | Parity check with the image start | The image is processed with the position of the generics, and so is every further image until `ROI_POS` is written in full (all four bytes); a write that keeps a byte keeps the mismatch (CRP-RG-03) | `Err_Config`, `STATUS.ERR_CONFIG` |
 
 ## 4. Configuration parameters
 
@@ -154,5 +154,5 @@ fields have no effect; every access is answered with OKAY.
 | --- | --- | --- |
 | CRP-RG-01 | The AXI4-Lite slave shall implement the registers of this section with the stated addresses, fields, access types and reset values, and answer every access with OKAY. | ISP-CFG-03 |
 | CRP-RG-02 | A flag of `STATUS` that is set by its event in the cycle of a write that clears it shall stay set. | ISP-CFG-03 |
-| CRP-RG-03 | A write to `ROI_POS` shall change only the bytes that the write strobes select, and set the parity bit for the resulting value. | ISP-CFG-03, ISP-FT-05 |
+| CRP-RG-03 | A write to `ROI_POS` shall change only the bytes that the write strobes select. A write of every byte that holds bits of the register shall set the parity bit for the written value; a write that keeps such a byte shall keep a parity mismatch (the parity bit changes with the parity of the written bytes against the bytes they replace), so that an upset in a kept byte is still reported, and an upset in a byte that the write replaces is reported as well, until the register is written in full (every byte that holds bits of the register) (PKG-08). | ISP-CFG-03, ISP-FT-05 |
 | CRP-RG-04 | A write of one to `INJECT.ROI_POS_PARITY` shall invert the parity bit of `ROI_POS`, so that the next image start finds a mismatch. | ISP-FT-05 |

@@ -16,6 +16,7 @@ QuestaSim (coverage at the release); VUnit with UVVM, test end `ispTestEnd`.
 | --- | --- | --- |
 | `test_package` (TC-PKG-01) | The four flag constants against their literals; `ispPosWidth(n)` for every n from 1 to 65536 against the number of bits of n - 1 (at least 1); `ispIsImageStart` for the eight combinations of `first` and `user` and for every metavalue in `first` and in each bit of `user`; `ispConvFullBits` and `ispConvOutBits` for every pixel width 1 to 32, coefficient width 2 to 18 and number of taps 1 to 256 against p + c - 1 + log2ceil(t), with the output widths 0, 1 and 64 | PKG-01, PKG-02, PKG-03, PKG-05 |
 | `test_dimensions` (TC-PKG-03) | `ispWinOut` for every window size and stride from 1 to 16 and every border mode, and `ispBinOut` for every factor from 1 to 16 and the border modes valid, zero and replicate, at the sizes 1 to 40, 255 to 257, 4095 to 4097, 65535 and 65536 (51456 values: 49152 of `ispWinOut`, 2304 of `ispBinOut`), each against the table of the model | PKG-06, PKG-07 |
+| `test_write_parity` (TC-PKG-04) | `ispWriteParity` against a table of the reference model (`write_parity`, from the definition: the parity of the resulting value, with the syndrome before the write on top unless every byte with bits is written): every pattern of the four byte strobes, the register widths 0, 1, 2, 7, 8, 9, 15, 16, 17, 18, 23, 24, 25, 31 and 32 bits, both parity bits, the words of zeros and of ones and five random pairs of words; 3840 rows | PKG-08 |
 | TC-PKG-02 (`lint/synth_check.py`) | The package is synthesised by GHDL as part of every module of TC-FSY-09 | PKG-04 |
 
 ## 3. Requirement coverage
@@ -24,4 +25,5 @@ QuestaSim (coverage at the release); VUnit with UVVM, test end `ispTestEnd`.
 | --- | --- | --- |
 | PKG-01, PKG-02, PKG-03, PKG-05 | TC-PKG-01 | Test |
 | PKG-06, PKG-07 | TC-PKG-03 | Test |
+| PKG-08 | TC-PKG-04, and in the modules TC-CNV-04, TC-PNT-05 and TC-CRP-05 | Test |
 | PKG-04 | TC-PKG-02 | Synthesis and review (library, use of `olo_base_pkg_math`) |

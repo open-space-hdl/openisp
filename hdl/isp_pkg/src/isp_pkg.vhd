@@ -68,6 +68,18 @@ package isp_pkg is
         factor : positive;
         border : string) return natural;
 
+    -- Parity bit of a register of bits bits (bits 0 to bits - 1 of the register word) after a write with the byte
+    -- strobes ena (PKG-08): a write of every byte that holds a bit of the register gives the parity of the written
+    -- value; a write that keeps such a byte keeps the syndrome (the parity bit xor the parity of the stored bits), so
+    -- that the parity bit changes with the parity of the written bytes against the bytes they replace. old is the
+    -- stored value and data the write data, both aligned to bit 0 of the register; the bits from bits up do not count.
+    function ispWriteParity (
+        old  : std_logic_vector(31 downto 0);
+        data : std_logic_vector(31 downto 0);
+        par  : std_logic;
+        ena  : std_logic_vector(3 downto 0);
+        bits : natural) return std_logic;
+
 end package;
 
 ---------------------------------------------------------------------------------------------------
@@ -129,6 +141,54 @@ package body isp_pkg is
         border : string) return natural is
     begin
         return ispWinOut(n, factor, factor, border);
+    end function;
+
+    function ispWriteParity (
+        old  : std_logic_vector(31 downto 0);
+        data : std_logic_vector(31 downto 0);
+        par  : std_logic;
+        ena  : std_logic_vector(3 downto 0);
+        bits : natural) return std_logic is
+        variable Full_v  : boolean   := true;
+        variable Wrote_v : boolean   := false;
+        variable New_v   : std_logic := '0';
+        variable Keep_v  : std_logic := par;
+        variable WPar_v  : std_logic;
+        variable OPar_v  : std_logic;
+    begin
+
+        -- The parities of the stored bits of every byte, of the write data and of the stored value
+        for b in 0 to 3 loop
+            WPar_v := '0';
+            OPar_v := '0';
+
+            for i in 8 * b to 8 * b + 7 loop
+                if i < bits then
+                    WPar_v := WPar_v xor data(i);
+                    OPar_v := OPar_v xor old(i);
+                end if;
+            end loop;
+
+            if 8 * b < bits then
+                if ena(b) = '1' then
+                    Wrote_v := true;
+                    New_v   := New_v xor WPar_v;
+                    Keep_v  := Keep_v xor WPar_v xor OPar_v;
+                else
+                    Full_v := false;
+                end if;
+            end if;
+        end loop;
+
+        -- Every byte with bits written: the parity of the written value; some of them kept: the syndrome stays; none
+        -- written: the parity bit stays
+        if Full_v then
+            return New_v;
+        elsif Wrote_v then
+            return Keep_v;
+        else
+            return par;
+        end if;
     end function;
 
 end package body;

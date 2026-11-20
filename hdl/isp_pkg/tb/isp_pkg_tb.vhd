@@ -11,6 +11,8 @@
 --
 -- * test_package: flag constants, ispPosWidth for n = 1 to 65536, ispIsImageStart for every
 --   combination of first beat and flags and for metavalues
+-- * test_write_parity: ispWriteParity against a table of the reference model (the parity of the
+--   resulting value, with the syndrome before the write unless every byte with bits is written)
 --
 -- Documentation: hdl/isp_pkg/docs/verification_plan.md
 
@@ -40,7 +42,9 @@ entity isp_pkg_tb is
     generic (
         runner_cfg : string;
         -- Table of the output dimensions from the reference model (test_dimensions, vunit_config.py)
-        DimFile_g  : string := ""
+        DimFile_g  : string := "";
+        -- Table of the parity bit after a register write (test_write_parity, vunit_config.py)
+        ParFile_g  : string := ""
     );
 end entity;
 
@@ -49,6 +53,18 @@ architecture sim of isp_pkg_tb is
     type Values_t is array (natural range <>) of std_logic;
 
     constant Meta_c : Values_t := ('U', 'X', 'Z', 'W', 'L', 'H', '-');
+
+    -- A word written in binary, the leftmost character the highest bit
+    function binToSlv (s : string) return std_logic_vector is
+        variable V_v : std_logic_vector(s'length - 1 downto 0);
+    begin
+
+        for i in 0 to s'length - 1 loop
+            V_v(s'length - 1 - i) := '1' when s(s'low + i) = '1' else '0';
+        end loop;
+
+        return V_v;
+    end function;
 
     -- Bits of n - 1, at least 1, counted
     function bitsOf (n : positive) return positive is
@@ -67,18 +83,24 @@ architecture sim of isp_pkg_tb is
 begin
 
     p_main : process is
-        variable Exp_v  : boolean;
-        variable Bits_v : natural;
-        variable L_v    : line;
-        variable W_v    : string(1 to WordMax_c);
-        variable Len_v  : natural;
-        variable Kind_v : character;
-        variable N_v    : positive;
-        variable Win_v  : positive;
-        variable Str_v  : positive;
-        variable Got_v  : natural;
-        variable Ref_v  : natural;
-        variable Rows_v : natural;
+        variable Exp_v   : boolean;
+        variable Bits_v  : natural;
+        variable L_v     : line;
+        variable W_v     : string(1 to WordMax_c);
+        variable Len_v   : natural;
+        variable Kind_v  : character;
+        variable N_v     : positive;
+        variable Win_v   : positive;
+        variable Str_v   : positive;
+        variable Got_v   : natural;
+        variable Ref_v   : natural;
+        variable Rows_v  : natural;
+        variable Old_v   : std_logic_vector(31 downto 0);
+        variable Data_v  : std_logic_vector(31 downto 0);
+        variable Par_v   : std_logic;
+        variable Ena_v   : std_logic_vector(3 downto 0);
+        variable ExpCh_v : character;
+        variable PGot_v  : std_logic;
 
         file F_v : text;
     begin
@@ -183,6 +205,37 @@ begin
 
                 file_close(F_v);
                 check_value(Rows_v > 40000, ERROR, "rows of the table: " & integer'image(Rows_v));
+
+            elsif run("test_write_parity") then
+                -- PKG-08: every line of the table: bits old data parity strobes expected
+                file_open(F_v, ParFile_g, read_mode);
+                Rows_v := 0;
+
+                while not endfile(F_v) loop
+                    readline(F_v, L_v);
+                    readWord(L_v, W_v, Len_v);
+                    next when Len_v = 0;
+                    Bits_v  := decToInt(W_v(1 to Len_v));
+                    readWord(L_v, W_v, Len_v);
+                    Old_v   := binToSlv(W_v(1 to Len_v));
+                    readWord(L_v, W_v, Len_v);
+                    Data_v  := binToSlv(W_v(1 to Len_v));
+                    readWord(L_v, W_v, Len_v);
+                    Par_v   := '1' when W_v(1) = '1' else '0';
+                    readWord(L_v, W_v, Len_v);
+                    Ena_v   := binToSlv(W_v(1 to Len_v));
+                    readWord(L_v, W_v, Len_v);
+                    ExpCh_v := W_v(1);
+                    PGot_v  := ispWriteParity(Old_v, Data_v, Par_v, Ena_v, Bits_v);
+                    if (PGot_v = '1') /= (ExpCh_v = '1') then
+                        error("bits " & integer'image(Bits_v) & " strobes " & to_string(Ena_v) & " parity " &
+                              std_logic'image(Par_v) & ": " & std_logic'image(PGot_v) & ", the model " & ExpCh_v);
+                    end if;
+                    Rows_v := Rows_v + 1;
+                end loop;
+
+                file_close(F_v);
+                check_value(Rows_v, 15 * 16 * 8 * 2, ERROR, "rows of the table");
             end if;
         end loop;
 
