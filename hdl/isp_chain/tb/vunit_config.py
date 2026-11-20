@@ -351,12 +351,13 @@ def build_registers(rng, x):
 
 def release_times(c):
     """S_first and S_last of section 5.4 (the delays of the image start to the first and the last isp_point, from the
-    design values of the module plans: the upper latencies), the image period P and the cycle of the last pixel of an
-    image after its start at the input, for the order typical with images back to back."""
+    design values of the module plans: S_first with the lower latency of isp_replace for the end of the window,
+    S_last with the upper latencies for its start), the image period P and the cycle of the last pixel of an image
+    after its start at the input, for the order typical with images back to back."""
     w, h, g = c["w"], c["h"], c["rpl"]["g"]
     line = w + g
-    s_first = g + 12
-    s = s_first + c["p1"]["stages"] + 5
+    s_first = g + 10
+    s = g + 12 + c["p1"]["stages"] + 5
     r, f, b = c["crp"], c["flt"], c["bin"]
     s += r["y"] * line + r["x"] + 4
     rr = rb = (f["win"] - 1) // 2

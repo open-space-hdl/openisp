@@ -147,22 +147,23 @@ module j S_j cycles after it, the sum of the delays of the modules before j:
 | `isp_window`, `isp_filter2d` | Rb lines, Rr pixels (`WinY_g` - 1 lines and `WinX_g` - 1 pixels in the border mode valid) and the latency, 6 (WIN-PF-03) or log2ceil(T) + 9 (FLT-PF-02) |
 | `isp_bin` | `BinY_g` - 1 lines, `BinX_g` - 1 pixels and its latency, 16 + log2ceil(`BinX_g`) + log2ceil(`BinY_g`) with both filters, 8 + log2ceil of the factor with one |
 
-A line is the line period at the chain input (W plus the holds per line, section 2.4), a pixel one cycle; the latencies
-are the bounds of the specifications. With S_first and S_last the delays to the first and the last module whose set
-changes and P the image period, the window is S_last < t < S_first + P after the image start. When S_last - S_first is
-not shorter than P (a region near the lower edge of the image, large windows), back-to-back images leave no window: the
-source pauses between two images for at least S_last - S_first - P plus the time of the writes. A release at another
-time can give one image the old set in the first modules and the new one in the last.
+A line is the line period at the chain input (W plus the holds per line, section 2.4), a pixel one cycle. With
+S_first and S_last the delays to the first and the last module whose set changes and P the image period, the window
+is S_last < t < S_first + P after the image start. A window that holds in every case is narrower than the true one at
+both ends: its start takes S_last with the latency bounds of the specifications (the table), its end S_first with
+the pixel and line delays of the table only, without the latencies. When S_last - S_first is not shorter than P (a
+region near the lower edge of the image, large windows), back-to-back images leave no window: the source pauses
+after an image, the release comes S_last after its start, and the next image starts after the writes. A release at
+another time can give one image the old set in the first modules and the new one in the last.
 
 Example: `isp_replace` (40 x 20 pixels, `MaxGap_g` 2), `isp_point`, `isp_crop` (32 x 16 at (4, 2)), a 3 x 3
 `isp_filter2d`, a 2 x 2 `isp_bin` and `isp_point`, with run-time sets in both `isp_point`, `isp_crop` and
-`isp_filter2d`: line period 42, P = 840, S_first = 2 + 14 = 16, S_last = 16 + 7 + 92 + 56 + 61 = 232; the window is
-232 < t < 856 cycles after the image start. The latencies of the table are the bounds of the specifications, so the
-window is conservative; the design values in the verification plans of the modules give a slightly wider one (14 and
-229 cycles in this example). Without a window: 5 x 3 pixels of 1 bit through `isp_replace` (`MaxGap_g` 2),
-`isp_point`, `isp_crop` (3 x 3 at (1, 0)), a 3 x 3 `isp_filter2d` and a 3 x 3 `isp_bin` to `isp_point`: P = 21,
-S_first = 16, S_last = 84. The source stops after an image, the release comes at least 84 cycles after its start,
-and the next image starts after the writes: a pause of at least 47 cycles plus the writes.
+`isp_filter2d`: line period 42, P = 840, S_last = 16 + 7 + 92 + 56 + 61 = 232 with the latency bounds, S_first = 2
+(the `MaxGap_g` pixels of `isp_replace`) without them; the window is 232 < t < 842 cycles after the image start. It
+lies inside the window of the design values of the module plans (229 < t < 852). Without a window: 5 x 3 pixels of 1
+bit through `isp_replace` (`MaxGap_g` 2), `isp_point`, `isp_crop` (3 x 3 at (1, 0)), a 3 x 3 `isp_filter2d` and a
+3 x 3 `isp_bin` to `isp_point`: P = 21, S_last = 84. The source stops after an image, the release comes at least 84
+cycles after its start, and the next image starts after the writes.
 
 ### 4.3 Parity of the parameter registers
 

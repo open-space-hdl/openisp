@@ -51,7 +51,7 @@ equal the model, also the modules that report nothing.
 
   | Release (`typical`) | Set after the image start | Done after the image start | Window of section 5.4 |
   | --- | --- | --- | --- |
-  | Four writes at input pixel (0, 10) | 420 cycles | 444 cycles | 229 < t < 854 |
+  | Four writes at input pixel (0, 10) | 420 cycles | 444 cycles | 229 < t < 852 |
   | Two writes at input pixel (37, 2) | 123 cycles | 135 cycles | after S_first = 14, before s_last of the lower latencies 221 |
 
 - ECC: in `typical` the defect map reports 9 single and 10 double errors, `isp_filter2d` 2 and 2, `isp_bin` 1 and 1;

@@ -242,25 +242,28 @@ system). The image start reaches module j S_j cycles after it, the sum of the de
 | `isp_bin` | `BinY_g` - 1 lines and `BinX_g` - 1 pixels and its latency |
 
 A line is the line period at the chain input (W plus the waits per line at the input, section 5.1), a pixel one
-cycle; the latencies are the upper values of the module plans. The window for the release is S_last < t < S_first + P
-after the image start at the input, P the image period, and every write has to be finished before its end. It exists
-when Delta = S_last - S_first is shorter than P. When it is not (a region near the lower edge of the image, large
-windows), back-to-back images leave no window, and the source has to pause between two images for at least Delta - P
-plus the time of the writes.
+cycle. The window for the release is S_last < t < S_first + P after the image start at the input, P the image period,
+and every write has to be finished before its end. A window that holds in every case is narrower than the true one at
+both ends: its start takes S_last with the upper latencies of the module plans, its end S_first with the lower ones.
+It exists when Delta = S_last - S_first is shorter than P. When it is not (a region near the lower edge of the image,
+large windows), back-to-back images leave no window: the source pauses after an image, the release comes S_last after
+its start, and the next image starts after the writes.
 
 `typical` (first: the first `isp_point`, last: the second; line period 42, P = 840):
 
-- S_first = 2 + 12 = 14 (`isp_replace`);
+- S_first = 2 + 10 = 12 (`isp_replace`) with its lower latency for the end of the window, 2 + 12 = 14 with the upper
+  one for the mixed release below;
 - S_last = 14 + 7 (`isp_point`) + 2 x 42 + 4 + 4 (`isp_crop`) + 42 + 1 + 12 (`isp_filter2d`) + 42 + 1 + 18
   (`isp_bin`) = 229, with the lower values of the latencies 221;
-- the window is 229 < t < 854. `test_registers` starts the writes of the procedure with input pixel (0, 10), 420 cycles
+- the window is 229 < t < 852. `test_registers` starts the writes of the procedure with input pixel (0, 10), 420 cycles
   after the image start (ten line intervals of 42 cycles): 191 cycles after S_last. The four single writes (`CTRL.HOLD`
   0 of both `isp_point` and of `isp_filter2d`, `ROI_POS` of `isp_crop`) end long before the end of the window; the
   bench logs their times. The source waits for them before the next image, so the end of the window holds in any
   case.
 
-`small` (line period 7, P = 21): S_first = 14 and S_last = 14 + 6 (`isp_point`) + 1 + 4 (`isp_crop`) + 7 + 1 + 12
-(`isp_filter2d`) + 2 x 7 + 2 + 20 (`isp_bin`) = 81: Delta = 67 > P, so back-to-back images leave no window.
+`small` (line period 7, P = 21): S_last = 14 + 6 (`isp_point`) + 1 + 4 (`isp_crop`) + 7 + 1 + 12 (`isp_filter2d`) +
+2 x 7 + 2 + 20 (`isp_bin`) = 81 with the upper latencies, S_first = 12 with the lower: Delta = 69 > P, so
+back-to-back images leave no window.
 `test_registers` runs the variant with a pause: the source stops after the last pixel of image k (18 cycles after
 its start), sets the release S_last + 1 = 82 cycles after the image start, and starts image k + 1 only after the
 writes (it waits for them). The pause between the two images is therefore at least Delta - P plus the time of the
