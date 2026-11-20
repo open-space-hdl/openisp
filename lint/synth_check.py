@@ -218,6 +218,8 @@ NEGATIVE += [
     ("win_y_17", "isp_window", dict(WIN_OK, WinY_g="17", ImageHeight_g="20"), "isp_window: WinY_g must be 1 to 16"),
     ("win_width_below", "isp_window", dict(WIN_OK, ImageWidth_g="2"), "isp_window: ImageWidth_g must be WinX_g to"),
     ("win_height_below", "isp_window", dict(WIN_OK, ImageHeight_g="2"), "isp_window: ImageHeight_g must be WinY_g"),
+    ("win_width_below_valid", "isp_window", dict(WIN_OK, ImageWidth_g="2", BorderMode_g="valid"),
+     "isp_window: ImageWidth_g must be WinX_g to"),
     ("win_width_65537", "isp_window", dict(WIN_OK, ImageWidth_g="65537"), "ImageWidth_g must be"),
     ("win_bits_33", "isp_window", dict(WIN_OK, PixelBits_g="33"), "isp_window: PixelBits_g must be 1 to 32"),
     ("win_anchor_x", "isp_window", dict(WIN_OK, AnchorX_g="3"), "isp_window: AnchorX_g must be 0 to"),

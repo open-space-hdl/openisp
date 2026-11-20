@@ -119,18 +119,12 @@ architecture rtl of isp_window is
         return 0;
     end function;
 
-    function count (size, win, stride : positive) return positive is
-    begin
-        if Valid_c then
-            return (size - win) / stride + 1;
-        end if;
-        return (size + stride - 1) / stride;
-    end function;
-
-    constant X0_c : natural  := firstRef(AnchorX_g);
-    constant Y0_c : natural  := firstRef(AnchorY_g);
-    constant Wo_c : positive := count(W_c, WinX_g, StrideX_g);
-    constant Ho_c : positive := count(H_c, WinY_g, StrideY_g);
+    constant X0_c : natural := firstRef(AnchorX_g);
+    constant Y0_c : natural := firstRef(AnchorY_g);
+    -- Output dimensions (isp_pkg, PKG-06); at least 1, so that an image smaller than the window in the border mode
+    -- valid reaches the configuration check, which names the generic
+    constant Wo_c : positive := maximum(ispWinOut(W_c, WinX_g, StrideX_g, BorderMode_g), 1);
+    constant Ho_c : positive := maximum(ispWinOut(H_c, WinY_g, StrideY_g, BorderMode_g), 1);
     constant XL_c : natural  := X0_c + (Wo_c - 1) * StrideX_g;
     constant YL_c : natural  := Y0_c + (Ho_c - 1) * StrideY_g;
 
