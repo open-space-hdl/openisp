@@ -129,7 +129,7 @@ the image; an image start is evaluated before every other condition of its pixel
 | --- | --- | --- |
 | FSY-CF-01 | A generic outside its range of section 4 shall stop the elaboration with a message naming the generic. | ISP-CFG-01 |
 | FSY-CF-02 | The module shall be synthesizable with GHDL for the bounds of every generic. | ISP-GEN-01 |
-| FSY-CF-03 | The module shall be designed for 150 MHz on the FPGA families of the reference systems; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| FSY-CF-03 | The module shall be designed for 150 MHz on the AMD Versal device of the reference systems and for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. | ISP-GEN-03 |
 
 ## 6. Interpretation
 

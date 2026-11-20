@@ -120,7 +120,7 @@ log2(n) for a power of two, otherwise `Gain_g` = round(2^k / n) with `Shift_g` =
 | --- | --- | --- |
 | PNT-CF-01 | A generic outside its range of section 4 shall stop the elaboration with a message naming the generic. | ISP-CFG-01 |
 | PNT-CF-02 | The module shall be synthesizable with GHDL for the bounds of every numeric generic and both values of `Runtime_g`. | ISP-GEN-01 |
-| PNT-CF-03 | The default configuration shall be designed for 150 MHz on the FPGA families of the reference systems; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| PNT-CF-03 | The default configuration shall be designed for 150 MHz on the AMD Versal device of the reference systems and for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. | ISP-GEN-03 |
 
 ## 6. Interpretation
 

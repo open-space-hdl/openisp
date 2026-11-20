@@ -116,7 +116,7 @@ Output image: `RoiWidth_g` x `RoiHeight_g` pixels of `PixelBits_g` bits.
 | --- | --- | --- |
 | CRP-CF-01 | A generic outside its range of section 4 shall stop the elaboration with a message naming the generic. | ISP-CFG-01 |
 | CRP-CF-02 | The module shall be synthesizable with GHDL for the bounds of every generic. | ISP-GEN-01 |
-| CRP-CF-03 | The module shall be designed for 150 MHz on the FPGA families of the reference systems; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| CRP-CF-03 | The module shall be designed for 150 MHz on the AMD Versal device of the reference systems and for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. | ISP-GEN-03 |
 
 ## 6. Interpretation
 

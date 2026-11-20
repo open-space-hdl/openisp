@@ -257,11 +257,12 @@ requirements of a mission is shown by a radiation test with the modules in opera
 
 ## 8. Resources and performance
 
-Every module accepts one pixel per clock cycle within a line; the default configurations are designed for 150 MHz.
-The timing is shown by an out-of-context synthesis and timing run of the default configuration of every module on
-the AMD Versal device of the reference systems, not by the simulation; runs on Microchip PolarFire are a later
-option. The architecture document of every module estimates its resources; the verification reports record the synthesis
-results.
+Every module accepts one pixel per clock cycle within a line; the default configurations are designed for 150 MHz on
+the AMD Versal device of the reference systems and for 125 MHz on Microchip PolarFire. The timing is estimated by a
+preliminary synthesis of the default configuration of every module on PolarFire MPF100T (Libero, Synplify Pro), not
+by the simulation; the estimate is pre-layout, not a timing closure. The out-of-context run on the Versal device is a
+later step. The architecture document of every module estimates its resources; the verification reports record the
+synthesis results.
 
 ## 9. Conformance
 
