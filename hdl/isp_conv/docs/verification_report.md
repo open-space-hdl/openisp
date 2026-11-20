@@ -6,6 +6,12 @@ Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 `python run.py -p 4`, 425 of 425 tests passed (122 of them `isp_conv`), 0 skipped.
 QuestaSim runs with the release regression (with and without code coverage).
 
+The write decode with one address compare per coefficient (architecture, section 6): `python run.py -p 4` on
+2026-11-20 on commit 8787093, 668 of 668 tests passed (122 of them `isp_conv`), 0 skipped; `lint/synth_check.py`
+(TC-CNV-11) passed. The change keeps every cycle: the ports of the module in 40 tests (the configurations `mtf3`,
+`min`, `max`, `wide`, `mtf5_const`, `ones4` and `rate_3`, every test of each) are identical in every time step
+before and after it, and the generated stimuli and expected outputs of every configuration are unchanged.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-CNV-01) | 42 (with the sweeps) | 42 |
