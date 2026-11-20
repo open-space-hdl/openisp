@@ -135,6 +135,19 @@ last one. `Out_Data` is the register itself. The border modes act on what is loa
 and the registered column counter (HCOL m = `VCol` + 1, and a VPIX column) or from the position of the frame sync (a
 PIX column), each compared before the state selects, not from the position of the event after its selection.
 
+These decisions equal those on the event position (xe, ye), because the position of an event is fixed by its state:
+
+| State | Event position (xe, ye) | Range of xe |
+| --- | --- | --- |
+| `Pix_s` (PIX) | the position of the frame sync | 0 to W - 1 (the frame sync counts within the image) |
+| `HCol_s` (HCOL) | (W + `VCol`, the line of the event) | W to W + Rr - 1 |
+| `VPix_s` (VPIX) | (`VCol`, `VLine`) | 0 to W - 1 |
+
+So xe >= W holds in `HCol_s` only, xe = 0 in a PIX at frame sync column 0 or in the first VPIX of a virtual line, and
+xe = k for 1 <= k <= Ax in a PIX or VPIX at column k. Pixel (0, 0) needs the state `Pix_s` and a PIX at (0, 0): no
+HCOL (xe >= W >= 1) and no VPIX (ye >= H) has that position, and a pixel (0, 0) of the next image that waits at the
+frame sync during the virtual events of an image is not taken before `Pix_s`.
+
 ## 8. Output (WN-5)
 
 The window of an event at (xe, ye) is valid when its pixel (x, y) = (xe - Rr, ye - Rb) is a reference pixel:
