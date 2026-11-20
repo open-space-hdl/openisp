@@ -97,6 +97,12 @@ class Ctx:
         vpix = (c["by"] - 1) * narrow_width(c) if c["border"] != "valid" else 0
         return vpix + c["bx"] + 2 * self.lat + 20
 
+    def close_wait(self):
+        """The wait of a probe after complete images: the vertical filter closes an image 7 + log2ceil(BinX_g)
+        cycles after the acceptance of its last pixel, the frame sync of the input 1 cycle after it (verification
+        plan, section 5); plus the 8 cycles of the shared probe, so that the probe reads 7 cycles after the fall."""
+        return 7 + log2ceil(self.c["bx"]) + 8
+
     def inject(self, pattern):
         """The injection waits until every bin of the pixels sent is in the vertical filter."""
         return [("W",), ("T", 2 * self.lat + 8), ("J", next(self.markers), pattern)]
@@ -225,10 +231,9 @@ BUILDERS = {
 
 
 def settle(items, wait):
-    """The probes after a wait for the sink (the shared ("W",), ("T", 8), ("P",)) wait `wait` cycles: the vertical
-    filter closes an image 7 + log2ceil(BinX_g) cycles after its last pixel (verification plan, section 5), and in the
-    border mode valid no output need follow the last pixel (lines and columns that no bin uses), so the wait for the
-    sink can end before it."""
+    """The probes after a wait for the sink (the shared ("W",), ("T", 8), ("P",)) wait `wait` cycles (Ctx.close_wait):
+    in the border mode valid no output need follow the last pixel of an image (lines and columns that no bin uses), so
+    the wait for the sink can end with the last pixel, before the vertical filter closes the image."""
     out = list(items)
     for i in range(len(out) - 2):
         if out[i] == ("W",) and out[i + 1] == ("T", 8) and out[i + 2] == ("P",):
@@ -258,7 +263,7 @@ def configure(lib, out_dir):
         for test in c["tests"]:
             rng = rng_for(MODULE, c["name"], test)
             x = Ctx(c)
-            items = resolve_held_drop(settle(BUILDERS[test](rng, x), x.drain()), model)
+            items = resolve_held_drop(settle(BUILDERS[test](rng, x), x.close_wait()), model)
             folder = Path(out_dir) / MODULE / c["name"]
             files = {ext: folder / (test + "." + ext) for ext in ("stim", "exp", "inj", "tim")}
             res = write_test(files["stim"], files["exp"], items, model, c["pb"], inj_path=files["inj"],

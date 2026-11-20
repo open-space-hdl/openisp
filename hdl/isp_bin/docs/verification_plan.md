@@ -169,6 +169,13 @@ closes the image before, so the port falls only after the last image, 7 + lx cyc
 filter or the frame sync alone it falls 1 cycle after the last pixel of every image and rises again one cycle later
 with the next image.
 
+**The probes after complete images.** The probe of the shared components after complete images waits for the sink and
+8 cycles. In the mode valid with lines or columns that no bin uses, no output follows the last pixel of an image, so
+the wait for the sink ends with the last pixel, while the vertical filter closes the image only 7 + lx cycles after
+it. The probes of this bench after complete images therefore wait 7 + lx + 8 cycles after the wait for the sink and
+read `Stat_ImageOpen` 7 cycles after its fall (the shared probe has the same margin after the fall of a single frame
+sync, 1 cycle after the last pixel).
+
 The bench checks the design values. A measured value outside the derivation is a finding: the cause is found (the
 RTL or the derivation), recorded in the findings of the verification report, and the wrong one is corrected. A
 derivation is never adjusted to fit a measurement.
