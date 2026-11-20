@@ -1059,3 +1059,120 @@ def replace(items, width, height, pixel_bits, gap):
     return out, fs.errors, annot, {"unreplaced": sum(unrepl_beats), "sec": cnt["sec"], "ded": cnt["ded"],
                                    "regs": regs, "timing": timing}
 
+
+
+def chain(items, stages):
+    """A chain of modules (isp_chain): the output stream of every stage is the input stream of the next.
+
+    `stages` is a list of the models of the modules, each a function items -> (out, errors, annot[, extra]). Items of
+    the chain: beats and directives of the source (the directives go to the first stage only); ('R', drop, mode,
+    cycles) a reset of the whole chain, which every stage sees at the same place of the stream (the beats it drops are
+    those of the chain output); ('A', marker, [(stage, entry), ...]) register accesses of several modules, ('AC', ...)
+    the same accesses while the source goes on (the bench waits for them at a later ('K', marker)); ('J', marker,
+    pattern, stage) an injection into a module; ('RM', marker, stage) a reset of one module, not the last. Resets inside the chain are placed where every beat of the stages
+    before has reached the next one, so that no beat is lost between two modules (verification plan of isp_chain,
+    sections 3 and 5.5).
+
+    Returns (out, errors of the first stage, annot, extra): annot holds per item the outputs of the last stage and the
+    open flag of the first; extra holds "stages" (per stage: framing errors and its extra counts), "regs" (the register
+    accesses of every marker, with the stage of every entry) and "timing" (per output pixel the input beat of the
+    chain that completed it, or -1)."""
+    n = len(stages)
+    results = []
+    # Per stage: its items and, for every one of them, the index of the chain item it belongs to
+    stage_items, origin = [], []
+    prev_beats = None            # output beats of the stage before: (value, last, user)
+    prev_count_at = None         # for every chain item: number of output beats of the stage before after it
+    prev_timing = None
+    for s in range(n):
+        its, org = [], []
+        k = 0                    # next output beat of the stage before
+        for i, it in enumerate(items):
+            if s > 0:
+                while k < prev_count_at[i]:
+                    v, last, user = prev_beats[k]
+                    its.append(("B", v, last, user))
+                    org.append(i)
+                    k += 1
+            kind = it[0]
+            if kind == "B":
+                if s == 0:
+                    its.append(it)
+                    org.append(i)
+            elif kind == "R":
+                # The beats a running reset drops are those of the chain output; inside the chain the reset is placed
+                # where no beat is between two modules
+                its.append(it if s == n - 1 else ("R", 0, it[2], it[3]))
+                org.append(i)
+            elif kind in ("A", "AC"):
+                entries = [e for st, e in it[2] if st == s]
+                if entries:
+                    its.append(("A", it[1], entries))
+                    org.append(i)
+            elif kind == "J":
+                if it[3] == s:
+                    its.append(("J", it[1], it[2]))
+                    org.append(i)
+            elif kind == "RM":
+                assert it[2] < n - 1, "a reset of the last module drops beats of the chain output"
+                if it[2] == s:
+                    its.append(("R", 0, 0, 2))
+                    org.append(i)
+            elif s == 0:
+                its.append(it)
+                org.append(i)
+        res = stages[s](its)
+        out, errors, annot = res[0], res[1], res[2]
+        extra = res[3] if len(res) > 3 else {}
+        results.append((errors, extra))
+        stage_items.append(its)
+        origin.append(org)
+        # Output beats of this stage after every chain item (a reset of a later stage drops none)
+        count_at, j = [], 0
+        last_count = 0
+        for i in range(len(items)):
+            while j < len(org) and org[j] <= i:
+                last_count = annot[j][0]
+                j += 1
+            count_at.append(last_count)
+        beats = [(o[1], o[2], o[3]) for o in out if o[0] == "B"]
+        assert len(beats) == count_at[-1] if items else True
+        # Timing: the input beat of this stage maps to an output beat of the stage before, and so on to the input
+        timing = extra.get("timing")
+        if timing is not None:
+            beat_origin = []     # for every input beat of this stage: its beat index in the stage before
+            b = 0
+            for it in its:
+                if it[0] == "B":
+                    beat_origin.append(b)
+                    b += 1
+            if s == 0:
+                chain_timing = list(timing)
+            else:
+                chain_timing = [-1 if src < 0 or prev_timing is None else prev_timing[beat_origin[src]]
+                                for src in timing]
+        else:
+            chain_timing = None
+        prev_beats, prev_count_at, prev_timing = beats, count_at, chain_timing
+        if s == 0:
+            first_annot, first_org = annot, org
+    # Annotation per chain item: outputs of the last stage, open flag of the first stage
+    chain_annot, j, opened = [], 0, False
+    for i in range(len(items)):
+        while j < len(first_org) and first_org[j] <= i:
+            opened = first_annot[j][1]
+            j += 1
+        chain_annot.append((prev_count_at[i], opened))
+    # Register accesses: the entries of every marker in the order of the chain item, with the read values of the model
+    by_stage = [{m: list(e) for m, e in r[1].get("regs", [])} for r in results]
+    regs = []
+    for it in items:
+        if it[0] in ("A", "AC"):
+            resolved = []
+            for st, _entry in it[2]:
+                resolved.append((st, by_stage[st][it[1]].pop(0)))
+            regs.append((it[1], resolved))
+    stages_info = [dict({"errors": e}, **{k: v for k, v in x.items() if k not in ("regs", "timing")})
+                   for e, x in results]
+    return (out, results[0][0], chain_annot,
+            {"stages": stages_info, "regs": regs, "timing": prev_timing if prev_timing is not None else []})

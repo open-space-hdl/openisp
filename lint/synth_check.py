@@ -191,6 +191,11 @@ CONFIGS += [
     ("rpl_max", "isp_replace_synth", rpl(65536, 1, 24, 7, 3, 2, 1)),
     ("rpl_h_max", "isp_replace_synth", rpl(15, 65536, 12, 7, 2, 1)),
 ]
+# The chains of the chain test as one netlist each (TC-CHN-08, lint/isp_chain_synth.vhd)
+CONFIGS += [
+    ("chain_typical", "isp_chain_synth", {"Chain_g": "typical"}),
+    ("chain_reordered", "isp_chain_synth", {"Chain_g": "reordered"}),
+]
 
 # Configurations outside the declared ranges and the message their elaboration stops with
 FSY_OK = {"ImageWidth_g": "8", "ImageHeight_g": "4", "PixelBits_g": "12"}

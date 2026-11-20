@@ -8,3 +8,4 @@ hdl/isp_conv
 hdl/isp_filter2d
 hdl/isp_bin
 hdl/isp_replace
+hdl/isp_chain

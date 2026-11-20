@@ -237,8 +237,10 @@ passes in both.
 - The sink of every unit test checks the output contract of the pixel stream (sequence flags in order, one packet
   per line, constant flags within a packet, the number of lines), so that every module shows at unit level that
   its output is a legal input.
-- Phase G: the chain of section 2 is simulated end to end, so that every connection between modules is crossed by a
-  test.
+- Phase G: the chain test (`hdl/isp_chain`) connects the modules in three chains, the chain of section 2, the same
+  order at the low bounds of the generics and another order, and compares them with the composition of the
+  reference models; a contract monitor on every connection, so that every connection between modules is crossed by
+  a test.
 - Phase F of every module ends with an out-of-context synthesis and timing run of its default configuration at
   150 MHz (Vivado, Versal device of the reference systems).
 
