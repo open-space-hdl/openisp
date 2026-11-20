@@ -52,6 +52,19 @@ CONFIGS = [
     cfg("rate_x_only", 16, 8, 12, 4, 1, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
     cfg("rate_y_only", 16, 8, 12, 1, 4, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
     cfg("rate_none", 16, 8, 12, 1, 1, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    # W not a multiple of BinX_g (the term e): the exact wait (p < W), the range (p >= W) also where the bound without
+    # e is 0, the low bound W = BinX_g + 1 (with BinX_g 2 a line of 3 pixels, the term s), the horizontal filter alone
+    cfg("rate_odd_w33", 33, 8, 12, 2, 2, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_w33_tall", 33, 16, 12, 2, 8, "zero", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_w13", 13, 16, 12, 2, 8, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_w13_bx4", 13, 8, 12, 4, 2, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_w17_bx8", 17, 8, 12, 8, 2, "zero", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_w17_bx8_tall", 17, 16, 12, 8, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_w17_bx16_tall", 17, 16, 12, 16, 16, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_w3", 3, 8, 12, 2, 2, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_w5_bx4", 5, 8, 12, 4, 4, "zero", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_x_only", 9, 6, 12, 2, 1, "replicate", gap=0, stall=0, tests=["test_static", "test_rate"]),
+    cfg("rate_odd_x_only_w3", 3, 6, 12, 2, 1, "zero", gap=0, stall=0, tests=["test_static", "test_rate"]),
 ]
 # The sweep of the factors: bin n x (17 - n), image (n + 3) x (20 - n), the border modes in turn; with BinY_g 1 the
 # injection has no effect (test_ecc)
