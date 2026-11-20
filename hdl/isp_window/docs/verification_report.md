@@ -12,6 +12,19 @@ The status-output audit added a probe of `Stat_ImageOpen` while an image is open
 The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
 commit 4cef90a, 601 of 601 tests passed (128 of them `isp_window`), 0 skipped; `lint/synth_check.py` (TC-WIN-08) passed.
 
+`python run.py -p 4` on 2026-11-20 on commit e167a73 (the selections of section 7 and develop 572dbd7), 668 of 668
+tests passed (128 of them `isp_window`), 0 skipped; `lint/synth_check.py` (TC-WIN-08) passed.
+
+The border and row selections without the selection of the event position and the row selection of the next line by
+compares (architecture, section 7) keep every cycle: in every test of the benches that contain the module, the signals
+at the top level of the bench (the reset, the input and output streams, the status and error outputs and the injection
+inputs; 21 in `isp_window_tb` and `isp_bin_tb`, 22 in `isp_filter2d_tb`, 29 in `isp_replace_tb`, 48 in `isp_chain_tb`)
+are identical in every time step between commit 1f169a2 (before the change) and commit 5a47ea5: 128 tests of
+`isp_window`, 32 of `isp_filter2d`, 97 of `isp_bin`, 89 of `isp_replace` and 21 of the chain, 367 in all, with every
+border mode, the smallest images (1 x 1 in the configurations `min` of `isp_filter2d` and `isp_bin`, 3 x 3 with a 3 x 3
+window), lines and columns of 65536 pixels, and images back to back. The generated stimuli and expected outputs of the
+five benches are unchanged (1673 files).
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-WIN-01) | 83 (with the sweeps) | 83 |
@@ -95,13 +108,22 @@ has them since.
 The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section 7) and ran alone on 2026-11-20 on
 commit 399d8b9 with the same 21 tests; the reference run passed again.
 
+The mutation run was repeated on 2026-11-20 on commit 31cca42, the selections without the selection of the event
+position and the row selection of the next line by compares (architecture, section 7), with the same 21 tests and
+seven mutants of the changed decisions; the table shows that run. 23 of the 24 mutants fail at least one test. The
+column of pixel (0, 0) from the registered row selection survives: it is equivalent at the ports, because every image
+that reaches the event control is complete (the frame sync fills a short image, E1) and the reset loads the selection
+of line 0, so at every pixel (0, 0) the registered selection already is that of line 0; only an upset of the register
+makes the restart act, which the bench cannot cause through the ports. The restart is verified by review (TC-WIN-07,
+WIN-FT-03).
+
 The output dimensions moved into `isp_pkg` (`ispWinOut`, section 7); the mutant that computes them in the border mode
 valid for every border mode ran alone on 2026-11-20 on commit 2d4b4c8 with the same 21 tests (the reference run passed
 again).
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
-| None (reference) | passes (21 tests) | - |
+| None (reference) | passes (21 tests) |  |
 | Left border of the mode replicate not loaded | killed by 9 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
 | Mirror at the right border one column off (2m instead of 2m - 1) | killed by 2 of 21 tests | test_static |
 | Row selection of the lower border one line too far (replicate) | killed by 8 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
@@ -117,6 +139,13 @@ again).
 | Injection patterns of the delays in reverse order | killed by 4 of 21 tests | test_ecc |
 | An event that does not wait for Out_Ready | killed by 15 of 21 tests | test_handshake, test_input_stream, test_reset, test_static |
 | Rows above the image taken from the line buffers (the image before) instead of 0 | killed by 3 of 21 tests | test_ecc, test_static |
+| Pixel (0, 0) detected from x alone (the rows of line 0 at the first pixel of every line) | killed by 21 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| Pixel (0, 0) detected outside the state of the image pixels (a waiting pixel (0, 0) during the virtual events) | killed by 14 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| The column of pixel (0, 0) from the registered row selection (no restart of the rows) | SURVIVED |  |
+| The left border of a virtual line not taken (the first VPIX) | killed by 8 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| The selection of a line of the upper border one line late | killed by 19 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| The last virtual line with the selection of the lines without a border | killed by 10 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| The left mirror of a virtual line not taken | killed by 2 of 21 tests | test_static |
 | Stat_ImageOpen tied to 0 | killed by 2 of 21 tests | test_input_stream |
 | The output dimensions of the border mode valid in every border mode | killed by 18 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
 
@@ -127,6 +156,22 @@ Not run yet: TC-WIN-09 runs out-of-context synthesis and implementation at 150 M
 
 The GHDL synthesis of TC-WIN-08 shows that the module is synthesisable at the bounds of its generics, with every
 border mode and every line buffer resource, without latches; it gives no timing.
+
+### 5.1 The event control
+
+The preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro) with a clock of 125 MHz, pre-layout estimates,
+not a timing closure and not on the reference device:
+
+| Configuration | Before (MHz, 4LUT) | Worst path before | The decisions per state (b0dfcbb) | With the row selection by compares (the design) | Worst path of the design |
+| --- | --- | --- | --- | --- | --- |
+| `win_default` (3 x 3 replicate) | 141.8, 1118 | the state -> a column of the window register (6 logic levels) | 151.3, 1199 | 146.9, 1139 | the state -> the write of line buffer 1 (4) |
+| `win_mirror5` (5 x 5 mirror, 16 bits) | 120.5, 2292 | the state -> the event position -> pixel (0, 0) -> the row multiplexer -> the window register (10) | 112.0, 2406 | 139.5, 2329 | the state -> the row select register (8) |
+
+The first step took the decisions off the selection of the event position (architecture, section 7.2); in `win_mirror5`
+the row selection of the next line then limited, `rowSelect`(ye + 1) synthesised as 14-bit subtractions and compares (19
+logic levels). The second step compares the event line with the few lines whose selection differs (architecture, section
+7.1). In `isp_filter2d` 5 x 5 mirror (`flt_mtf5`) the ready path from `isp_conv` into the event control limits after
+this change.
 
 ## 6. Requirement coverage
 
@@ -161,3 +206,4 @@ border mode and every line buffer resource, without latches; it gives no timing.
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
 | An audit of the configuration checks of every module found `EccPipeline_g` and `Resource_g` without a check of the module: `EccPipeline_g` 2 stopped the elaboration inside the delay of Open Logic with a range error that does not name the generic, an unknown `Resource_g` only at an assertion of Open Logic of severity error, which not every tool stops at (WIN-CF-01); and the check of WIN-CF-05 compared `Resource_g` with "BRAM" with regard to case, while Open Logic takes "bram" as block RAM | The module checks both generics with severity failure and gives the delays the values in range, so that the elaboration reaches the checks; WIN-CF-05 compares without case. Negatives `win_ecc_2`, `win_resource` and `win_bram_narrow_case` (TC-WIN-08). The bench is unchanged |
 | The output dimensions came from a formula of the module, and in the border mode valid an `ImageWidth_g` below `WinX_g` gave 0 for a positive constant: the elaboration stopped with a range error before the check that names the generic | The dimensions come from `ispWinOut` of `isp_pkg` (one definition with the integrator) and are at least 1, so that the check names the generic (negative `win_width_below_valid`, TC-WIN-08). The test files are unchanged |
+| The plan expected the mutant that takes the column of pixel (0, 0) from the registered row selection to fail TC-WIN-02 and 05 (an image cut inside a line). An image cut by the input is completed by the frame sync (E1) and a reset loads the selection of line 0, so the registered selection is that of line 0 at every pixel (0, 0): the mutant survived the mutation run | Plan section 6: the mutant is equivalent at the ports; the restart of the row selection by pixel (0, 0) acts only after an upset of the register and is verified by review (TC-WIN-07, WIN-FT-03), as before |

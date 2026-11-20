@@ -51,8 +51,12 @@ stages hold no state between windows.
 | 3 to 2 + log2ceil(T) | Partial sums | Pairwise addition, one level per stage; the width grows by one bit per level | up to F + 1, signed |
 | 3 + log2ceil(T) | Output register | 0 for a negative sum, saturation to B bits | B |
 
-`In_Ready` is the common enable, so the module adds no register to the ready path; in `isp_filter2d` the window
-register of `isp_window` is the source and its ready path ends at the input stage of the frame sync.
+`In_Ready` is the condition of the common enable, computed from a copy of the valid flag of the output register. The
+copy is loaded with the same value as the flag in every cycle and kept as a register of its own (the attributes of
+`olo_base_pkg_attribute`), so that `In_Ready` depends on the copy and `Out_Ready` only: the enable itself drives every
+register of the pipeline, and its fanout stays off the ready path of the module in front. The module adds no register
+to the ready path; in `isp_filter2d` the window register of `isp_window` is the source and its ready path ends at the
+input stage of the frame sync.
 
 With `RuntimeCoef_g` false the coefficients are constants: the synthesis tool turns the multipliers into shifts and
 adders, removes those of the coefficients 0 and reduces those of the coefficients 1 and -1 to wires. A kernel of
@@ -106,6 +110,14 @@ with every image: an upset of either disturbs at most one image. The coefficient
 written; their parity bits detect an upset of one bit at the next image start, the generic then applies and
 `Err_Config` and `STATUS.ERR_CONFIG` report it until the software writes the register again. Triple modular
 redundancy of the flip-flops is a choice of the integrator in the synthesis tool.
+
+An upset of one of the two copies of the output valid flag lets them disagree for one cycle; the next cycle loads both
+from the same value. With the copy 0 and the flag 1 while the sink holds, `In_Ready` accepts a window that the stages
+do not take: the window is lost. With the copy 1 and the flag 0 while the sink holds, the stages take a window that
+`In_Ready` did not accept: the window comes twice. The image then has one pixel less or more, which the frame sync of
+the next module reports (`Err_Framing`: E4 and E1 for a lost window, E3 and E2 for a window that comes twice); behind
+the last module of a chain nothing in the module reports it. With the triple modular redundancy of the synthesis
+tool, an upset of one copy is voted out.
 
 ## 9. Resource estimate
 

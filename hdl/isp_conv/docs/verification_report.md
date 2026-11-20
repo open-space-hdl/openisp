@@ -15,6 +15,13 @@ commits.
 `python run.py -p 4` on 2026-11-20 on commit 1a42dba, 668 of 668 tests passed (122 of them `isp_conv`), 0 skipped;
 `lint/synth_check.py` (TC-CNV-11) passed.
 
+`In_Ready` from a copy of the valid flag of the output register (architecture, section 4) keeps every cycle: in every
+test of `isp_conv_tb` (122, the 29 signals at the ports of the module, `In_Ready` among them) and of the benches of
+`isp_filter2d` (32), `isp_bin` (97) and the chain (21) (the signals at the top level of the bench), the traces are
+identical in every time step between commit 572dbd7 (before the change) and commit 76f82e0, 272 tests in all.
+`python run.py -p 4` on 2026-11-20 on commit 3ca7d40 (with develop 0b4d974), 668 of 668 tests passed (122 of them
+`isp_conv`), 0 skipped; `lint/synth_check.py` (TC-CNV-11) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-CNV-01) | 42 (with the sweeps) | 42 |
@@ -94,9 +101,15 @@ least one test, and the tests that fail include those the plan expects.
 
 The mutation run was repeated on 2026-11-20 on commit dbcce6e, the write decode with one address compare per
 coefficient and the parity of a write from the parities of its bytes (architecture, section 6), with the same 24 tests,
-four mutants of the write decode and two of the byte parities; the table shows that run. Every one of the 19 mutants
-fails at least one test. The write with byte enables merged into zeros and the parity of a kept byte taken from the
-write data are killed by test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-03).
+four mutants of the write decode and two of the byte parities. Every one of the 19 mutants failed at least one test.
+The write with byte enables merged into zeros and the parity of a kept byte taken from the write data are killed by
+test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-03).
+
+The mutation run was repeated again on 2026-11-20 on commit 76f82e0, `In_Ready` from a copy of the output valid flag
+(architecture, section 4), with the same 24 tests and two mutants of the copy; the table shows that run. Every one of
+the 21 mutants fails at least one test. The two mutants of the copy are killed by every test with stalls of the sink
+(20 and 17 tests); the plan first named TC-CNV-10 for them as well, which runs without stalls and cannot see the ready
+path, and was corrected.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -119,6 +132,8 @@ write data are killed by test_registers of `mtf3` and `wide`, which write with r
 | A write with byte enables merged into zeros instead of the stored coefficient | killed by 2 of 24 tests | test_registers |
 | The parity of a kept byte taken from the write data | killed by 2 of 24 tests | test_registers |
 | The parity of a written byte taken from the stored bits | killed by 7 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_reset, test_runtime |
+| In_Ready from a copy of the output valid flag stuck at 0 (always ready) | killed by 20 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
+| The copy of the output valid flag one advance late | killed by 17 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
 | INJECT.PARITY flips the parity bit of every coefficient | killed by 1 of 24 tests | test_parity |
 
 ## 5. Synthesis and timing
@@ -150,6 +165,24 @@ stored bits for a kept one), so that the byte merge feeds only the register:
 `cnv_max`, the largest configuration and not a default, stays below 125 MHz: its worst path is the read multiplexer of
 the 256 coefficient registers, which answers a read in the cycle after it (CV-4). A register stage there would add a
 cycle to every register read; the configuration is recorded instead.
+
+### 5.2 The ready path
+
+In `isp_filter2d` 5 x 5 mirror (`flt_mtf5`) `In_Ready` of the module was the condition of the common enable of the
+stages, a net with 890 loads, and the window and its frame sync decided their events and the data of the line buffers
+from it. Once the window computed its decisions without the selection of the event position, that path limited
+`flt_mtf5`: 115.1 MHz (122.2 MHz before the window change, with the window path). `In_Ready` now comes from a copy of
+the valid flag of the output register (architecture, section 4):
+
+| Configuration | Before (MHz, 4LUT) | With the copy (MHz, 4LUT) | Worst path with the copy |
+| --- | --- | --- | --- |
+| `flt_mtf5` (`isp_filter2d` 5 x 5 mirror) | 115.1, 4765 | 146.0, 4741 | the window state -> the row select register (7 logic levels) |
+| `cnv_mtf3` | 178.8, 1061 | 177.2, 1056 | the image-start load of the working set (4) |
+| `cnv_mtf5` | 156.2, 2758 | 155.6, 2787 | a coefficient -> the working set (8) |
+| `win_mirror5` | 139.5, 2329 | 139.5, 2329 | the state -> the row select register (8) |
+
+The worst paths of `cnv_mtf3` and `cnv_mtf5` are those before the change and do not contain the copy; the LUT counts
+differ slightly, so the mapping differs; the estimates differ by less than 1 % and stay above 125 MHz.
 
 ## 6. Requirement coverage
 
