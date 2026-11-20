@@ -3,9 +3,11 @@
 ## 1. Test results
 
 Run on 2026-11-20 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 2 "*isp_chain_tb*"`, 21 of 21 tests passed, 0 skipped; `python lint/synth_check.py` passed
-(TC-CHN-08). The full regression of the suite with the chain test is in section 1.1. QuestaSim runs with the release
-regression (with and without code coverage).
+`python run.py -p 4` on commit 2f4d91d, 625 of 625 tests passed (21 of them `isp_chain`), 0 skipped;
+`python lint/synth_check.py` passed (62 configurations synthesise without latches, among them the two chains of
+TC-CHN-08; 86 configurations out of range stop with their message). The chain test replaced the contract checker of
+the shared sink by the entity `tb/isp_tb_monitor.vhd`, so every module bench ran through it. QuestaSim runs with the
+release regression (with and without code coverage).
 
 | Test | Chains | Passed |
 | --- | --- | --- |
@@ -18,12 +20,6 @@ regression (with and without code coverage).
 | `test_fifo` (TC-CHN-07) | `typical` | 1 |
 | Negative tests (section 3.3 of the plan) | `typical`: `neg_seam_dimension`, `neg_seam_beat`, `neg_pulse_count`, `neg_fifo_depth`, `neg_fifo_drain` | 5 |
 | TC-CHN-08 (`lint/synth_check.py`) | `chain_typical`, `chain_reordered` synthesise as one netlist each without latches | 2 |
-
-### 1.1 Regression of the suite
-
-`python run.py -p 4` on the chain test without the boundary tests of the FIFO (section 7) and the register log of
-`test_registers`: 621 of 621 tests passed, 0 skipped; `python lint/synth_check.py` passed. The chain test replaced the
-contract checker of the shared sink by the entity `tb/isp_tb_monitor.vhd`, so every module bench ran through it.
 
 ## 2. Summary
 

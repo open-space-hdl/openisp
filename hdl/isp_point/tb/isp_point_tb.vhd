@@ -62,6 +62,9 @@ entity isp_point_tb is
         High_g        : integer  := -1;
         Runtime_g     : boolean  := false;
         MultStages_g  : positive := 2;
+        -- The module with the defaults of its entity for every generic but the dimensions and the pixel bits; the
+        -- generics of the bench above then have the values of the specification (PNT-CF-01)
+        DutDefaults_g : boolean  := false;
         StimFile_g    : string;
         ExpFile_g     : string;
         RegsFile_g    : string;
@@ -145,56 +148,109 @@ begin
 
     test_runner_watchdog(runner, WatchdogUs_g * 1 us);
 
-    i_dut : entity work.isp_point
-        generic map (
-            ImageWidth_g  => ImageWidth_g,
-            ImageHeight_g => ImageHeight_g,
-            InBits_g      => InBits_g,
-            OutBits_g     => OutBits_g,
-            GainBits_g    => GainBits_g,
-            MaxShift_g    => MaxShift_g,
-            Offset_g      => Offset_g,
-            Gain_g        => Gain_g,
-            Shift_g       => Shift_g,
-            Low_g         => Low_g,
-            High_g        => High_g,
-            Runtime_g     => Runtime_g,
-            MultStages_g  => MultStages_g
-        )
-        port map (
-            Clk               => Clk,
-            Rst               => Rst,
-            In_Valid          => In_Valid,
-            In_Ready          => In_Ready,
-            In_Data           => In_Data,
-            In_Last           => In_Last,
-            In_User           => In_User,
-            Out_Valid         => Out_Valid,
-            Out_Ready         => Out_Ready,
-            Out_Data          => Out_Data,
-            Out_Last          => Out_Last,
-            Out_User          => Out_User,
-            S_AxiLite_ArAddr  => Axi.read_address_channel.araddr,
-            S_AxiLite_ArValid => Axi.read_address_channel.arvalid,
-            S_AxiLite_ArReady => Axi.read_address_channel.arready,
-            S_AxiLite_AwAddr  => Axi.write_address_channel.awaddr,
-            S_AxiLite_AwValid => Axi.write_address_channel.awvalid,
-            S_AxiLite_AwReady => Axi.write_address_channel.awready,
-            S_AxiLite_WData   => Axi.write_data_channel.wdata,
-            S_AxiLite_WStrb   => Axi.write_data_channel.wstrb,
-            S_AxiLite_WValid  => Axi.write_data_channel.wvalid,
-            S_AxiLite_WReady  => Axi.write_data_channel.wready,
-            S_AxiLite_BResp   => Axi.write_response_channel.bresp,
-            S_AxiLite_BValid  => Axi.write_response_channel.bvalid,
-            S_AxiLite_BReady  => Axi.write_response_channel.bready,
-            S_AxiLite_RData   => Axi.read_data_channel.rdata,
-            S_AxiLite_RResp   => Axi.read_data_channel.rresp,
-            S_AxiLite_RValid  => Axi.read_data_channel.rvalid,
-            S_AxiLite_RReady  => Axi.read_data_channel.rready,
-            Err_Framing       => Err_Framing,
-            Err_Config        => Err_Config,
-            Stat_ImageOpen    => Stat_ImageOpen
-        );
+    assert not DutDefaults_g or (GainBits_g = 16 and MaxShift_g = InBits_g + 16 and Offset_g = 0 and Gain_g = 1 and
+                                 Shift_g = 0 and Low_g = 0 and High_g = -1 and not Runtime_g and MultStages_g = 2)
+        report "isp_point_tb: DutDefaults_g needs the generics of the bench at the defaults of the specification"
+        severity failure;
+
+    g_dut : if DutDefaults_g generate
+
+        i_dut : entity work.isp_point
+            generic map (
+                ImageWidth_g  => ImageWidth_g,
+                ImageHeight_g => ImageHeight_g,
+                InBits_g      => InBits_g,
+                OutBits_g     => OutBits_g
+            )
+            port map (
+                Clk               => Clk,
+                Rst               => Rst,
+                In_Valid          => In_Valid,
+                In_Ready          => In_Ready,
+                In_Data           => In_Data,
+                In_Last           => In_Last,
+                In_User           => In_User,
+                Out_Valid         => Out_Valid,
+                Out_Ready         => Out_Ready,
+                Out_Data          => Out_Data,
+                Out_Last          => Out_Last,
+                Out_User          => Out_User,
+                S_AxiLite_ArAddr  => Axi.read_address_channel.araddr,
+                S_AxiLite_ArValid => Axi.read_address_channel.arvalid,
+                S_AxiLite_ArReady => Axi.read_address_channel.arready,
+                S_AxiLite_AwAddr  => Axi.write_address_channel.awaddr,
+                S_AxiLite_AwValid => Axi.write_address_channel.awvalid,
+                S_AxiLite_AwReady => Axi.write_address_channel.awready,
+                S_AxiLite_WData   => Axi.write_data_channel.wdata,
+                S_AxiLite_WStrb   => Axi.write_data_channel.wstrb,
+                S_AxiLite_WValid  => Axi.write_data_channel.wvalid,
+                S_AxiLite_WReady  => Axi.write_data_channel.wready,
+                S_AxiLite_BResp   => Axi.write_response_channel.bresp,
+                S_AxiLite_BValid  => Axi.write_response_channel.bvalid,
+                S_AxiLite_BReady  => Axi.write_response_channel.bready,
+                S_AxiLite_RData   => Axi.read_data_channel.rdata,
+                S_AxiLite_RResp   => Axi.read_data_channel.rresp,
+                S_AxiLite_RValid  => Axi.read_data_channel.rvalid,
+                S_AxiLite_RReady  => Axi.read_data_channel.rready,
+                Err_Framing       => Err_Framing,
+                Err_Config        => Err_Config,
+                Stat_ImageOpen    => Stat_ImageOpen
+            );
+
+    else generate
+
+        i_dut : entity work.isp_point
+            generic map (
+                ImageWidth_g  => ImageWidth_g,
+                ImageHeight_g => ImageHeight_g,
+                InBits_g      => InBits_g,
+                OutBits_g     => OutBits_g,
+                GainBits_g    => GainBits_g,
+                MaxShift_g    => MaxShift_g,
+                Offset_g      => Offset_g,
+                Gain_g        => Gain_g,
+                Shift_g       => Shift_g,
+                Low_g         => Low_g,
+                High_g        => High_g,
+                Runtime_g     => Runtime_g,
+                MultStages_g  => MultStages_g
+            )
+            port map (
+                Clk               => Clk,
+                Rst               => Rst,
+                In_Valid          => In_Valid,
+                In_Ready          => In_Ready,
+                In_Data           => In_Data,
+                In_Last           => In_Last,
+                In_User           => In_User,
+                Out_Valid         => Out_Valid,
+                Out_Ready         => Out_Ready,
+                Out_Data          => Out_Data,
+                Out_Last          => Out_Last,
+                Out_User          => Out_User,
+                S_AxiLite_ArAddr  => Axi.read_address_channel.araddr,
+                S_AxiLite_ArValid => Axi.read_address_channel.arvalid,
+                S_AxiLite_ArReady => Axi.read_address_channel.arready,
+                S_AxiLite_AwAddr  => Axi.write_address_channel.awaddr,
+                S_AxiLite_AwValid => Axi.write_address_channel.awvalid,
+                S_AxiLite_AwReady => Axi.write_address_channel.awready,
+                S_AxiLite_WData   => Axi.write_data_channel.wdata,
+                S_AxiLite_WStrb   => Axi.write_data_channel.wstrb,
+                S_AxiLite_WValid  => Axi.write_data_channel.wvalid,
+                S_AxiLite_WReady  => Axi.write_data_channel.wready,
+                S_AxiLite_BResp   => Axi.write_response_channel.bresp,
+                S_AxiLite_BValid  => Axi.write_response_channel.bvalid,
+                S_AxiLite_BReady  => Axi.write_response_channel.bready,
+                S_AxiLite_RData   => Axi.read_data_channel.rdata,
+                S_AxiLite_RResp   => Axi.read_data_channel.rresp,
+                S_AxiLite_RValid  => Axi.read_data_channel.rvalid,
+                S_AxiLite_RReady  => Axi.read_data_channel.rready,
+                Err_Framing       => Err_Framing,
+                Err_Config        => Err_Config,
+                Stat_ImageOpen    => Stat_ImageOpen
+            );
+
+    end generate;
 
     i_source : entity work.isp_tb_source
         generic map (
