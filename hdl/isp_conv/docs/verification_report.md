@@ -15,6 +15,11 @@ commits.
 `python run.py -p 4` on 2026-11-20 on commit 1a42dba, 668 of 668 tests passed (122 of them `isp_conv`), 0 skipped;
 `lint/synth_check.py` (TC-CNV-11) passed.
 
+`In_Ready` from a copy of the valid flag of the output register (architecture, section 4) keeps every cycle: in every
+test of `isp_conv_tb` (122, the 29 signals at the ports of the module, `In_Ready` among them) and of the benches of
+`isp_filter2d` (32), `isp_bin` (97) and the chain (21) (the signals at the top level of the bench), the traces are
+identical in every time step between commit 572dbd7 (before the change) and commit 76f82e0, 272 tests in all.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-CNV-01) | 42 (with the sweeps) | 42 |
