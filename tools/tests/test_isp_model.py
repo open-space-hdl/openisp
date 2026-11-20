@@ -514,15 +514,29 @@ def test_chain_registers():
 
 
 def test_chain_module_reset():
-    # A reset of the second module alone in the middle of an image (the chain settled): the second module receives the
-    # rest of the image without an image start and reports it once (E2); the next image passes both
+    # A reset of the middle module alone in image 0, the chain settled. The middle module receives the rest of the
+    # image without an image start and reports it once (E2). The last module holds what the middle one delivered:
+    # - paused after the region of the crop in a line, that ends with a whole line: the image start of image 1
+    #   completes image 0 with pixels of value 0 (E1), image 1 passes;
+    # - paused inside the region, the packet is cut: the last module continues it with image 1, ends image 0 at its
+    #   pixel count (E3) and discards the rest of image 1 (E2); image 1 is lost behind the reset module.
     import random
     rng = random.Random(4)
     pix = [rng.getrandbits(12) for _ in range(40 * 20)]
-    k = 40 * 6 + 10
-    items = packets(pix[:k], [k], last=False) + [("RM", 100, 1)] + packets(pix[k:], [800 - k], first=False)
-    items += packets(pix, [800])
-    out, errors, _annot, extra = chain(items, [_crop_stage, _point_stage])
-    assert errors == 0 and extra["stages"][1]["errors"] == 1
-    # The second image is complete at the output
-    assert [o[1] for o in out if o[0] == "B"][-32 * 16:] == [o[1] for o in _crop_stage(packets(pix, [800]))[0]]
+    image1 = [rng.getrandbits(12) for _ in range(40 * 20)]
+    expect1 = [o[1] for o in _crop_stage(packets(image1, [800]))[0]]
+    for k, errors_last, image1_out in ((40 * 6 + 38, 1, True), (40 * 6 + 10, 2, False)):
+        items = packets(pix[:k], [k], last=False) + [("RM", 100, 1)] + packets(pix[k:], [800 - k], first=False)
+        items += packets(image1, [800])
+        out, errors, _annot, extra = chain(items, [_crop_stage, _point_stage, _point_stage])
+        assert errors == 0 and [s["errors"] for s in extra["stages"]] == [0, 1, errors_last]
+        beats = [o[1] for o in out if o[0] == "B"]
+        assert len(beats) == (2 if image1_out else 1) * 32 * 16
+        assert (beats[-32 * 16:] == expect1) == image1_out
+    # A reset of the last module is refused: it would drop beats of the chain output
+    try:
+        chain([("RM", 100, 2)], [_crop_stage, _point_stage, _point_stage])
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("a reset of the last module was accepted")

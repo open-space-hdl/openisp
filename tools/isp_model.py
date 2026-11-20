@@ -1065,10 +1065,11 @@ def chain(items, stages):
     """A chain of modules (isp_chain): the output stream of every stage is the input stream of the next.
 
     `stages` is a list of the models of the modules, each a function items -> (out, errors, annot[, extra]). Items of
-    the chain: beats and directives of the source (the directives go to the first stage only); ('R', 0, mode, cycles)
-    a reset of the whole chain, which every stage sees at the same place of the stream; ('A', marker, [(stage, entry),
-    ...]) register accesses of several modules; ('J', marker, pattern, stage) an injection into a module;
-    ('RM', marker, stage) a reset of one module. Resets inside the chain are placed where every beat of the stages
+    the chain: beats and directives of the source (the directives go to the first stage only); ('R', drop, mode,
+    cycles) a reset of the whole chain, which every stage sees at the same place of the stream (the beats it drops are
+    those of the chain output); ('A', marker, [(stage, entry), ...]) register accesses of several modules, ('AC', ...)
+    the same accesses while the source goes on (the bench waits for them at a later ('K', marker)); ('J', marker,
+    pattern, stage) an injection into a module; ('RM', marker, stage) a reset of one module, not the last. Resets inside the chain are placed where every beat of the stages
     before has reached the next one, so that no beat is lost between two modules (verification plan of isp_chain,
     sections 3 and 5.5).
 
@@ -1103,7 +1104,7 @@ def chain(items, stages):
                 # where no beat is between two modules
                 its.append(it if s == n - 1 else ("R", 0, it[2], it[3]))
                 org.append(i)
-            elif kind == "A":
+            elif kind in ("A", "AC"):
                 entries = [e for st, e in it[2] if st == s]
                 if entries:
                     its.append(("A", it[1], entries))
@@ -1113,6 +1114,7 @@ def chain(items, stages):
                     its.append(("J", it[1], it[2]))
                     org.append(i)
             elif kind == "RM":
+                assert it[2] < n - 1, "a reset of the last module drops beats of the chain output"
                 if it[2] == s:
                     its.append(("R", 0, 0, 2))
                     org.append(i)
@@ -1165,7 +1167,7 @@ def chain(items, stages):
     by_stage = [{m: list(e) for m, e in r[1].get("regs", [])} for r in results]
     regs = []
     for it in items:
-        if it[0] == "A":
+        if it[0] in ("A", "AC"):
             resolved = []
             for st, _entry in it[2]:
                 resolved.append((st, by_stage[st][it[1]].pop(0)))

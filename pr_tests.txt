@@ -110,3 +110,11 @@ openisp.isp_replace_tb.bits1.*
 openisp.isp_replace_tb.one_word.*
 openisp.isp_replace_tb.lat_3_2.*
 openisp.isp_replace_tb.scrub_overrun.*
+
+# isp_chain: every test of the chain small (the low bounds: 1-bit pixels, 1 x 1 output); the timing, the FIFO and the
+# negative tests of the chain typical; the timing of the chain reordered
+openisp.isp_chain_tb.small.*
+openisp.isp_chain_tb.typical.test_rate
+openisp.isp_chain_tb.typical.test_fifo
+openisp.isp_chain_tb.typical.neg_*
+openisp.isp_chain_tb.reordered.test_rate
