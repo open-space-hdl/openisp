@@ -13,7 +13,7 @@ and route can differ. Only register-to-register paths are constrained; the ports
 
 Usage: python lint/libero_synth.py --out DIR [--mhz MHZ] [--die DIE] [--package PKG] [name ...]
   --out      project and result directory (a short path outside the repository)
-  --mhz      target clock frequency (default 150)
+  --mhz      target clock frequency (default 125, the target of the suite on PolarFire)
   --die      device (default MPF100T), --package (default FCG484), speed grade STD
 Without names all configurations run, one after the other. Libero comes from LIBERO_PATH (the Designer/bin directory
 of the installation) or from the PATH. Results: <out>/<name>/ (project, log, synthesis report) and
@@ -192,7 +192,7 @@ def run(name, out, mhz, die, package):
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--out", required=True)
-    p.add_argument("--mhz", type=float, default=150.0)
+    p.add_argument("--mhz", type=float, default=125.0)
     p.add_argument("--die", default="MPF100T")
     p.add_argument("--package", default="FCG484")
     p.add_argument("names", nargs="*")
