@@ -161,7 +161,7 @@ filters.
 TC-BIN-08 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
 STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
 a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
-reference systems is open (roadmap).
+reference systems is open (ISP-GEN-04, roadmap).
 
 | Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
 | --- | --- | --- | --- | --- | --- | --- | --- |

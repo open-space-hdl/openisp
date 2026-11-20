@@ -93,7 +93,7 @@ grows with the widths and is replicated by the synthesis tool. The longest paths
 spread over `MultStages_g` stages where the synthesis tool takes them into the multiplier) and the barrel shifter (up to
 seven multiplexer levels for 84 bits); a configuration at the upper bounds of the widths is meant to use `MultStages_g`
 3 or 4. On PolarFire this does not shorten the product path: the widest configuration reaches 80.6 MHz (user guide,
-section 8). The run on the Versal device of the reference systems is open (roadmap).
+section 8). The run on the Versal device of the reference systems is open (ISP-GEN-04, roadmap).
 
 ## 8. Fault tolerance
 

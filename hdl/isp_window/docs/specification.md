@@ -131,7 +131,7 @@ every pixel.
 | WIN-CF-01 | A generic outside its range of section 4 shall stop the elaboration with a message naming the generic. | ISP-CFG-01 |
 | WIN-CF-02 | The border mode mirror with a window of more than one column whose anchor is not its middle column (`WinX_g` odd and `AnchorX_g` = (`WinX_g` - 1) / 2), or the same for the lines, shall stop the elaboration with a message. | ISP-CFG-01 |
 | WIN-CF-03 | The module shall be synthesizable with GHDL for the bounds of every numeric generic and every value of `BorderMode_g`. | ISP-GEN-01 |
-| WIN-CF-04 | The default configuration shall be designed for 150 MHz on the AMD Versal device of the reference systems and for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| WIN-CF-04 | The default configuration shall be designed for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. The target of 150 MHz on the AMD Versal device of the reference systems (ISP-GEN-04) is open. | ISP-GEN-03 |
 | WIN-CF-05 | With `Resource_g` "BRAM" and `WinY_g` above 1, an `ImageWidth_g` below 3 + `EccPipeline_g` shall stop the elaboration with a message naming `ImageWidth_g` (the block RAM delay of Open Logic needs a delay of at least 3). | ISP-CFG-01 |
 
 ## 6. Interpretation

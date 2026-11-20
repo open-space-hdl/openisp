@@ -277,13 +277,13 @@ requirements of a mission is shown by a radiation test with the modules in opera
 
 ## 8. Resources and performance
 
-Every module accepts one pixel per clock cycle within a line; the default configurations are designed for 150 MHz on
-the AMD Versal device of the reference systems and for 125 MHz on Microchip PolarFire. The timing is estimated by a
-preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade STD, `lint/libero_synth.py`), not by the
-simulation; the estimate is pre-layout, not a timing closure. The out-of-context run on the Versal device is a later
-step. The architecture document of every module estimates its resources; the verification reports record the
-synthesis results and the worst paths (section 5), and `lint/results/libero_mpf100t_125mhz.md` lists every
-configuration.
+Every module accepts one pixel per clock cycle within a line; the default configurations are designed for 125 MHz on
+Microchip PolarFire (ISP-GEN-03); the target of 150 MHz on the AMD Versal device of the reference systems (ISP-GEN-04)
+is open. The timing is estimated by a preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade STD,
+`lint/libero_synth.py`), not by the simulation; the estimate is pre-layout, not a timing closure. The out-of-context run
+on the Versal device is a later step. The architecture document of every module estimates its resources; the
+verification reports record the synthesis results and the worst paths (section 5), and
+`lint/results/libero_mpf100t_125mhz.md` lists every configuration.
 
 | Module | Configuration | Estimate (MHz) | 4LUT | DFF | LSRAM | Math |
 | --- | --- | --- | --- | --- | --- | --- |

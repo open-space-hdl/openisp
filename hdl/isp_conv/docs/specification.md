@@ -105,7 +105,7 @@ generics of the module behind.
 | --- | --- | --- |
 | CNV-CF-01 | A generic outside its range of section 4 (also a `Coef_g` with another number of values than T) shall stop the elaboration with a message naming the generic. | ISP-CFG-01 |
 | CNV-CF-02 | The module shall be synthesizable with GHDL for the bounds of every numeric generic and both values of `RuntimeCoef_g`. | ISP-GEN-01 |
-| CNV-CF-03 | The default configuration shall be designed for 150 MHz on the AMD Versal device of the reference systems and for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| CNV-CF-03 | The default configuration shall be designed for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. The target of 150 MHz on the AMD Versal device of the reference systems (ISP-GEN-04) is open. | ISP-GEN-03 |
 
 ## 6. Interpretation
 

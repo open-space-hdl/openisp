@@ -106,4 +106,5 @@ non-operational pixels.
 | --- | --- |
 | ISP-GEN-01 | The modules shall be technology-independent VHDL-2008 that GHDL can synthesise, built on Open Logic, with vendor-specific parts in separate adapter modules. |
 | ISP-GEN-02 | A specific function shall be a configuration of a general module wherever one covers it. |
-| ISP-GEN-03 | The default configuration of every module shall be designed for a clock of 150 MHz on the AMD Versal device of the family's reference systems and of 125 MHz on Microchip PolarFire. |
+| ISP-GEN-03 | The default configuration of every module shall be designed for a clock of 125 MHz on Microchip PolarFire. |
+| ISP-GEN-04 | The default configuration of every module shall be designed for a clock of 150 MHz on the AMD Versal device of the family's reference systems. |

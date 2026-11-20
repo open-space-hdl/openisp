@@ -86,7 +86,7 @@ Output image: Wo x Ho pixels of B bits (specifications of `isp_window` and `isp_
 | --- | --- | --- |
 | FLT-CF-01 | A generic outside its range shall stop the elaboration with the message of the part that it belongs to. | ISP-CFG-01 |
 | FLT-CF-02 | The module shall be synthesizable with GHDL in its default configuration, with a stride, with every border mode and with both values of `RuntimeCoef_g`. | ISP-GEN-01 |
-| FLT-CF-03 | The default configuration shall be designed for 150 MHz on the AMD Versal device of the reference systems and for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| FLT-CF-03 | The default configuration shall be designed for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. The target of 150 MHz on the AMD Versal device of the reference systems (ISP-GEN-04) is open. | ISP-GEN-03 |
 
 ## 6. Interpretation
 
