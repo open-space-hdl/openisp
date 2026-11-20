@@ -148,7 +148,9 @@ first image, and clears the `STATUS` flags that the scrubber set for the content
 ## 5. Building a chain
 
 1. Choose the modules and their order; the output dimensions and pixel width of every module are the input generics
-   of the next (the specification of every module states them; functions of `isp_pkg` compute them).
+   of the next (the specification of every module states them; the functions of `isp_pkg` compute them as the
+   modules do: `ispWinOut` the dimensions behind a window filter, `ispBinOut` behind a binning, `ispConvOutBits` the
+   width behind a kernel).
 2. Scale the sums of filters and binning with an `isp_point` behind them: a kernel whose coefficients add up to 2^n
    is followed by a shift of n; the average of a bin of n pixels is a shift of log2(n), or the gain round(2^k / n)
    with the shift k when n is not a power of two.

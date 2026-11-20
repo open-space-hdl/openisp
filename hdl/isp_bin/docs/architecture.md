@@ -13,7 +13,7 @@ lines of that image and outputs one line for each group.
 | ID | Block | Function |
 | --- | --- | --- |
 | BN-1 | Horizontal sum | [`isp_filter2d`](../../isp_filter2d/docs/architecture.md) with a window of `BinX_g` x 1, anchor 0, stride `BinX_g` along the line and `BinX_g` coefficients of 1. No line buffer. Present for `BinX_g` > 1. |
-| BN-2 | Vertical sum | `isp_filter2d` on the image of Wo x H pixels with a window of 1 x `BinY_g`, anchor 0, stride `BinY_g` across the lines and `BinY_g` coefficients of 1. `BinY_g` - 1 line buffers of Wo pixels. Present for `BinY_g` > 1. |
+| BN-2 | Vertical sum | `isp_filter2d` on the image of Wo x H pixels (Wo = `ispBinOut` of `isp_pkg`, PKG-07) with a window of 1 x `BinY_g`, anchor 0, stride `BinY_g` across the lines and `BinY_g` coefficients of 1. `BinY_g` - 1 line buffers of Wo pixels. Present for `BinY_g` > 1. |
 
 With both factors 1 the module consists of an `isp_frame_sync`.
 

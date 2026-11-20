@@ -85,17 +85,9 @@ architecture rtl of isp_bin is
     constant PH_c : positive := PixelBits_g + log2ceil(BinX_g);
     constant Q_c  : positive := PixelBits_g + log2ceil(BinX_g * BinY_g);
 
-    -- Width of the narrowed image (Wo of the horizontal filter); at least 1, so that an ImageWidth_g below BinX_g
-    -- reaches its configuration check
-    function narrowWidth return positive is
-    begin
-        if BorderMode_g = "valid" then
-            return maximum(ImageWidth_g / BinX_g, 1);
-        end if;
-        return (ImageWidth_g + BinX_g - 1) / BinX_g;
-    end function;
-
-    constant WoH_c : positive := narrowWidth;
+    -- Width of the narrowed image (Wo of the horizontal filter, isp_pkg PKG-07); at least 1, so that an
+    -- ImageWidth_g below BinX_g reaches its configuration check
+    constant WoH_c : positive := maximum(ispBinOut(ImageWidth_g, BinX_g, BorderMode_g), 1);
 
     -- Coefficient sets of ones
     function ones (n : positive) return integer_vector is

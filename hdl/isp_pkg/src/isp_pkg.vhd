@@ -7,7 +7,8 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Definitions shared by the OpenISP modules: the sequence flags of the pixel stream, the width of
--- a pixel position and the detection of an image start.
+-- a pixel position, the detection of an image start, the output width of a kernel and the output
+-- dimensions of a window filter and of a bin.
 --
 -- Documentation: hdl/isp_pkg/docs/specification.md
 
@@ -52,6 +53,21 @@ package isp_pkg is
         taps       : positive;
         out_bits   : natural) return positive;
 
+    -- Windows of a window generator along an axis of n pixels with the window size win and the stride
+    -- stride: (n - win) / stride + 1 rounded down in the border mode "valid" (0 for n < win), ceil(n / stride)
+    -- in the other border modes (PKG-06)
+    function ispWinOut (
+        n      : positive;
+        win    : positive;
+        stride : positive;
+        border : string) return natural;
+
+    -- Bins of factor pixels along an axis of n pixels: ispWinOut(n, factor, factor, border) (PKG-07)
+    function ispBinOut (
+        n      : positive;
+        factor : positive;
+        border : string) return natural;
+
 end package;
 
 ---------------------------------------------------------------------------------------------------
@@ -90,6 +106,29 @@ package body isp_pkg is
             return ispConvFullBits(pixel_bits, coef_bits, taps);
         end if;
         return out_bits;
+    end function;
+
+    function ispWinOut (
+        n      : positive;
+        win    : positive;
+        stride : positive;
+        border : string) return natural is
+    begin
+        if border = "valid" then
+            if n < win then
+                return 0;
+            end if;
+            return (n - win) / stride + 1;
+        end if;
+        return (n + stride - 1) / stride;
+    end function;
+
+    function ispBinOut (
+        n      : positive;
+        factor : positive;
+        border : string) return natural is
+    begin
+        return ispWinOut(n, factor, factor, border);
     end function;
 
 end package body;
