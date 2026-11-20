@@ -11,10 +11,12 @@ the target frequency on `Clk`, and runs the synthesis (Synplify Pro) in Libero. 
 estimated worst slack of the clock from the synthesis report. This is a pre-layout estimate: the timing after place
 and route can differ. Only register-to-register paths are constrained; the ports have no input or output delays.
 
-Usage: python lint/libero_synth.py --out DIR [--mhz MHZ] [--die DIE] [--package PKG] [name ...]
+Usage: python lint/libero_synth.py --out DIR [--mhz MHZ] [--die DIE] [--package PKG] [--paths N] [name ...]
   --out      project and result directory (a short path outside the repository)
   --mhz      target clock frequency (default 125, the target of the suite on PolarFire)
   --die      device (default MPF100T), --package (default FCG484), speed grade STD
+  --paths    number of critical paths the synthesis report details (Synplify -num_critical_paths; by default
+             the worst path only); a reporting option that leaves the netlist unchanged
 Without names all configurations run, one after the other. Libero comes from LIBERO_PATH (the Designer/bin directory
 of the installation) or from the PATH. Results: <out>/<name>/ (project, log, synthesis report) and
 <out>/results/summary.md. Exit code 0 when every synthesis completed.
@@ -108,7 +110,7 @@ def openisp_sources():
             if ln.strip() and not ln.startswith("#")]
 
 
-def project_tcl(name, work, top, period, die, package):
+def project_tcl(name, work, top, period, die, package, paths=0):
     dev = ("-family {{PolarFire}} -die {{{}}} -package {{{}}} -speed {{STD}} -die_voltage {{1.0}} "
            "-part_range {{IND}}").format(die, package)
     sdc = (work / "isp_synth.sdc").as_posix()
@@ -131,6 +133,11 @@ def project_tcl(name, work, top, period, die, package):
         'create_links -convert_EDN_to_HDL 0 -sdc "{}"'.format(sdc),
         'organize_tool_files -tool {{SYNTHESIZE}} -file "{}" -module {{isp_synth_top::work}} '
         '-input_type {{constraint}}'.format(sdc),
+    ]
+    if paths:
+        lines.append("configure_tool -name {{SYNTHESIZE}} -params {{SYNPLIFY_OPTIONS:set_option -num_critical_paths "
+                     "{}}}".format(paths))
+    lines += [
         "run_tool -name {SYNTHESIZE}",
         "save_project",
         "",
@@ -168,7 +175,7 @@ def parse_srr(srr):
     return slack, freq, res
 
 
-def run(name, out, mhz, die, package):
+def run(name, out, mhz, die, package, paths=0):
     module, values, _ram = CONFIGS[name]
     work = out / name
     if work.exists():
@@ -177,7 +184,8 @@ def run(name, out, mhz, die, package):
     top = work / "isp_synth_top.vhd"
     top.write_text(synth_top(module, values), encoding="utf-8")
     script = work / "synthesize.tcl"
-    script.write_text(project_tcl(name, work, top, "{:.3f}".format(1000.0 / mhz), die, package), encoding="utf-8")
+    script.write_text(project_tcl(name, work, top, "{:.3f}".format(1000.0 / mhz), die, package, paths),
+                      encoding="utf-8")
     print("{}: synthesis for {} {} at {} MHz in {}".format(name, die, package, mhz, work), flush=True)
     log = work / "libero.log"
     with open(log, "w", encoding="utf-8") as f:
@@ -195,6 +203,7 @@ def main():
     p.add_argument("--mhz", type=float, default=125.0)
     p.add_argument("--die", default="MPF100T")
     p.add_argument("--package", default="FCG484")
+    p.add_argument("--paths", type=int, default=0)
     p.add_argument("names", nargs="*")
     a = p.parse_args()
     names = a.names or list(CONFIGS)
@@ -205,7 +214,7 @@ def main():
     (out / "results").mkdir(parents=True, exist_ok=True)
     rows, oks = [], []
     for n in names:
-        ok, parsed = run(n, out, a.mhz, a.die, a.package)
+        ok, parsed = run(n, out, a.mhz, a.die, a.package, a.paths)
         oks.append(ok)
         if parsed:
             slack, freq, res = parsed
