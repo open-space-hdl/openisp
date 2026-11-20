@@ -156,14 +156,14 @@ region near the lower edge of the image, large windows), back-to-back images lea
 after an image, the release comes S_last after its start, and the next image starts after the writes. A release at
 another time can give one image the old set in the first modules and the new one in the last.
 
-Example: `isp_replace` (40 x 20 pixels, `MaxGap_g` 2), `isp_point`, `isp_crop` (32 x 16 at (4, 2)), a 3 x 3
-`isp_filter2d`, a 2 x 2 `isp_bin` and `isp_point`, with run-time sets in both `isp_point`, `isp_crop` and
-`isp_filter2d`: line period 42, P = 840, S_last = 16 + 7 + 92 + 56 + 61 = 232 with the latency bounds, S_first = 2
-(the `MaxGap_g` pixels of `isp_replace`) without them; the window is 232 < t < 842 cycles after the image start. It
-lies inside the window of the design values of the module plans (229 < t < 852). Without a window: 5 x 3 pixels of 1
-bit through `isp_replace` (`MaxGap_g` 2), `isp_point`, `isp_crop` (3 x 3 at (1, 0)), a 3 x 3 `isp_filter2d` and a
-3 x 3 `isp_bin` to `isp_point`: P = 21, S_last = 84. The source stops after an image, the release comes at least 84
-cycles after its start, and the next image starts after the writes.
+Example: `isp_replace` (40 x 20 pixels, `MaxGap_g` 2, `EccPipeline_g` 0), `isp_point`, `isp_crop` (32 x 16 at (4, 2)), a
+3 x 3 `isp_filter2d`, a 2 x 2 `isp_bin` and `isp_point`, with run-time sets in both `isp_point`, `isp_crop` and
+`isp_filter2d`: line period 42, P = 840, S_last = 16 + 7 + 92 + 56 + 61 = 232 with the latency bounds, S_first = 2 (the
+`MaxGap_g` pixels of `isp_replace`) without them; the window is 232 < t < 842 cycles after the image start. It lies
+inside the window of the design values of the module plans (229 < t < 852). Without a window: 5 x 3 pixels of 1 bit
+through `isp_replace` (`MaxGap_g` 2, `EccPipeline_g` 0), `isp_point`, `isp_crop` (3 x 3 at (1, 0)), a 3 x 3
+`isp_filter2d` and a 3 x 3 `isp_bin` to `isp_point`: P = 21, S_last = 84. The source stops after an image, the release
+comes at least 84 cycles after its start, and the next image starts after the writes.
 
 ### 4.3 Parity of the parameter registers
 
@@ -197,15 +197,15 @@ first image, and clears the `STATUS` flags that the scrubber set for the content
 2. Scale the sums of filters and binning with an `isp_point` behind them: a kernel whose coefficients add up to 2^n
    is followed by a shift of n; the average of a bin of n pixels is a shift of log2(n), or the gain round(2^k / n)
    with the shift k when n is not a power of two.
-3. Put an `olo_ft_fifo_sync` in front of the chain when the source cannot wait. For a source of W pixels per line
-   at one per cycle with a line blanking L and an image blanking F: let r_y be the hold cycles of the chain input
-   between the first pixels of lines y and y + 1 (section 2.4: the holds of the first module, plus the waits of a
-   module behind it that the modules between do not take; `isp_crop` takes them with the pixels outside its region,
-   a binning with its idle output cycles), D_-1 = 0 and D_y = max(0, D_(y-1) + r_y - L). Then `Depth_g` >= max over
-   the lines of D_(y-1) + r_y, plus 4, and F >= D_(H-2) + r_(H-1) + 1, so that every image finds the FIFO empty; when
-   the source is faster than the chain over an image, no depth suffices. Example: `isp_replace` with `MaxGap_g` 2
-   first (r_y = 2), H = 20, L = 1: `Depth_g` 25 and F >= 22. The plain sum of the waits of all modules overestimates:
-   in that example the lower border of a filter behind `isp_crop` is taken by the pixels outside the region.
+3. Put an `olo_ft_fifo_sync` in front of the chain when the source cannot wait. For a source of W pixels per line at one
+   per cycle with a line blanking L and an image blanking F: let r_y be the hold cycles of the chain input between the
+   first pixels of lines y and y + 1 (section 2.4: the holds of the first module, plus the waits of a module behind it
+   that the modules between do not take; `isp_crop` takes them with the pixels outside its region, a binning with its
+   idle output cycles), D_-1 = 0 and D_y = max(0, D_(y-1) + r_y - L). Then `Depth_g` >= max over the lines of D_(y-1) +
+   r_y, plus 4, and F >= D_(H-2) + r_(H-1) + 1, so that every image finds the FIFO empty; when the source is faster than
+   the chain over an image, no depth suffices. Example: `isp_replace` with `MaxGap_g` 2 and `EccPipeline_g` 0 first (r_y
+   = 2), H = 20, L = 1: `Depth_g` 25 and F >= 22. The plain sum of the waits of all modules overestimates: in that
+   example the lower border of a filter behind `isp_crop` is taken by the pixels outside the region.
 4. Collect the ECC status pulses of the modules in an `olo_ft_ecc_monitor` and the error pulses in a status
    register of the system.
 
