@@ -75,7 +75,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `AnchorX_g`, `AnchorY_g` | 0 to `WinX_g` - 1, 0 to `WinY_g` - 1 | every value for the window 4 x 3, the default anchor of every size, the bounds 0 and `WinX_g` - 1 | 0, `WinX_g` - 1 |
 | `StrideX_g`, `StrideY_g` | 1 to 16 | every value | 1, 16 |
 | `BorderMode_g` | valid, zero, replicate, mirror | every value | every value |
-| `EccPipeline_g` | 0, 1 | both | both |
+| `EccPipeline_g` | 0, 1 | both | both; 2 stops the elaboration |
 | `Resource_g` | AUTO, SRL, BRAM | every value | every value |
 | `RamStyle_g` | values of Open Logic | the default (an attribute for the synthesis tool only) | the default |
 
@@ -101,7 +101,7 @@ Simulators: GHDL (regression, CI) and QuestaSim (code coverage at the release); 
 | `test_reset` (TC-WIN-05) | Resets idle, held and running, of one and two cycles, during the pixels of a line, during the HCOL events, during the virtual lines and between images; the next image after the reset is checked completely, also its first lines (no line of the image before the reset) | WIN-IF-06, WIN-FT-03, WIN-FT-04, WIN-ER-02 |
 | `test_rate` (TC-WIN-06) | Configurations `rate_*`: images back to back with `In_Valid` and `Out_Ready` high. The hold cycles of the input between the first pixels of two lines (at most Rr; none in the mode valid), the interval between two image starts (bound of WIN-PF-02, design value (H + Rb) x (W + Rr), H x W in the mode valid) and the latency of every window from the acceptance of its completing pixel (bound 6, design value 3 to 5) | WIN-PF-01, WIN-PF-02, WIN-PF-03 |
 | TC-WIN-07 (review) | `when others` of the event state machine leads to `Pix_s`, pixel (0, 0) restarts the counters | WIN-FT-03 |
-| TC-WIN-08 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2.3 and every border mode and resource; elaboration stops with the message naming the generic for: `WinX_g` 17, `WinY_g` 17, `ImageWidth_g` below `WinX_g`, `ImageHeight_g` below `WinY_g`, `ImageWidth_g` 65537, `PixelBits_g` 33, `AnchorX_g` = `WinX_g`, `AnchorY_g` = `WinY_g`, `StrideX_g` 17, `StrideY_g` 17, an unknown border mode, mirror with an even window, mirror with an anchor beside the middle (both directions), `Resource_g` BRAM with `ImageWidth_g` 2 + `EccPipeline_g` | WIN-CF-01, WIN-CF-02, WIN-CF-03, WIN-CF-05 |
+| TC-WIN-08 (`lint/synth_check.py`) | GHDL synthesis without latches at the bounds of section 2.3 and every border mode and resource; elaboration stops with the message naming the generic for: `WinX_g` 17, `WinY_g` 17, `ImageWidth_g` below `WinX_g`, `ImageHeight_g` below `WinY_g`, `ImageWidth_g` 65537, `PixelBits_g` 33, `AnchorX_g` = `WinX_g`, `AnchorY_g` = `WinY_g`, `StrideX_g` 17, `StrideY_g` 17, an unknown border mode, mirror with an even window, mirror with an anchor beside the middle (both directions), `EccPipeline_g` 2, `Resource_g` BRAM with `ImageWidth_g` 2 + `EccPipeline_g`; an unknown `Resource_g` stops it with the message of Open Logic that names the generic | WIN-CF-01, WIN-CF-02, WIN-CF-03, WIN-CF-05 |
 | TC-WIN-09 (`lint/vivado_ooc.py`) | Out-of-context synthesis and implementation at 150 MHz on the device of the Timing level (architecture, section 10): 3 x 3 replicate, 12 bits, 4096 pixels per line (the default); 5 x 5 mirror, 16 bits, 4096; 16 x 16 zero, 32 bits, 4096 | WIN-CF-04 |
 
 ## 4. Requirement coverage

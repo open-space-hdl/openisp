@@ -132,6 +132,10 @@ architecture rtl of isp_window is
     constant XL_c : natural  := X0_c + (Wo_c - 1) * StrideX_g;
     constant YL_c : natural  := Y0_c + (Ho_c - 1) * StrideY_g;
 
+    -- EccPipeline_g limited to the range of the Open Logic delay, so that a value out of range elaborates the delays
+    -- and stops at the configuration check, which names the generic
+    constant EccPipe_c : natural := minimum(EccPipeline_g, 1);
+
     -- Event positions: columns up to W + Rr - 1, lines up to H + Rb - 1; one value more, so that the column W and
     -- the line H have a value also where no virtual column or line exists
     constant XW_c : positive := ispPosWidth(W_c + VCols_c + 1);
@@ -251,6 +255,9 @@ begin
     assert not Mirror_c or WinY_g = 1 or (WinY_g mod 2 = 1 and AnchorY_g = (WinY_g - 1) / 2)
         report "isp_window: BorderMode_g mirror needs an odd WinY_g with AnchorY_g in the middle"
         severity failure;
+    assert EccPipeline_g <= 1
+        report "isp_window: EccPipeline_g must be 0 or 1"
+        severity failure;
     assert Resource_g /= "BRAM" or WinY_g = 1 or ImageWidth_g >= 3 + EccPipeline_g
         report "isp_window: ImageWidth_g must be at least 3 + EccPipeline_g for Resource_g BRAM"
         severity failure;
@@ -299,7 +306,7 @@ begin
                 Resource_g    => Resource_g,
                 RstState_g    => true,
                 RamStyle_g    => RamStyle_g,
-                EccPipeline_g => EccPipeline_g
+                EccPipeline_g => EccPipe_c
             )
             port map (
                 Clk               => Clk,

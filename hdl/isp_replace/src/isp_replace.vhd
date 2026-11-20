@@ -116,9 +116,18 @@ architecture rtl of isp_replace is
     constant EB_c    : positive := PB_c + 1;
 
     -- Defect map: Wl words per line, H x Wl words (specification, section 1.1)
-    constant Wl_c       : positive := (W_c + 31) / 32;
-    constant Words_c    : positive := ImageHeight_g * Wl_c;
-    constant Depth_c    : positive := maximum(2, Words_c);
+    constant Wl_c    : positive := (W_c + 31) / 32;
+    constant Words_c : positive := ImageHeight_g * Wl_c;
+    constant Depth_c : positive := maximum(2, Words_c);
+
+    -- The scrub period: 0.0 (free running) or 0.001 to 1073741.823 s, the clock 1000.0 to 2.14748e11 Hz for a paced
+    -- scrubber. The pacer of Open Logic divides the clock to a tick of 1 kHz with a ratio of at most 214748000
+    -- (olo_base_strobe_gen) and counts the period in whole milliseconds, at most 2^30 - 1 (olo_base_strobe_div: the
+    -- log2ceil of a larger ratio overflows). A value out of range reaches the scrubber as free running, so that the
+    -- elaboration stops at the configuration checks, which name the generics
+    constant PeriodOk_c : boolean  := ScrubPeriod_g = 0.0 or (ScrubPeriod_g >= 0.001 and ScrubPeriod_g <= 1073741.823);
+    constant ClkOk_c    : boolean  := ScrubPeriod_g <= 0.0 or (ClkFreqHz_g >= 1000.0 and ClkFreqHz_g <= 2.14748e11);
+    constant ScrubPer_c : real     := choose(PeriodOk_c and ClkOk_c, ScrubPeriod_g, 0.0);
     constant AW_c       : positive := log2ceil(Depth_c);
     -- Fields of IMAGE
     constant WidthM1_c  : std_logic_vector(15 downto 0) := std_logic_vector(to_unsigned((W_c - 1) mod 65536, 16));
@@ -278,6 +287,12 @@ begin
     assert EccPipeline_g <= 2
         report "isp_replace: EccPipeline_g must be 0 to 2"
         severity failure;
+    assert PeriodOk_c
+        report "isp_replace: ScrubPeriod_g must be 0.0 or 0.001 to 1073741.823"
+        severity failure;
+    assert ClkOk_c
+        report "isp_replace: ClkFreqHz_g must be 1000.0 to 2.14748e11 with ScrubPeriod_g above 0.0"
+        severity failure;
 
     -----------------------------------------------------------------------------------------------
     -- RP-1 Frame sync
@@ -318,7 +333,7 @@ begin
             RamStyle_g     => RamStyle_g,
             EccPipeline_g  => minimum(EccPipeline_g, 2),
             ScrubClkHz_g   => ClkFreqHz_g,
-            ScrubPeriod_g  => ScrubPeriod_g
+            ScrubPeriod_g  => ScrubPer_c
         )
         port map (
             Clk            => Clk,

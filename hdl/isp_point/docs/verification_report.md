@@ -26,7 +26,7 @@ The status-output audit added a probe of `Stat_ImageOpen` while an image is open
 | `test_reset` (TC-PNT-09) | 5 | 5 |
 | `test_rate` (TC-PNT-10) | 5 | 5 |
 | TC-PNT-11 (`lint/synth_check.py`) | 7 configurations synthesise without latches; 13 generics out of range stop the elaboration with a message naming the generic | 20 |
-| TC-PNT-12 (`lint/vivado_ooc.py`) | Section 5 | Not run (licence) |
+| TC-PNT-12 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
 
@@ -119,10 +119,10 @@ commit 399d8b9 with the same 14 tests; the reference run passed again.
 
 ## 5. Synthesis and timing
 
-Not run. TC-PNT-12 needs Vivado synthesis for the Versal device of the reference systems (xcvc1902-vsva2197-2MP-e-S);
-the licence for that device has expired on the development host. The runs are open until a licence or another host is
-available; the script is ready with the configurations `pnt_default` (16 / 12 / 16 bits, run-time registers) and
-`pnt_wide` (64 / 32 / 18 bits, four multiplier stages).
+Not run yet: TC-PNT-12 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
+(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
+configurations `pnt_default` (16 / 12 / 16 bits, run-time registers) and `pnt_wide` (64 / 32 / 18 bits, four multiplier
+stages).
 
 The GHDL synthesis of TC-PNT-11 shows that the module is synthesisable at every bound of its generics without latches;
 it gives no timing.

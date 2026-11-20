@@ -19,7 +19,7 @@ QuestaSim runs with the release regression (with and without code coverage).
 | `test_reset` (TC-CNV-09) | 6 | 6 |
 | `test_rate` (TC-CNV-10) | 3 | 3 |
 | TC-CNV-11 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 10 generics out of range stop the elaboration with a message naming the generic | 18 |
-| TC-CNV-12 (`lint/vivado_ooc.py`) | Section 5 | Not run (device) |
+| TC-CNV-12 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 
 ## 2. Summary
 
@@ -102,11 +102,10 @@ least one test, and the tests that fail include those the plan expects.
 
 ## 5. Synthesis and timing
 
-Not run. TC-CNV-12 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10). The licence for the reference device has expired on the development host,
-and the device for the proxy runs is not installed yet; the runs are open. The script `lint/vivado_ooc.py` is ready
-with the configurations `cnv_mtf3`, `cnv_mtf5` (12-bit pixels, 16-bit run-time coefficients), `cnv_max` (16 x 16
-at run time) and `cnv_bin4` (four ones).
+Not run yet: TC-CNV-12 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
+(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
+configurations `cnv_mtf3`, `cnv_mtf5` (12-bit pixels, 16-bit run-time coefficients), `cnv_max` (16 x 16 at run time) and
+`cnv_bin4` (four ones).
 
 The GHDL synthesis of TC-CNV-11 shows that the module is synthesisable at the bounds of its generics with both values
 of `RuntimeCoef_g`, without latches; it gives no timing.
