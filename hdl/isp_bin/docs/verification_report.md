@@ -10,6 +10,9 @@ skipped. QuestaSim runs with the release regression (with and without code cover
 The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
 commit 4cef90a, 601 of 601 tests passed (59 of them `isp_bin`), 0 skipped; `lint/synth_check.py` (TC-BIN-07) passed.
 
+The rate configurations with W not a multiple of `BinX_g` and with p >= W (section 7) came later: `python run.py -p 4`
+on 2026-11-20 on commit 9f48b53, 663 of 663 tests passed (97 of them `isp_bin`), 0 skipped.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-BIN-01) | 54 (with the sweep) | 54 |
@@ -125,10 +128,11 @@ Run on 2026-11-20 on commit 4ba63f8 in a worktree of its own (`git diff --quiet`
 tests: the 3 of `bin2_zero`, test_static of `bin2_valid` and `bin3x5_rep`, test_input_stream of `bin_none` and `min`,
 test_ecc of `ecc` and `bits1`, and test_rate of `rate_rep`, `rate_tall`, `rate_x_only`, `rate_y_only` and `rate_none`.
 Every one of the 13 mutants of the plan (section 6) fails at least one test, and the tests that fail include those the
-plan expects. A mutant that changes several places of the source carries all of them in one run. A first run on 2eb6d50,
-before the change of the probe wait, gave the same results. The width of the narrowed image moved into `isp_pkg`
-(`ispBinOut`); its mutant, now on the call of the function, ran alone on 2026-11-20 on commit 2d4b4c8 with the same 14
-tests and failed the same 4 tests.
+plan expects. The bench changed with the terms e and s (section 7): the run again on commit 9f48b53 killed all 13
+mutants with the same 14 tests. A mutant that changes several places of the source carries all of them in one run. A
+first run on 2eb6d50, before the change of the probe wait, gave the same results. The width of the narrowed image moved
+into `isp_pkg` (`ispBinOut`); its mutant, now on the call of the function, ran alone on 2026-11-20 on commit 2d4b4c8
+with the same 14 tests and failed the same 4 tests.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
