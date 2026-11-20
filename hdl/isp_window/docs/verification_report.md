@@ -105,13 +105,22 @@ has them since.
 The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section 7) and ran alone on 2026-11-20 on
 commit 399d8b9 with the same 21 tests; the reference run passed again.
 
+The mutation run was repeated on 2026-11-20 on commit 31cca42, the selections without the selection of the event
+position and the row selection of the next line by compares (architecture, section 7), with the same 21 tests and
+seven mutants of the changed decisions; the table shows that run. 23 of the 24 mutants fail at least one test. The
+column of pixel (0, 0) from the registered row selection survives: it is equivalent at the ports, because every image
+that reaches the event control is complete (the frame sync fills a short image, E1) and the reset loads the selection
+of line 0, so at every pixel (0, 0) the registered selection already is that of line 0; only an upset of the register
+makes the restart act, which the bench cannot cause through the ports. The restart is verified by review (TC-WIN-07,
+WIN-FT-03).
+
 The output dimensions moved into `isp_pkg` (`ispWinOut`, section 7); the mutant that computes them in the border mode
 valid for every border mode ran alone on 2026-11-20 on commit 2d4b4c8 with the same 21 tests (the reference run passed
 again).
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
-| None (reference) | passes (21 tests) | - |
+| None (reference) | passes (21 tests) |  |
 | Left border of the mode replicate not loaded | killed by 9 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
 | Mirror at the right border one column off (2m instead of 2m - 1) | killed by 2 of 21 tests | test_static |
 | Row selection of the lower border one line too far (replicate) | killed by 8 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
@@ -127,6 +136,13 @@ again).
 | Injection patterns of the delays in reverse order | killed by 4 of 21 tests | test_ecc |
 | An event that does not wait for Out_Ready | killed by 15 of 21 tests | test_handshake, test_input_stream, test_reset, test_static |
 | Rows above the image taken from the line buffers (the image before) instead of 0 | killed by 3 of 21 tests | test_ecc, test_static |
+| Pixel (0, 0) detected from x alone (the rows of line 0 at the first pixel of every line) | killed by 21 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| Pixel (0, 0) detected outside the state of the image pixels (a waiting pixel (0, 0) during the virtual events) | killed by 14 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| The column of pixel (0, 0) from the registered row selection (no restart of the rows) | SURVIVED |  |
+| The left border of a virtual line not taken (the first VPIX) | killed by 8 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| The selection of a line of the upper border one line late | killed by 19 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| The last virtual line with the selection of the lines without a border | killed by 10 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
+| The left mirror of a virtual line not taken | killed by 2 of 21 tests | test_static |
 | Stat_ImageOpen tied to 0 | killed by 2 of 21 tests | test_input_stream |
 | The output dimensions of the border mode valid in every border mode | killed by 18 of 21 tests | test_ecc, test_handshake, test_input_stream, test_rate, test_reset, test_static |
 
@@ -171,3 +187,4 @@ border mode and every line buffer resource, without latches; it gives no timing.
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
 | An audit of the configuration checks of every module found `EccPipeline_g` and `Resource_g` without a check of the module: `EccPipeline_g` 2 stopped the elaboration inside the delay of Open Logic with a range error that does not name the generic, an unknown `Resource_g` only at an assertion of Open Logic of severity error, which not every tool stops at (WIN-CF-01); and the check of WIN-CF-05 compared `Resource_g` with "BRAM" with regard to case, while Open Logic takes "bram" as block RAM | The module checks both generics with severity failure and gives the delays the values in range, so that the elaboration reaches the checks; WIN-CF-05 compares without case. Negatives `win_ecc_2`, `win_resource` and `win_bram_narrow_case` (TC-WIN-08). The bench is unchanged |
 | The output dimensions came from a formula of the module, and in the border mode valid an `ImageWidth_g` below `WinX_g` gave 0 for a positive constant: the elaboration stopped with a range error before the check that names the generic | The dimensions come from `ispWinOut` of `isp_pkg` (one definition with the integrator) and are at least 1, so that the check names the generic (negative `win_width_below_valid`, TC-WIN-08). The test files are unchanged |
+| The plan expected the mutant that takes the column of pixel (0, 0) from the registered row selection to fail TC-WIN-02 and 05 (an image cut inside a line). An image cut by the input is completed by the frame sync (E1) and a reset loads the selection of line 0, so the registered selection is that of line 0 at every pixel (0, 0): the mutant survived the mutation run | Plan section 6: the mutant is equivalent at the ports; the restart of the row selection by pixel (0, 0) acts only after an upset of the register and is verified by review (TC-WIN-07, WIN-FT-03), as before |
