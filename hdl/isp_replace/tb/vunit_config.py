@@ -19,8 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 from isp_model import (RPL_CTRL, RPL_ID, RPL_IMAGE, RPL_MAP_ADDR, RPL_MAP_DATA, RPL_MAP_LINE,  # noqa: E402
                        RPL_MAP_WORDS, RPL_PARAM, RPL_STATUS, SEQ_CONT, SEQ_LAST, ecc_codeword_width,
                        ecc_data_positions, replace, replace_pixel)
-from isp_tbgen import (RegScript, check, image_beats, malformed_streams, packets, random_image,  # noqa: E402
-                       raw_packet, rng_for, seed_for, status, watchdog_us, write, write_test)
+from isp_tbgen import (RegScript, check, image_beats, malformed_streams, open_image, packets,  # noqa: E402
+                       random_image, raw_packet, rng_for, seed_for, status, watchdog_us, write, write_test)
 
 MODULE = "isp_replace"
 SWEEP_STEPS = 12
@@ -250,9 +250,9 @@ def build_scrub(rng, x):
     words = x.words
     items = x.clear() + x.write_map(rng) + x.image(rng)
     if words >= 3:
-        singles, doubles = rng.sample(range(words), 3)[:2], None
-        doubles = [w for w in range(words) if w not in singles][0]
-        doubles = [doubles]
+        # The double error in the last word, which a pass of the scrubber reads just before Scrub_PassDone; single
+        # errors in two of the others
+        singles, doubles = rng.sample(range(words - 1), 2), [words - 1]
     elif words == 2:
         singles, doubles = [0], [1]
     else:
@@ -270,7 +270,9 @@ def build_scrub(rng, x):
     if not x.c["period"]:
         # Images with the scrubber running
         items += x.scrub(1) + x.image(rng) + x.image(rng, "random") + x.scrub(0)
-    expect = {"ExpScrubSec_g": len(singles), "MinScrubDed_g": 1 if doubles else 0}
+    # Scrub_EccSec once per single error (corrected in the first pass); Scrub_EccDed once per pass for the word with
+    # the double error, which is never rewritten (verification plan, section 5)
+    expect = {"ExpScrubSec_g": len(singles), "ScrubDedWords_g": len(doubles)}
     if x.c["period"] == 300:
         # One pass per period of 300 cycles while the scrubber is on (the pause and the markers around it)
         expect.update({"MinPassDone_g": (on + 10) // 300 - 1, "MaxPassDone_g": (on + 10) // 300 + 1})
@@ -295,6 +297,9 @@ def build_registers(rng, x):
     items += x.clear() + x.regs.access(write(RPL_MAP_ADDR, 0), write(RPL_MAP_DATA, value, 0x1),
                                        check(RPL_MAP_ADDR)) + x.image(rng)
     x.map[0] = value
+    # STATUS.IMAGE_OPEN read while an image is open (an image cut after half of its pixels); the next image start
+    # completes it (E1)
+    items += open_image(x.w, x.h, x.bits) + x.regs.access(check(RPL_STATUS)) + x.image(rng)
     # Unused addresses read 0
     items += x.regs.access(check(0x24), check(0x40), check(0xFC), write(0x24, 0xFFFFFFFF), check(0x24))
     # Every STATUS flag: set by its event, kept by a write of 0 and by a write without the strobe of its byte,

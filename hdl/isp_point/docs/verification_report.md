@@ -10,6 +10,9 @@ The configuration `w1_h4` (`ImageWidth_g` 1 in a small image, test_static) came 
 the CI, which run the low bound of every generic: `python run.py -p 4` on 2026-11-19 on commit 30a4acc, 510 of 510
 tests passed (52 of them `isp_point`), 0 skipped.
 
+The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
+`python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (52 of them `isp_point`), 0 skipped.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-PNT-01) | 15 | 15 |
@@ -52,6 +55,7 @@ every test.
   `OFFSET_HI` as the sign of the offset), every single byte strobe on every parameter register with random data and
   its read-back (the offset sign-extended, the other registers zero-extended), read-only registers and unused
   addresses, the sticky flags. Every access was answered with OKAY.
+- `Stat_ImageOpen` is 1 while an image is open (an image cut after half of its pixels) and 0 after complete images.
 - Resets idle, held and running in the middle of an image, of one and of two cycles: the registers hold the generics
   again and the next images are correct.
 - The control outputs carry no metavalue after the first reset, and `Out_Valid`, `Err_Framing`, `Err_Config` and
@@ -87,6 +91,9 @@ tests that fail are those the plan expects. The mutant that drops the top bit of
 first form (an ambiguous concatenation); it was repaired and run alone on the same commit (reference run passed
 again). The first mutation run, on 3c5cc2c, kept the mutant without the limit of the shift alive (section 7).
 
+The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section 7) and ran alone on 2026-11-20 on
+commit 399d8b9 with the same 14 tests; the reference run passed again.
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (14 tests) | - |
@@ -108,6 +115,7 @@ again). The first mutation run, on 3c5cc2c, kept the mutant without the limit of
 | The parity bit of GAIN not set by a write | killed by 5 of 14 tests | test_exhaustive, test_hold, test_parity, test_runtime |
 | The offset stored with the sign of the 64-bit value (resize) instead of its lower bits | killed by 4 of 14 tests | test_exhaustive, test_parity, test_runtime |
 | The clear of ERR_CONFIG wins over the event | killed by 1 of 14 tests | test_flag_coincidence |
+| Stat_ImageOpen tied to 0 | killed by 1 of 14 tests | test_input_stream |
 
 ## 5. Synthesis and timing
 
@@ -156,3 +164,4 @@ The register map of the specification and the register description agree (`tools
 | The mutation script counted a mutant that did not compile (no results) as survived | A mutant without results is reported as invalid, repaired and run again; the gain mutant was repaired |
 | `CTRL.HOLD` had no protection: an upset that set it would have frozen the parameter set without a report (lead decision Q-PNT-1) | `CTRL` has a parity bit; a mismatch counts as `HOLD` 0 and pulses `Err_Config` (PNT-ER-04); tested through `INJECT` bit 6 |
 | The plan named 82 as the upper bound of `MaxShift_g` for 64-bit pixels and an 18-bit gain; the bound is `InBits_g` + `GainBits_g` + 1 = 83 | Plan corrected; `wide` simulates 83 |
+| The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |

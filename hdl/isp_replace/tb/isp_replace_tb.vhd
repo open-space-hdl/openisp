@@ -80,10 +80,10 @@ entity isp_replace_tb is
         ExpUnreplaced_g  : natural  := 0;
         ExpSec_g         : natural  := 0;
         ExpDed_g         : natural  := 0;
-        -- Scrubber (test_scrub): Scrub_EccSec pulses, at least so many Scrub_EccDed pulses, the range of the
-        -- Scrub_PassDone pulses and whether Scrub_Overrun pulses
+        -- Scrubber (test_scrub): Scrub_EccSec pulses, the words with a double error (Scrub_EccDed pulses per
+        -- Scrub_PassDone pulse), the range of the Scrub_PassDone pulses and whether Scrub_Overrun pulses
         ExpScrubSec_g    : natural  := 0;
-        MinScrubDed_g    : natural  := 0;
+        ScrubDedWords_g  : natural  := 0;
         MinPassDone_g    : natural  := 0;
         MaxPassDone_g    : natural  := natural'high;
         ExpOverrun_g     : boolean  := false;
@@ -154,6 +154,9 @@ architecture sim of isp_replace_tb is
     signal ErrInj_BitFlip  : std_logic_vector(FlipW_c - 1 downto 0);
     signal ErrInj_Valid    : std_logic;
     signal Scrub_Enable    : std_logic;
+    -- Scrub_Enable of the injection script, and the scrubber kept on until the end of its pass
+    signal ScrubReq        : std_logic;
+    signal ScrubOn         : std_logic := '0';
     signal Scrub_EccSec    : std_logic;
     signal Scrub_EccDed    : std_logic;
     signal Scrub_PassDone  : std_logic;
@@ -320,8 +323,24 @@ begin
             Ack            => AckInj,
             ErrInj_BitFlip => ErrInj_BitFlip,
             ErrInj_Valid   => ErrInj_Valid,
-            Scrub_Enable   => Scrub_Enable
+            Scrub_Enable   => ScrubReq
         );
+
+    -- The scrubber is switched off at the end of a pass: a disable of the injection script takes effect with the
+    -- next Scrub_PassDone, so that no read of the scrubber is aborted and the word with a double error, the last
+    -- word of the map, is read exactly once per pass (verification plan, section 5)
+    p_scrub_gate : process (Clk) is
+    begin
+        if rising_edge(Clk) then
+            if ScrubReq = '1' then
+                ScrubOn <= '1';
+            elsif Scrub_PassDone = '1' or InitRst = '1' then
+                ScrubOn <= '0';
+            end if;
+        end if;
+    end process;
+
+    Scrub_Enable <= ScrubReq or ScrubOn;
 
     -----------------------------------------------------------------------------------------------
     -- Sequencer
@@ -367,6 +386,11 @@ begin
 
             wait until SrcDone and SinkDone;
 
+            -- The last pass of the scrubber ends before the counts are checked
+            if ScrubOn = '1' and ScrubReq = '0' then
+                wait until ScrubOn = '0';
+            end if;
+
             for i in 1 to Drain_c loop
                 wait until rising_edge(Clk);
             end loop;
@@ -377,8 +401,9 @@ begin
             check_value(Ded, ExpDed_g, ERROR, "number of Stat_EccDed pulses");
             if Scrub_v then
                 check_value(ScrubSec, ExpScrubSec_g, ERROR, "number of Scrub_EccSec pulses");
-                check_value(ScrubDed >= MinScrubDed_g, ERROR, "test_scrub: " & integer'image(ScrubDed) &
-                            " Scrub_EccDed pulses, at least " & integer'image(MinScrubDed_g));
+                check_value(ScrubDed, ScrubDedWords_g * PassDone, ERROR,
+                            "number of Scrub_EccDed pulses (" & integer'image(ScrubDedWords_g) & " per pass of " &
+                            integer'image(PassDone) & ")");
                 check_value(PassDone >= MinPassDone_g and PassDone <= MaxPassDone_g, ERROR,
                             "test_scrub: " & integer'image(PassDone) & " Scrub_PassDone pulses, " &
                             integer'image(MinPassDone_g) & " to " & integer'image(MaxPassDone_g) & " expected");

@@ -108,7 +108,11 @@ Checks:
 Every testbench instantiates the module, one source, one sink and a clock. It adds:
 
 - a counter of the cycles in which each error or status pulse is high, compared at the end of the test with the
-  count of the model (generics of the test);
+  count of the model (generics of the test); every pulse output is active in at least one test, and the counts of two
+  outputs that a wiring mistake could exchange differ in at least one test;
+- probes of `Stat_ImageOpen` (`P` entries): the malformed input streams of `tools/isp_tbgen.py` begin with an image
+  cut after half of its pixels and a probe while it is open (`open_image_probe`, from a random generator of its
+  own), so that the port is checked at 1 as well as at 0;
 - a monitor that checks the control outputs of the module for metavalues in every cycle after the first reset;
 - the timing checks of its verification plan, by the markers of the source;
 - for modules with registers, the register script (section 7).

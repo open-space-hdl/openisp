@@ -6,6 +6,10 @@ Run on 2026-11-20 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 `python run.py -p 4` on 2e4971c, 542 of 542 tests passed (32 of them `isp_filter2d`), 0 skipped.
 QuestaSim runs with the release regression (with and without code coverage).
 
+The status-output audit moved the probe of the open image of test_input_stream into the malformed streams of
+`tools/isp_tbgen.py`, which every module uses: `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests
+passed (32 of them `isp_filter2d`), 0 skipped.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-FLT-01) | 14 | 14 |
@@ -91,6 +95,9 @@ not connected; both were gaps of the bench (section 7). An audit of the status o
 counts of `Stat_EccDed` and `Err_Config` equal in every test, a third gap of the same kind; its mutant is the
 exchange of the two.
 
+The mutation run was repeated on 2026-11-20 on commit 399d8b9, after the probe of the open image moved into the shared
+stream generator (section 7), with the same 11 tests: every result is the same.
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (11 tests) | - |
@@ -137,3 +144,4 @@ values of `RuntimeCoef_g` and every border mode, without latches; it gives no ti
 | An audit of the status outputs found the counts of `Stat_EccDed` and `Err_Config` equal (2 and 2) in every test of `test_errors`, so an exchange of the two would survive | `test_errors` runs one image with the parity error of a coefficient: `Stat_EccSec` 3, `Stat_EccDed` 2, `Err_Config` 1 pulses; the plan has the mutant of the exchange (section 4) |
 | The configurations of the plan held no low bound of the image size, `PixelBits_g`, `EccPipeline_g` or `Resource_g` | Configurations `min` and `small` (plan, section 2), `mtf5_mirror` on block RAM |
 | `lint/vivado_ooc.py` wrote string generics without quotes (`BorderMode_g`) | The script quotes strings; the top levels of the earlier configurations are unchanged |
+| The status-output audit found the probe of an open image in this bench only; the other benches probed `Stat_ImageOpen` after complete images only | The probe is part of the malformed streams of `tools/isp_tbgen.py` for every module (`open_image_probe`, with a random generator of its own); test_input_stream uses it there instead of its own cut image. The mutation run on 399d8b9 gives the same results (section 4) |

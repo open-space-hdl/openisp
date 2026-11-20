@@ -17,8 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 
 from isp_model import (CRP_ID, CRP_IMAGE, CRP_INJECT, CRP_ROI_POS, CRP_ROI_SIZE, CRP_STATUS, SEQ_CONT,  # noqa: E402
                        SEQ_FIRST, SEQ_LAST, SEQ_ONLY, crop)
-from isp_tbgen import (image_beats, packets, random_image, raw_packet, rng_for, seed_for, split,  # noqa: E402
-                       watchdog_us, write_test)
+from isp_tbgen import (image_beats, open_image_probe, packets, random_image, raw_packet, rng_for,  # noqa: E402
+                       seed_for, split, watchdog_us, write_test)
 
 MODULE = "isp_crop"
 SWEEP_STEPS = 12
@@ -105,7 +105,8 @@ def build_static(rng, c):
 
 def build_input_stream(rng, c):
     n = c.w * c.h
-    items = c.image(rng, "random")
+    # An image probed while it is open (Stat_ImageOpen 1), completed by the next image start
+    items = open_image_probe(c.w, c.h, c.bits) + c.image(rng, "random")
     if n >= 2:
         # Short images, the missing pixels inside and outside the region, each followed by an image start
         for k in sorted({1, n // 2, n - 1} - {0}):
