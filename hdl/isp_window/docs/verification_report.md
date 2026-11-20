@@ -12,14 +12,15 @@ The status-output audit added a probe of `Stat_ImageOpen` while an image is open
 The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
 commit 4cef90a, 601 of 601 tests passed (128 of them `isp_window`), 0 skipped; `lint/synth_check.py` (TC-WIN-08) passed.
 
-The border and row selections without the selection of the event position (architecture, section 7) keep every cycle:
-in every test of the benches that contain the module, the signals at the top level of the bench (the reset, the input
-and output streams, the status and error outputs and the injection inputs; 21 in `isp_window_tb` and `isp_bin_tb`, 22
-in `isp_filter2d_tb`, 29 in `isp_replace_tb`, 48 in `isp_chain_tb`) are identical in every time step between commit
-1f169a2 (before the change) and commit b0dfcbb: 128 tests of `isp_window`, 32 of `isp_filter2d`, 97 of `isp_bin`,
-89 of `isp_replace` and 21 of the chain, 367 in all, with every border mode, the smallest images (1 x 1 in the
-configurations `min` of `isp_filter2d` and `isp_bin`, 3 x 3 with a 3 x 3 window), lines and columns of 65536 pixels,
-and images back to back. The generated stimuli and expected outputs of the five benches are unchanged (1673 files).
+The border and row selections without the selection of the event position and the row selection of the next line by
+compares (architecture, section 7) keep every cycle: in every test of the benches that contain the module, the signals
+at the top level of the bench (the reset, the input and output streams, the status and error outputs and the injection
+inputs; 21 in `isp_window_tb` and `isp_bin_tb`, 22 in `isp_filter2d_tb`, 29 in `isp_replace_tb`, 48 in `isp_chain_tb`)
+are identical in every time step between commit 1f169a2 (before the change) and commit 5a47ea5: 128 tests of
+`isp_window`, 32 of `isp_filter2d`, 97 of `isp_bin`, 89 of `isp_replace` and 21 of the chain, 367 in all, with every
+border mode, the smallest images (1 x 1 in the configurations `min` of `isp_filter2d` and `isp_bin`, 3 x 3 with a 3 x 3
+window), lines and columns of 65536 pixels, and images back to back. The generated stimuli and expected outputs of the
+five benches are unchanged (1673 files).
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
