@@ -10,6 +10,10 @@ The status-output audit moved the probe of the open image of test_input_stream i
 `tools/isp_tbgen.py`, which every module uses: `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests
 passed (32 of them `isp_filter2d`), 0 skipped.
 
+The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
+commit 4cef90a, 601 of 601 tests passed (32 of them `isp_filter2d`), 0 skipped; `lint/synth_check.py` (TC-FLT-07)
+passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-FLT-01) | 14 | 14 |

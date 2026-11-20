@@ -7,6 +7,9 @@ Run on 2026-11-20 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13
 again on 4ba63f8, which changes only the wait of the probes after complete images (section 7): 59 of 59 passed, 0
 skipped. QuestaSim runs with the release regression (with and without code coverage).
 
+The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
+commit 4cef90a, 601 of 601 tests passed (59 of them `isp_bin`), 0 skipped; `lint/synth_check.py` (TC-BIN-07) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-BIN-01) | 35 (with the sweep) | 35 |

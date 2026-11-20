@@ -9,6 +9,9 @@ regression (with and without code coverage).
 The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
 `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (128 of them `isp_window`), 0 skipped.
 
+The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
+commit 4cef90a, 601 of 601 tests passed (128 of them `isp_window`), 0 skipped; `lint/synth_check.py` (TC-WIN-08) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-WIN-01) | 83 (with the sweeps) | 83 |

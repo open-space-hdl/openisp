@@ -10,6 +10,9 @@ The status-output audit added a probe of `Stat_ImageOpen` and a read of `STATUS`
 (test_input_stream, test_registers) and the exact count of `Scrub_EccDed` (test_scrub): `python run.py -p 4` on
 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (84 of them `isp_replace`), 0 skipped.
 
+The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
+commit 4cef90a, 601 of 601 tests passed (84 of them `isp_replace`), 0 skipped; `lint/synth_check.py` (TC-RPL-12) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
 | `test_static` (TC-RPL-01) | 27 (with the sweeps) | 27 |
