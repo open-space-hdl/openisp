@@ -161,6 +161,8 @@ the verification report, and the wrong one is corrected. A derivation is never a
 | Pixel (0, 0) detected outside the state of the image pixels (a pixel (0, 0) that waits at the frame sync during the virtual events of the image before) | TC-WIN-06 (images back to back with a lower border) |
 | The column of pixel (0, 0) from the registered row selection (no restart of the rows) | TC-WIN-02, 05 (an image cut inside a line, WIN-FT-03) |
 | The left border of a virtual line not taken (the first VPIX) | TC-WIN-01 (`rep3`, `zero3`: the lower border) |
+| The selection of a line of the upper border one line late | TC-WIN-01 (`WinY_g` > 2: `mirror5`, the size and mirror sweeps) |
+| The last virtual line with the selection of the lines without a border | TC-WIN-01 (`rep3`, `zero3`, `mirror5`: the lower border) |
 | The left mirror of a virtual line not taken | TC-WIN-01 (`mirror5`, mirror sweep: the lower border) |
 
 ## 7. Expected coverage exclusions

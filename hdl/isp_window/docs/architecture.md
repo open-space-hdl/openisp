@@ -114,7 +114,11 @@ mode has its reference pixel in the middle, WIN-CF-02), and always a line of the
 
 The selection depends on the line only: on ye up to `WinY_g` - 2 for the upper border and on the number of the
 virtual line for the lower border. The event control sets a row select vector at the start of every line from a
-constant table; every column passes `WinY_g` multiplexers of at most `WinY_g` + 1 inputs. Pixel (0, 0) restarts the
+constant table; every column passes `WinY_g` multiplexers of at most `WinY_g` + 1 inputs. For the lines without a
+border (from `WinY_g` - 1 to H - 1) the selection is the same, row j from delay `WinY_g` - 1 - j; at the end of a line
+the event control compares the line of the event with the few lines whose next line has another selection (the lines
+of the upper border and the virtual lines) and takes the constant selection of the line found, so that no arithmetic on
+the line number lies between the event and the row select register. Pixel (0, 0) restarts the
 selection with that of line 0: the column of the registered selection and the column of line 0 are both formed, and
 pixel (0, 0), taken from the position of the frame sync itself, chooses between them, so that the decision does not
 pass through the selection of the event position and the row multiplexers after it.
