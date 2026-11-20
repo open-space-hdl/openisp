@@ -74,7 +74,7 @@ the run-time parameters are swept exhaustively (`exhaustive`) cover them.
 | Test | Description | Requirements |
 | --- | --- | --- |
 | `test_static` (TC-PNT-01) | Six images in different divisions into packets with the parameters of the generics: random pixels over the full input range, plus the pixels 0 and the largest value in every image | PNT-IF-01, PNT-IF-02, PNT-FN-01, PNT-FN-03, PNT-FN-06 |
-| `test_input_stream` (TC-PNT-02) | Malformed input streams through the frame sync (short images, pixels without an image start, E3, E4, random packets): the missing pixels (value 0) pass the operation; `Stat_ImageOpen` probed | PNT-FN-02, PNT-ER-01, PNT-ER-02, PNT-IF-04 |
+| `test_input_stream` (TC-PNT-02) | Malformed input streams through the frame sync (short images, pixels without an image start, E3, E4, random packets): the missing pixels (value 0) pass the operation; `Stat_ImageOpen` probed while an image is open (1, an image cut after half of its pixels) and after complete images (0) | PNT-FN-02, PNT-ER-01, PNT-ER-02, PNT-IF-04 |
 | `test_runtime` (TC-PNT-03) | Parameter sets written between images: random sets, the gains 0, 1 and the largest, the shifts 0, the largest, `MaxShift_g` + 1 and 127 (taken as `MaxShift_g`), the most negative and the largest offset, `Low` above `High`, `Low` equal to `High`; a set written during an image takes effect with the next image; every register read back (offset sign-extended, unused bits) | PNT-FN-01, PNT-FN-04, PNT-FN-05, PNT-RG-03, PNT-RG-05 |
 | `test_hold` (TC-PNT-04) | `CTRL.HOLD` 1: several registers written over two images, which keep the set before; `CTRL.HOLD` 0: the next image takes the whole new set; `CTRL.HOLD` 1 with a register of bad parity takes no set and reports nothing | PNT-FN-04 |
 | `test_parity` (TC-PNT-05) | Bits 0 to 5 of `INJECT` in turn: the next image and every further image use the generics with one `Err_Config` each until the register is written; two bits at once; a second injection that restores the parity. Bit 6 (`CTRL`) with `CTRL.HOLD` 1: the held set is taken at every image start, with one `Err_Config` each, until `CTRL` is written, which restores the parity and the hold. An injection without the strobe of byte 0 and with `Runtime_g` false has no effect | PNT-ER-03, PNT-ER-04, PNT-FT-02, PNT-RG-04, PNT-FT-01 |
@@ -143,6 +143,7 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | No `Err_Config` pulse for a `CTRL` of wrong parity | TC-PNT-05 |
 | The offset stored with the sign of the 64-bit value instead of its lower bits | TC-PNT-06 |
 | The clear of `ERR_CONFIG` wins over the event | TC-PNT-07 |
+| `Stat_ImageOpen` tied to 0 (a port stuck at 1 fails every probe after a complete image, which expects 0) | TC-PNT-02 (the probe of the open image) |
 
 ## 7. Expected coverage exclusions
 

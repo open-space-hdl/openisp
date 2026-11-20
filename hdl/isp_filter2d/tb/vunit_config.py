@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
 from isp_model import (CNV_COEF, CNV_CTRL, CNV_INJECT, CNV_STATUS, SEQ_LAST, Window, conv_full_bits,  # noqa: E402
                        ecc_codeword_width, ecc_data_positions, filter2d)
 from isp_tbgen import (RegScript, check, image_beats, malformed_streams, packets, random_image, raw_packet,  # noqa
-                       rng_for, seed_for, short_image, status, watchdog_us, write, write_test)
+                       rng_for, seed_for, status, watchdog_us, write, write_test)
 
 MODULE = "isp_filter2d"
 SEP2 = [-2, 5, 7, 1, -1]       # second kernel of the configuration separable (asymmetric)
@@ -158,11 +158,8 @@ def build_static(rng, x):
 
 
 def build_input_stream(rng, x):
-    c = x.c
-    # An image cut after half of its pixels: the probe sees Stat_ImageOpen 1 while it is open; the image start of
-    # the malformed streams completes it (E1)
-    items = short_image(rng, c["w"], c["h"], c["pb"], c["w"] * c["h"] // 2) + [("W",), ("T", 8), ("P",)]
-    return items + malformed_streams(rng, c["w"], c["h"], c["pb"], packets_count=30)
+    # The malformed streams begin with an image probed while it is open (Stat_ImageOpen 1)
+    return malformed_streams(rng, x.c["w"], x.c["h"], x.c["pb"], packets_count=30)
 
 
 def build_runtime(rng, x):

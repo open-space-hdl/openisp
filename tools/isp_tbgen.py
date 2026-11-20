@@ -202,11 +202,32 @@ def short_image(rng, width, height, bits, k):
     return packets(pix, split(rng, k, width, "random"), last=False)
 
 
-def malformed_streams(rng, width, height, bits, packets_count=60):
-    """Malformed input streams for the frame sync of a module: short images completed at the next image start,
-    pixels without an image start, wrong end flags (E3, E4), random packets with random flags."""
+def open_image(width, height, bits):
+    """An image cut after half of its pixels, without its last flags: the image stays open until the next image start
+    completes it (E1). The pixels come from a generator of their own, so that the items that follow are those of the
+    stream without it. Empty for an image of one pixel."""
     n = width * height
-    items = image_beats(rng, width, height, bits, "random")
+    if n < 2:
+        return []
+    gen = rng_for("open_image", width, height, bits)
+    k = n // 2
+    pix = [gen.getrandbits(bits) for _ in range(k)]
+    return packets(pix, split(gen, k, width, "random"), last=False)
+
+
+def open_image_probe(width, height, bits):
+    """An open image (open_image) and a probe of the source while it is open: Stat_ImageOpen 1 at the port of the
+    module, after every output of its pixels has passed the sink."""
+    items = open_image(width, height, bits)
+    return items + [("W",), ("T", 8), ("P",)] if items else []
+
+
+def malformed_streams(rng, width, height, bits, packets_count=60):
+    """Malformed input streams for the frame sync of a module: an image cut short and probed while it is open, short
+    images completed at the next image start, pixels without an image start, wrong end flags (E3, E4), random packets
+    with random flags."""
+    n = width * height
+    items = open_image_probe(width, height, bits) + image_beats(rng, width, height, bits, "random")
     if n >= 2:
         for k in sorted({1, n // 2, n - 1} - {0}):
             items += short_image(rng, width, height, bits, k) + image_beats(rng, width, height, bits, "random")

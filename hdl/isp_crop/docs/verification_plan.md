@@ -76,7 +76,7 @@ and the whole image.
 | Test | Description | Requirements |
 | --- | --- | --- |
 | `test_static` (TC-CRP-01) | Eight complete images back to back in different divisions into packets (one per line, one per image, one pixel per packet, random lengths); with `RuntimeRoi_g` true and no register written, the position of the generics | CRP-IF-01, CRP-IF-02, CRP-FN-01, CRP-FN-03, CRP-FN-04, CRP-FN-05, CRP-FN-06 |
-| `test_input_stream` (TC-CRP-02) | Malformed input streams through the frame sync: short images completed with zeros (the missing pixels inside and outside the region), pixels without an image start, images ended by E3 and E4, random packets with random flags; `Stat_ImageOpen` probed. The model is `crop` over `frame_sync` | CRP-FN-02, CRP-IF-03, CRP-ER-01, CRP-ER-02 |
+| `test_input_stream` (TC-CRP-02) | Malformed input streams through the frame sync: short images completed with zeros (the missing pixels inside and outside the region), pixels without an image start, images ended by E3 and E4, random packets with random flags; `Stat_ImageOpen` probed while an image is open (1, an image cut after half of its pixels) and after complete images (0). The model is `crop` over `frame_sync` | CRP-FN-02, CRP-IF-03, CRP-ER-01, CRP-ER-02 |
 | `test_runtime_position` (TC-CRP-03) | `RuntimeRoi_g` true: positions written between images: (0, 0), the largest valid (W - width, H - height), random; a write during an image, which takes effect with the next image; writes with single byte strobes (only X, only Y, one byte of each), each read back | CRP-FN-06, CRP-IF-05, CRP-RG-03 |
 | `test_invalid_position` (TC-CRP-04) | X + width = W + 1, Y + height = H + 1, both, the largest X with a valid Y and the reverse (valid), a value of 65535 in both fields: an invalid position processes the image with the generics and pulses `Err_Config` once per image; `STATUS.ERR_CONFIG` set; `ROI_POS` reads back the written value; a valid write afterwards is used | CRP-ER-03, CRP-IF-06 |
 | `test_parity` (TC-CRP-05) | `INJECT.ROI_POS_PARITY`: the next image and every further image use the generics with one `Err_Config` each, until `ROI_POS` is written; a second injection after the first restores the parity (the position is used again); an injection followed by a write; with `RuntimeRoi_g` false the injection has no effect | CRP-ER-04, CRP-FT-01, CRP-FT-03, CRP-RG-04 |
@@ -142,6 +142,7 @@ registers, malformed input streams, resets. The pulse counts are compared exactl
 | Pixels outside the region wait for the output | TC-CRP-09 |
 | No `Err_Config` pulse | TC-CRP-04, 05 |
 | `ROI_POS` not set to the generics by the reset | TC-CRP-08 |
+| `Stat_ImageOpen` tied to 0 (a port stuck at 1 fails every probe after a complete image, which expects 0) | TC-CRP-02 (the probe of the open image) |
 
 ## 7. Expected coverage exclusions
 
