@@ -138,8 +138,8 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | A coefficient read back without sign extension | TC-CNV-02, 05 |
 | `Out_Last` one stage early | TC-CNV-01 (contract) |
 | A stage that does not wait for the common enable | TC-CNV-01 (stalls) |
-| `In_Ready` from a copy of the output valid flag stuck at 0 (always ready) | TC-CNV-01 (stalls), 10 |
-| The copy of the output valid flag one advance late | TC-CNV-01 (stalls), 10 |
+| `In_Ready` from a copy of the output valid flag stuck at 0 (always ready) | TC-CNV-01 and every test with stalls of the sink |
+| The copy of the output valid flag one advance late | TC-CNV-01 and every test with stalls of the sink |
 | A coefficient write that lands in the coefficient after its address | TC-CNV-02, 05 |
 | The parity bit of a coefficient not set by its write | TC-CNV-02, 04 (a written set counts as a parity error at the image start) |
 | A write with byte enables merged into zeros instead of the stored coefficient | TC-CNV-05 (writes with random strobes, CNV-RG-03) |

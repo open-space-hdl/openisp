@@ -99,9 +99,15 @@ least one test, and the tests that fail include those the plan expects.
 
 The mutation run was repeated on 2026-11-20 on commit dbcce6e, the write decode with one address compare per
 coefficient and the parity of a write from the parities of its bytes (architecture, section 6), with the same 24 tests,
-four mutants of the write decode and two of the byte parities; the table shows that run. Every one of the 19 mutants
-fails at least one test. The write with byte enables merged into zeros and the parity of a kept byte taken from the
-write data are killed by test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-03).
+four mutants of the write decode and two of the byte parities. Every one of the 19 mutants failed at least one test.
+The write with byte enables merged into zeros and the parity of a kept byte taken from the write data are killed by
+test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-03).
+
+The mutation run was repeated again on 2026-11-20 on commit 76f82e0, `In_Ready` from a copy of the output valid flag
+(architecture, section 4), with the same 24 tests and two mutants of the copy; the table shows that run. Every one of
+the 21 mutants fails at least one test. The two mutants of the copy are killed by every test with stalls of the sink
+(20 and 17 tests); the plan first named TC-CNV-10 for them as well, which runs without stalls and cannot see the ready
+path, and was corrected.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -124,6 +130,8 @@ write data are killed by test_registers of `mtf3` and `wide`, which write with r
 | A write with byte enables merged into zeros instead of the stored coefficient | killed by 2 of 24 tests | test_registers |
 | The parity of a kept byte taken from the write data | killed by 2 of 24 tests | test_registers |
 | The parity of a written byte taken from the stored bits | killed by 7 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_reset, test_runtime |
+| In_Ready from a copy of the output valid flag stuck at 0 (always ready) | killed by 20 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
+| The copy of the output valid flag one advance late | killed by 17 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
 | INJECT.PARITY flips the parity bit of every coefficient | killed by 1 of 24 tests | test_parity |
 
 ## 5. Synthesis and timing
