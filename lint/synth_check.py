@@ -183,7 +183,8 @@ def rpl(w, h, bits, g, lat=1, ecc=0, period_ms=0):
 # isp_replace (TC-RPL-12): the bounds of every numeric generic, the scrubber free running and paced (1 ms), the
 # bounds of the scrub period (1 ms, 2^30 - 1 ms) and of the clock of a paced scrubber (1 kHz, 2.14748e11 Hz)
 CONFIGS += [
-    ("rpl_default", "isp_replace_synth", rpl(2048, 1024, 12, 2)),
+    # The defaults of the module: RamRdLatency_g 2, EccPipeline_g 1
+    ("rpl_default", "isp_replace_synth", rpl(2048, 1024, 12, 2, lat=2, ecc=1)),
     ("rpl_period_max", "isp_replace_synth", dict(rpl(40, 6, 12, 2), ScrubPeriodMs_g="1073741823")),
     ("rpl_clk_min", "isp_replace_synth", dict(rpl(40, 6, 12, 2, period_ms=1), ClkFreqHz_g="1000")),
     ("rpl_clk_max", "isp_replace_synth", dict(rpl(40, 6, 12, 2, period_ms=1), ClkFreqKHz_g="214748000")),

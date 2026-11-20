@@ -107,6 +107,31 @@ architecture sim of isp_bin_tb is
         return BinX_g - 1;
     end function;
 
+    -- e: the HCOL events of the horizontal filter after the last pixel of a line until the last bin is complete,
+    -- when W is not a multiple of BinX_g in the modes zero and replicate; the virtual pixels of the vertical filter
+    -- and the release of the input come e cycles later (verification plan, section 5)
+    function binLate return natural is
+    begin
+        if Valid_c or not HorOn_c then
+            return 0;
+        end if;
+        return (BinX_g - ImageWidth_g mod BinX_g) mod BinX_g;
+    end function;
+
+    constant E_c : natural := binLate;
+
+    -- s: in lines of at most 3 pixels the frame sync of the horizontal filter takes the last pixel of a line before
+    -- the hold for the BinX_g - 1 HCOL events of the line before, so the pixel waits behind them in its input stage
+    function lastWait return natural is
+    begin
+        if Valid_c or not HorOn_c or ImageWidth_g > 3 then
+            return 0;
+        end if;
+        return BinX_g - 1;
+    end function;
+
+    constant S_c : natural := lastWait;
+
     -- N: the virtual pixels of the vertical filter after every image, during which its input waits
     function vpix return natural is
     begin
@@ -119,6 +144,16 @@ architecture sim of isp_bin_tb is
     -- d: the wait of the input of an image that follows an image (BIN-PF-01); without the horizontal filter the
     -- input waits for all N virtual pixels (the window, WIN-PF-01)
     function waitMax return natural is
+    begin
+        if not HorOn_c then
+            return vpix;
+        end if;
+        return maximum(0, vpix + 2 + E_c - 2 * BinX_g);
+    end function;
+
+    -- The bound of BIN-PF-01 on the wait: max(0, N + 2 - 2 x BinX_g); every wait of the derivation lies below it
+    -- (verification plan, section 5)
+    function waitSpec return natural is
     begin
         if not HorOn_c then
             return vpix;
@@ -146,10 +181,10 @@ architecture sim of isp_bin_tb is
     -- the vertical filter (the registered ready of both input stages); -1 where the range applies
     function waitExact return integer is
         constant P_c : natural := BinX_g * (4 + KerBins_c) + 3;
-        constant E_c : integer := vpix + 8 + Lx_c - BinX_g * (5 + KerBins_c);
+        constant X_c : integer := vpix + 8 + Lx_c + E_c - BinX_g * (5 + KerBins_c);
     begin
-        if HorOn_c and VerOn_c and vpix > 0 and P_c < ImageWidth_g and E_c > 0 then
-            return E_c;
+        if HorOn_c and VerOn_c and vpix > 0 and P_c < ImageWidth_g and X_c > 0 then
+            return X_c;
         elsif not HorOn_c then
             return vpix;
         end if;
@@ -183,20 +218,21 @@ architecture sim of isp_bin_tb is
     end function;
 
     -- Fall of Stat_ImageOpen after the acceptance of the last pixel of an image: the frame sync of the input one
-    -- cycle later; with both filters the vertical one, when the last bin enters it (7 + log2ceil(BinX_g))
+    -- cycle later (s more in lines of at most 3 pixels); with both filters the vertical one, when the last bin
+    -- enters it (7 + log2ceil(BinX_g) + e + s)
     function fallDelay return positive is
     begin
         if HorOn_c and VerOn_c then
-            return 7 + Lx_c;
+            return 7 + Lx_c + E_c + S_c;
         end if;
-        return 1;
+        return 1 + S_c;
     end function;
 
     constant HoldMax_c  : natural  := holdMax;
     constant Wait_c     : natural  := waitMax;
     constant Exact_c    : integer  := waitExact;
     constant WaitLo_c   : natural  := choose(Exact_c >= 0, maximum(Exact_c, 0), maximum(0, Wait_c - absorb));
-    constant WaitHi_c   : natural  := choose(Exact_c >= 0, maximum(Exact_c, 0), Wait_c);
+    constant WaitHi_c   : natural  := choose(Exact_c >= 0, maximum(Exact_c, 0), minimum(Wait_c, waitSpec));
     constant Base_c     : positive := ImageHeight_g * (ImageWidth_g + HoldMax_c);
     constant PerMin_c   : positive := Base_c + WaitLo_c;
     constant PerMax_c   : positive := Base_c + WaitHi_c;

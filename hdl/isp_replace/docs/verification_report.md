@@ -13,19 +13,24 @@ The status-output audit added a probe of `Stat_ImageOpen` and a read of `STATUS`
 The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
 commit 4cef90a, 601 of 601 tests passed (84 of them `isp_replace`), 0 skipped; `lint/synth_check.py` (TC-RPL-12) passed.
 
+The registered read request and the defaults `RamRdLatency_g` 2 and `EccPipeline_g` 1 (section 5.1), with the
+configurations `defaults` and `defaults_rate` and the reset sweep at the read request in test_ecc: `python run.py -p 4`
+on 2026-11-20 on commit f9fad71, 668 of 668 tests passed (89 of them `isp_replace`), 0 skipped;
+`lint/synth_check.py` (TC-RPL-12) passed.
+
 | Test | Configurations | Passed |
 | --- | --- | --- |
-| `test_static` (TC-RPL-01) | 27 (with the sweeps) | 27 |
+| `test_static` (TC-RPL-01) | 28 (with the sweeps) | 28 |
 | `test_input_stream` (TC-RPL-02) | 8 | 8 |
 | `test_map_update` (TC-RPL-03) | 8 | 8 |
 | `test_clear` (TC-RPL-04) | 1 | 1 |
-| `test_ecc` (TC-RPL-05) | 8 | 8 |
+| `test_ecc` (TC-RPL-05) | 9 | 9 |
 | `test_scrub` (TC-RPL-06) | 10 | 10 |
-| `test_registers` (TC-RPL-07) | 8 | 8 |
+| `test_registers` (TC-RPL-07) | 9 | 9 |
 | `test_flag_coincidence` (TC-RPL-08) | 1 | 1 |
 | `test_exhaustive` (TC-RPL-09) | 2 | 2 |
-| `test_reset` (TC-RPL-10) | 8 | 8 |
-| `test_rate` (TC-RPL-11) | 3 | 3 |
+| `test_reset` (TC-RPL-10) | 9 | 9 |
+| `test_rate` (TC-RPL-11) | 4 | 4 |
 | TC-RPL-12 (`lint/synth_check.py`) | 7 configurations synthesise without latches; 13 generics out of range stop the elaboration with a message naming the generic | 20 |
 | TC-RPL-13 (`lint/vivado_ooc.py`) | Section 5 | Not run |
 | TC-RPL-14 (review) | Section 6 | Passed |
@@ -94,8 +99,8 @@ Measured timing (test_rate) and coincidence (test_flag_coincidence), with Lat = 
 | `ImageHeight_g` | 1 to 65536 | 1, 2, 3, 4, 5, 6, 40, 256, 4096, 65536 | 1, 1024, 65536; 65537 stops the elaboration |
 | `PixelBits_g` | 1 to 24 | 1, 4, 6, 8, 10, 12, 24 | 1, 12, 24; 25 stops the elaboration |
 | `MaxGap_g` | 1 to 7 | every value | 1, 2, 7; 0 and 8 stop the elaboration |
-| `RamRdLatency_g` | 1 to 3 | every value, crossed with every `EccPipeline_g` | 1, 2, 3; 4 stops the elaboration |
-| `EccPipeline_g` | 0 to 2 | every value | 0, 1, 2; 3 stops the elaboration |
+| `RamRdLatency_g` | 1 to 3 | every value, crossed with every `EccPipeline_g`; 2 also as the default of the entity (`defaults`, `defaults_rate`) | 1, 2 (the default, `rpl_default`), 3; 4 stops the elaboration |
+| `EccPipeline_g` | 0 to 2 | every value; 1 also as the default of the entity (`defaults`, `defaults_rate`) | 0, 1 (the default, `rpl_default`), 2; 3 stops the elaboration |
 | `RamStyle_g` | values of Open Logic | the default (an attribute for the synthesis tool only) | the default |
 | `ClkFreqHz_g`, `ScrubPeriod_g` | 1000.0 to 2.14748e11 when paced; 0.0, or 0.001 to 1073741.823 s | 150 MHz free running (0.0); 1000 Hz with 300 ms and 5 ms | 150 MHz with 0.0, 1 ms and 1073741.823 s; 1 ms at 1000 Hz and at 2.14748e11 Hz; a negative period, 0.0005 and 1073741.824 s, 999 Hz and 2.14748001e11 Hz stop the elaboration |
 
@@ -112,33 +117,44 @@ mode mirror, which the plan now replaces by the window that carries the mark ins
 division constant one bit shorter, which the configuration `exhaustive_p6` now kills.
 
 The mutation run was repeated on 2026-11-20 on commit 399d8b9 after the status-output audit (section 7), with the same
-14 tests and the three mutants of the audit; the table shows that run. Every one of the 19 mutants fails at least one
+14 tests and the three mutants of the audit. Every one of the 19 mutants fails at least one
 test. The read-ahead across the image start is no longer killed by test_scrub: that test wrote its double error into a
 random word, in `g2` word 0, which the mutant reads before the injection; the double error is now in the last word of
 the map (plan, section 5). test_map_update, the test the plan names, kills it as before.
 
+The mutation run was repeated on 2026-11-20 on commit f9fad71 for the registered read request and the defaults
+(section 5.1), with 21 tests: the 14 before, the configuration `defaults` (test_static, test_registers, test_ecc,
+test_reset), and test_rate of `defaults_rate`, `rate_w33` and `rate_g2`; three mutants concern the registered request.
+The table shows that run. Every one of the 22 mutants fails at least one test. The registered request kept through a
+reset is killed only at the defaults (`RamRdLatency_g` 2, `EccPipeline_g` 1), by the reset sweep of test_ecc and by
+test_reset. The read-ahead one word shorter is killed by test_rate of `rate_w33`, whose last word of a line holds a
+single pixel (architecture, section 5).
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
-| None (reference) | passes (14 tests) | - |
-| The weights of the interpolation swapped (L x dl + R x dr) | killed by 9 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_scrub, test_static |
-| No rounding term | killed by 13 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| The search one place too far (G + 1) | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| A place outside the image taken as operational (the window carries the mark instead of the operational flag, so that the zero border reads as operational) | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| A one-sided replacement from the wrong side | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| An unreplaced pixel output as 0 and not reported | killed by 14 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_registers, test_reset, test_scrub, test_static |
-| The division constant one bit shorter (K = PixelBits_g + 7) | killed by 1 of 14 tests | test_exhaustive |
-| The read-ahead across the image start (words 0 and 1 read at the end of the image before) | killed by 9 of 14 tests | test_clear, test_map_update, test_registers, test_reset, test_static |
-| No new word at the first pixel of a line (the word counter not advanced at the end of a line) | killed by 12 of 14 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_reset, test_scrub, test_static |
-| MAP_ADDR cut to the width of the map address | killed by 3 of 14 tests | test_map_update, test_registers |
-| MAP_ADDR counted up by a write without effect | killed by 3 of 14 tests | test_clear, test_map_update |
-| A CTRL.CLEAR during a clear restarts it | killed by 1 of 14 tests | test_clear |
-| A word with a double error replaced by zeros instead of used as read | killed by 3 of 14 tests | test_ecc, test_registers, test_scrub |
-| Stat_Unreplaced pulsed when the pixel enters the output register (not when it leaves the module) | killed by 1 of 14 tests | test_reset |
-| No Stat_EccSec pulse with a read | killed by 2 of 14 tests | test_ecc, test_registers |
-| The error flags of a word reported when it is read, not when it comes in use | killed by 1 of 14 tests | test_ecc |
-| Stat_ImageOpen tied to 0 | killed by 1 of 14 tests | test_input_stream |
-| STATUS.IMAGE_OPEN tied to 0 | killed by 1 of 14 tests | test_registers |
-| Scrub_EccSec and Scrub_EccDed exchanged | killed by 1 of 14 tests | test_scrub |
+| None (reference) | passes (21 tests) |  |
+| The weights of the interpolation swapped (L x dl + R x dr) | killed by 14 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_reset, test_scrub, test_static |
+| No rounding term | killed by 20 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| The search one place too far (G + 1) | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| A place outside the image taken as operational (the window carries the mark instead of the operational flag, so that the zero border reads as operational) | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| A one-sided replacement from the wrong side | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| An unreplaced pixel output as 0 and not reported | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| The division constant one bit shorter (K = PixelBits_g + 7) | killed by 1 of 21 tests | test_exhaustive |
+| The read-ahead across the image start (words 0 and 1 read at the end of the image before) | killed by 15 of 21 tests | test_clear, test_map_update, test_rate, test_registers, test_reset, test_static |
+| No new word at the first pixel of a line (the word counter not advanced at the end of a line) | killed by 18 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_reset, test_scrub, test_static |
+| MAP_ADDR cut to the width of the map address | killed by 4 of 21 tests | test_map_update, test_registers |
+| MAP_ADDR counted up by a write without effect | killed by 3 of 21 tests | test_clear, test_map_update |
+| A CTRL.CLEAR during a clear restarts it | killed by 1 of 21 tests | test_clear |
+| A word with a double error replaced by zeros instead of used as read | killed by 5 of 21 tests | test_ecc, test_registers, test_scrub |
+| Stat_Unreplaced pulsed when the pixel enters the output register (not when it leaves the module) | killed by 2 of 21 tests | test_reset |
+| No Stat_EccSec pulse with a read | killed by 4 of 21 tests | test_ecc, test_registers |
+| The error flags of a word reported when it is read, not when it comes in use | killed by 2 of 21 tests | test_ecc |
+| Stat_ImageOpen tied to 0 | killed by 1 of 21 tests | test_input_stream |
+| STATUS.IMAGE_OPEN tied to 0 | killed by 2 of 21 tests | test_registers |
+| Scrub_EccSec and Scrub_EccDed exchanged | killed by 1 of 21 tests | test_scrub |
+| The RAM reads the word after the registered request (address from the read counter) | killed by 21 of 21 tests | test_clear, test_ecc, test_exhaustive, test_input_stream, test_map_update, test_rate, test_registers, test_reset, test_scrub, test_static |
+| The registered read request kept through a reset | killed by 2 of 21 tests | test_ecc, test_reset |
+| The read-ahead one word shorter (two words in the queue and in flight) | killed by 1 of 21 tests | test_rate |
 
 ## 5. Synthesis and timing
 
@@ -150,6 +166,25 @@ configurations `rpl_default` (2048 x 1024 pixels of 12 bits, G = 2, a map of 655
 The GHDL synthesis of TC-RPL-12 shows that the module is synthesisable at the bounds of its generics, with the
 scrubber free running and paced, without latches; the netlist of the default configuration holds the map as a RAM of
 65536 words and the divisors as a table of 16 constants. It gives no timing.
+
+### 5.1 The read path of the defaults
+
+The defaults of the read path of the map come from the preliminary synthesis on PolarFire MPF100T (Libero, Synplify
+Pro) with a clock of 125 MHz, pre-layout estimates, not a timing closure and not on the reference device. Each step
+moves the worst path, and each of the three changes is needed:
+
+| Read path of the map | `rpl_default` (MHz) | Its worst path | `rpl_g7` (MHz) | Its worst path |
+| --- | --- | --- | --- | --- |
+| `RamRdLatency_g` 1, `EccPipeline_g` 0, the request decided and sent in one cycle | 94.1 | RAM -> ECC decode -> queue (10 logic levels) | 109.1 | RAM -> ECC decode -> queue (7) |
+| `EccPipeline_g` 1 | 109.4 | RAM -> ECC decode -> output register of the decoder (7) | 113.7 | pixel position -> read address of the RAM (7) |
+| `EccPipeline_g` 2 | 105.4 | pixel position -> read address of the RAM (7) | 113.8 | pixel position -> read address of the RAM (6) |
+| The registered read request, `EccPipeline_g` 1 | 121.5 | RAM -> ECC decode -> output register of the decoder (6) | 101.8 | RAM -> ECC decode -> output register of the decoder (9) |
+| The registered read request, `EccPipeline_g` 1, `RamRdLatency_g` 2 (the defaults) | 136.5 | register of the map address -> write data of the RAM (7) | 129.8 | the multiplier of the interpolation -> output register (5) |
+
+The registered request moves the RAM address off the path from the pixel position; in `rpl_g7` the path through the
+ECC decode then limits, mapped with 9 logic levels against 6 in `rpl_default`, until the LSRAM output register takes
+the RAM out of it. The read of a word takes 3 cycles more than in the first row: within a line nothing changes (the
+read-ahead of two words), at the image start pixel (0, 0) waits 3 cycles longer (plan, section 5).
 
 ## 6. Requirement coverage
 
@@ -184,6 +219,7 @@ scrubber free running and paced, without latches; the netlist of the default con
 
 | Finding | Correction |
 | --- | --- |
+| The preliminary synthesis at 125 MHz on PolarFire MPF100T found the default configuration at 94.1 MHz: the read data of the map passed the ECC decode into the queue in one cycle (`EccPipeline_g` 0), and with a pipeline stage the read address, computed from the pixel position in the same cycle, and the RAM output through the decode limited it next | The read request (address and enable) is registered, and the defaults are `RamRdLatency_g` 2 and `EccPipeline_g` 1: 136.5 MHz (section 5.1). The read of a word takes 3 cycles more, which the read-ahead hides within a line; RPL-PF-01 amended (the wait for word 0 `RamRdLatency_g` + `EccPipeline_g` + 2); the bench values of test_rate follow; test_ecc resets the module 0 to 6 cycles after pixel (0, 0), in and after the cycles of the registered request, and no word read ahead reports (RPL-IF-04) |
 | The derivation of the plan expected G + Lat + 1 hold cycles between the first pixels of lines 0 and 1 and an image period of H x (W + G) + Lat + 1. The rate test measured less (for example 7 instead of 11 holds and 132 instead of 136 cycles with G = 7 and Lat = 3). A trace of the handshakes showed the cause: after an image, the wait for word 0 of the next image runs beside the G virtual columns of the last line of the image before, which the buffers between the input and the window move into the next image; after an idle module the wait stands alone. The RTL is right | The specification (RPL-PF-01), the architecture and the plan state the exact values: Lat + 1 holds after an idle module, max(G, Lat + 1) after an image; the period H x (W + G) + max(0, Lat + 1 - G), the first interval after an idle module H x W + (H - 1) x G + Lat + 1. The bench checks these values exactly |
 | `Stat_Unreplaced` pulsed when an unreplaced pixel entered the output register. A reset that drops pixels in the pipeline made the count depend on the stage the dropped pixel had reached; the count of `test_reset` differed from the model by one in two configurations | `Stat_Unreplaced` pulses in the cycle after the pixel left the output, so a pixel lost by a reset reports nothing (RPL-IF-04); the model counts the delivered pixels |
 | The first runs stopped in every test of `g2` with a range error of the counter of pending reads, which ran below 0. The first explanation, a read issued during the reset that returned after it, was wrong: every read-valid stage of `olo_ft_ram_sdp_scrub` clears with the reset. A trace of every event of the read valid showed the cause: when a read of the scrubber returns, the read valid rises to '1' and falls back to '0' within the same simulation time (the mask of the scrubber reads takes effect one delta cycle later), and the combinational process of the lookup saw the '1' in that delta cycle with no read pending. At every clock edge the read valid is '0', so the glitch never reached a register; the RTL is right | The guard that drops a word with no read pending stays, as the defence against an upset of the counter (RPL-FT-02) that it is; it also keeps the counter in its range in the delta cycle of the glitch. `test_reset` sweeps a reset of one cycle over the cycles of the map reads of pixel (0, 0); with a read latency of 5 the reset met a read in four steps, with 0, 1 and 2 reads under way, and the next image was correct every time |

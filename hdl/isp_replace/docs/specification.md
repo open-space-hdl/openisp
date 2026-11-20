@@ -57,7 +57,7 @@ and their marks, and an interpolation kernel behind it.
 
 | ID | Requirement | Core requirement |
 | --- | --- | --- |
-| RPL-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most G clock cycles between the acceptance of the first pixels of two consecutive lines of an image; between the first pixels of lines 0 and 1 the input waits for word 0 of the defect map instead, max(G, `RamRdLatency_g` + `EccPipeline_g` + 1) clock cycles at most. | ISP-STR-09 |
+| RPL-PF-01 | With `In_Valid` and `Out_Ready` high, the module shall hold the input (`In_Ready` low) for at most G clock cycles between the acceptance of the first pixels of two consecutive lines of an image; between the first pixels of lines 0 and 1 the input waits for word 0 of the defect map instead, max(G, `RamRdLatency_g` + `EccPipeline_g` + 2) clock cycles at most. | ISP-STR-09 |
 | RPL-PF-02 | With back-to-back input and `Out_Ready` high, the interval between the starts of two consecutive images shall not exceed H x (W + G) + `RamRdLatency_g` + `EccPipeline_g` + 16 clock cycles. | ISP-STR-09 |
 | RPL-PF-03 | With `Out_Ready` high, the pixel q(x, y) shall be at the output at most 13 + `RamRdLatency_g` + `EccPipeline_g` clock cycles after the module accepted the pixel p(x + G, y), where that pixel is inside the image. | ISP-STR-09 |
 
@@ -117,8 +117,8 @@ outputs, also of the content of the RAM after power-up until the software clears
 | `ImageHeight_g` | none | 1 to 65536 | H: lines per image |
 | `PixelBits_g` | none | 1 to 24 | Bits per pixel |
 | `MaxGap_g` | 2 | 1 to 7 | G: largest distance to an operational pixel used for a replacement |
-| `RamRdLatency_g` | 1 | 1 to 3 | Read latency of the RAM of the defect map (Open Logic `RamRdLatency_g`) |
-| `EccPipeline_g` | 0 | 0 to 2 | Pipeline stages of its ECC decoder (Open Logic `EccPipeline_g`) |
+| `RamRdLatency_g` | 2 | 1 to 3 | Read latency of the RAM of the defect map (Open Logic `RamRdLatency_g`) |
+| `EccPipeline_g` | 1 | 0 to 2 | Pipeline stages of its ECC decoder (Open Logic `EccPipeline_g`) |
 | `RamStyle_g` | "auto" | Values of Open Logic | Implementation of the RAM (Open Logic `RamStyle_g`) |
 | `ClkFreqHz_g` | 150.0e6 | 1000.0 to 2.14748e11 when `ScrubPeriod_g` is above 0.0 (the pacer of Open Logic divides the clock to a tick of 1 kHz; `olo_base_strobe_gen` checks FreqClkHz_g / FreqStrobeHz_g <= 214748000.0, so 214748000 x 1000 Hz); any value with `ScrubPeriod_g` 0.0 | Clock frequency, for the scrub period |
 | `ScrubPeriod_g` | 0.0 | 0.0, or 0.001 to 1073741.823 s, rounded to whole milliseconds (the pacer of Open Logic counts the period in milliseconds, at most 2^30 - 1) | Time for one scrub pass over the defect map; 0.0 scrubs in every free cycle |
