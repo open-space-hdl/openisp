@@ -47,6 +47,14 @@ CONFIGS = {
                                   "GainBits_g": 16, "MaxShift_g": 32, "MultStages_g": 2, "Runtime_g": True}, False),
     "pnt_wide": ("isp_point", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "InBits_g": 64, "OutBits_g": 32,
                                "GainBits_g": 18, "MaxShift_g": 83, "MultStages_g": 4, "Runtime_g": True}, False),
+    # isp_window TC-WIN-09: 3 x 3 replicate, 12 bits (the default); 5 x 5 mirror, 16 bits; 16 x 16 zero, 32 bits; lines
+    # of 4096 pixels
+    "win_default": ("isp_window", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "PixelBits_g": 12, "WinX_g": 3,
+                                   "WinY_g": 3, "BorderMode_g": "replicate"}, False),
+    "win_mirror5": ("isp_window", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "PixelBits_g": 16, "WinX_g": 5,
+                                   "WinY_g": 5, "BorderMode_g": "mirror"}, False),
+    "win_max": ("isp_window", {"ImageWidth_g": 4096, "ImageHeight_g": 4096, "PixelBits_g": 32, "WinX_g": 16,
+                               "WinY_g": 16, "BorderMode_g": "zero"}, False),
     # isp_conv TC-CNV-12: the MTF filters 3 x 3 and 5 x 5 (12-bit pixels, 16-bit run-time coefficients), the largest
     # window at run time, and the sum of four ones of the binning
     "cnv_mtf3": ("isp_conv", {"PixelBits_g": 12, "WinX_g": 3, "WinY_g": 3, "CoefBits_g": 16,
