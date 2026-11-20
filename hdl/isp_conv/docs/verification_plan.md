@@ -142,8 +142,8 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | The parity bit of a coefficient not set by its write | TC-CNV-02, 04 (a written set counts as a parity error at the image start) |
 | A write with byte enables merged into zeros instead of the stored coefficient | TC-CNV-05 (writes with random strobes, CNV-RG-03) |
 | `INJECT.PARITY` flips the parity bit of every coefficient | TC-CNV-04 |
-| The parity of a kept byte taken from the write data | TC-CNV-02, 05 (writes with random strobes, then an image start) |
-| The parity of a written byte taken from the stored bits | TC-CNV-02, 05 |
+| The parity of a kept byte taken from the write data | TC-CNV-05 (writes with random strobes, then an image start) |
+| The parity of a written byte taken from the stored bits | TC-CNV-02, 07 (every run-time set) |
 
 ## 7. Expected coverage exclusions
 

@@ -90,10 +90,11 @@ the 24 tests of the configurations `mtf3`, `mtf5_const`, `ones4`, `exhaustive`, 
 test_static of `taps_5` and `taps_33` and test_registers of `wide`. Every mutant of the plan (section 6) fails at
 least one test, and the tests that fail include those the plan expects.
 
-The mutation run was repeated on 2026-11-20 on commit 208766e, the write decode with one address compare per
-coefficient (architecture, section 6), with the same 24 tests and four mutants of the write decode; the table shows
-that run. Every one of the 17 mutants fails at least one test. The write with byte enables merged into zeros is killed
-by test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-03).
+The mutation run was repeated on 2026-11-20 on commit dbcce6e, the write decode with one address compare per
+coefficient and the parity of a write from the parities of its bytes (architecture, section 6), with the same 24 tests,
+four mutants of the write decode and two of the byte parities; the table shows that run. Every one of the 19 mutants
+fails at least one test. The write with byte enables merged into zeros and the parity of a kept byte taken from the
+write data are killed by test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-03).
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -114,6 +115,8 @@ by test_registers of `mtf3` and `wide`, which write with random strobes (CNV-RG-
 | A coefficient write that lands in the coefficient after its address | killed by 9 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime |
 | The parity bit of a coefficient not set by its write | killed by 8 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime |
 | A write with byte enables merged into zeros instead of the stored coefficient | killed by 2 of 24 tests | test_registers |
+| The parity of a kept byte taken from the write data | killed by 2 of 24 tests | test_registers |
+| The parity of a written byte taken from the stored bits | killed by 7 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_reset, test_runtime |
 | INJECT.PARITY flips the parity bit of every coefficient | killed by 1 of 24 tests | test_parity |
 
 ## 5. Synthesis and timing
