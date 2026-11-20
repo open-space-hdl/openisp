@@ -340,6 +340,7 @@ architecture sim of isp_chain_tb is
     signal Cycle    : natural  := 0;
     signal RateTest : boolean  := false;
     signal FifoTest : boolean  := false;
+    signal RegsTest : boolean  := false;
 
     -- Inverts the data bits of beat NegBeat_g at the connection behind isp_crop
     signal NegCount : natural := 0;
@@ -1201,11 +1202,14 @@ begin
         while test_suite loop
             RateTest <= false;
             FifoTest <= false;
+            RegsTest <= false;
             if run("test_rate") then
                 RateTest <= true;
-            elsif run("test_fifo") then
+            elsif run("test_fifo") or run("neg_fifo_depth") or run("neg_fifo_drain") then
                 FifoTest <= true;
-            elsif run("test_static") or run("test_input_stream") or run("test_registers") or run("test_ecc") or
+            elsif run("test_registers") then
+                RegsTest <= true;
+            elsif run("test_static") or run("test_input_stream") or run("test_ecc") or
                   run("test_reset") or run("neg_seam_dimension") or run("neg_seam_beat") or
                   run("neg_pulse_count") then
                 null;
@@ -1435,21 +1439,77 @@ begin
     end process;
 
     -----------------------------------------------------------------------------------------------
+    -- Times of the register script in test_registers (verification plan, section 5.4): the cycles
+    -- from the last image start at the chain input to the start and to the end of every marker
+    -----------------------------------------------------------------------------------------------
+    p_regs_time : process (Clk) is
+        variable InN_v      : natural := 0;
+        variable Start_v    : natural := 0;
+        variable MarkPrev_v : natural := 0;
+        variable AckPrev_v  : natural := 0;
+    begin
+        if rising_edge(Clk) and RegsTest then
+            if In_Valid = '1' and In_Ready = '1' then
+                if InN_v mod (Width_g * Height_g) = 0 then
+                    Start_v := Cycle;
+                end if;
+                InN_v := InN_v + 1;
+            end if;
+            if Marker /= MarkPrev_v and Marker >= 100 then
+                log(ID_SEQUENCER, "test_registers: marker " & integer'image(Marker) & " set " &
+                    integer'image(Cycle - Start_v) & " cycles after the last image start at the chain input");
+            end if;
+            if AckRegs /= AckPrev_v then
+                log(ID_SEQUENCER, "test_registers: register accesses of marker " & integer'image(AckRegs) &
+                    " done " & integer'image(Cycle - Start_v) &
+                    " cycles after the last image start at the chain input");
+            end if;
+            MarkPrev_v := Marker;
+            AckPrev_v  := AckRegs;
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------------------------------
     -- FIFO in front of the chain (test_fifo): never full while the source sends, largest level
     -----------------------------------------------------------------------------------------------
     p_fifo : process (Clk) is
-        variable Max_v : natural := 0;
+        variable Max_v   : natural := 0;
+        variable Held_v  : natural := 0;
+        variable Done_v  : boolean := false;
+        variable SrcN_v  : natural := 0;
+        variable Carry_v : natural := 0;
+        variable RdN_v   : natural := 0;
     begin
         if rising_edge(Clk) then
-            if FifoTest then
+            if FifoTest and not Done_v then
                 if Src_Valid = '1' and Src_Ready = '0' then
-                    error("test_fifo: the FIFO in front of the chain holds the source (CHN-PF-02)");
+                    Held_v := Held_v + 1;
+                end if;
+                -- The image blanking drains the FIFO: when the first pixel of a further image is written, every
+                -- pixel written before it has been read (a read in the same cycle counts)
+                if In_Valid = '1' and In_Ready = '1' then
+                    RdN_v := RdN_v + 1;
+                end if;
+                if Src_Valid = '1' and Src_Ready = '1' then
+                    if SrcN_v > 0 and SrcN_v mod (Width_g * Height_g) = 0 and SrcN_v /= RdN_v then
+                        Carry_v := Carry_v + 1;
+                        log(ID_SEQUENCER, "test_fifo: " & integer'image(SrcN_v - RdN_v) & " pixels of the image " &
+                            "before in the FIFO at the first pixel of image " &
+                            integer'image(SrcN_v / (Width_g * Height_g)));
+                    end if;
+                    SrcN_v := SrcN_v + 1;
                 end if;
                 Max_v := maximum(Max_v, FifoLevel);
-                if SrcDone and SinkDone and Max_v > 0 then
+                if SrcDone and SinkDone then
+                    check_value(Held_v, 0, ERROR, "test_fifo: cycles in which the FIFO in front of the chain held " &
+                                "the source (CHN-PF-02)");
                     check_value(Max_v, FifoLevel_g, ERROR, "test_fifo: largest In_Level of the FIFO (CHN-PF-02)");
-                    log(ID_SEQUENCER, "test_fifo: largest In_Level " & integer'image(Max_v));
-                    Max_v := 0;
+                    check_value(Carry_v, 0, ERROR, "test_fifo: images that found pixels of the image before in the " &
+                                "FIFO (CHN-PF-02)");
+                    log(ID_SEQUENCER, "test_fifo: largest In_Level " & integer'image(Max_v) & " of " &
+                        integer'image(FifoDepth_g) & " entries, " & integer'image(Held_v) & " cycles held, " &
+                        integer'image(Carry_v) & " images after a carry-over");
+                    Done_v := true;
                 end if;
             end if;
         end if;

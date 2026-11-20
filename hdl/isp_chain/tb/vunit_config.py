@@ -32,7 +32,8 @@ MTF5 = [0, -1, -1, -1, 0, -1, -2, -4, -2, -1, -1, -4, 44, -4, -1, -1, -2, -4, -2
 SMALL_COEF = [1, -1, 1, 1, 1, -2, 0, 1, 1]
 SLOT = {"replace": 0, "point1": 1, "crop": 2, "filter2d": 3, "point2": 4}
 TYPICAL_TESTS = ["test_static", "test_input_stream", "test_registers", "test_ecc", "test_reset", "test_rate",
-                 "test_fifo", "neg_seam_dimension", "neg_seam_beat", "neg_pulse_count"]
+                 "test_fifo", "neg_seam_dimension", "neg_seam_beat", "neg_pulse_count", "neg_fifo_depth",
+                 "neg_fifo_drain"]
 
 # Chains of the verification plan (section 2)
 CHAINS = [
@@ -475,18 +476,19 @@ def build_rate(rng, x):
     return items + [("W",), ("M", 2)] + x.settle(8) + [("P",)]
 
 
-FIFO_L, FIFO_F, FIFO_DEPTH = 1, 30, 32
+FIFO_L, FIFO_F = 1, 30
 
 
-def build_fifo(rng, x):
+def build_fifo(rng, x, blank=None):
     """TC-CHN-07: a source that cannot wait: W pixels per line in W cycles, a line blanking L and an image blanking F
-    (section 5.3)."""
+    (section 5.3): F at the drain condition of the rule, or `blank`."""
+    f = fifo_drain(x.c) if blank is None else blank
     items = x.start(rng)
     for _ in range(4):
         pix = random_image(rng, x.w, x.h, x.bits)
         for y in range(x.h):
             items += packets(pix[y * x.w:(y + 1) * x.w], [x.w], first=y == 0, last=y == x.h - 1)
-            items += [("G", FIFO_F if y == x.h - 1 else FIFO_L)]
+            items += [("G", f if y == x.h - 1 else FIFO_L)]
     return items + x.settle(8) + [("P",)]
 
 
@@ -505,6 +507,8 @@ BUILDERS = {
     "neg_seam_dimension": build_negative,
     "neg_seam_beat": build_negative,
     "neg_pulse_count": build_negative,
+    "neg_fifo_depth": lambda rng, x: build_fifo(rng, x, FIFO_F),
+    "neg_fifo_drain": lambda rng, x: build_fifo(rng, x, fifo_drain(x.c) - 1),
 }
 
 
@@ -567,13 +571,35 @@ def fifo_level(c):
     after it registered it, so a pixel is read two edges after its write, and In_Level counts it until the edge
     after its read."""
     g, rd_lat = c["rpl"]["g"], c["rpl"]["lat"] + c["rpl"]["ecc"]
-    d, most = 0, 0
+    d, most, last = 0, 0, 0
     for y in range(c["h"]):
         r = rd_lat + 1 if y == 0 else g
         most = max(most, d + r)
+        last = d + r
         d = max(0, d + r - FIFO_L)
-    assert d + g <= FIFO_F, "the image blanking does not drain the FIFO"
+    assert last + g <= FIFO_F, "the image blanking does not drain the FIFO"
     return 3 + most
+
+
+def fifo_drain(c):
+    """The image blanking of the rule (section 5.3): after the last write the FIFO holds what the last line leaves,
+    D_(H-2) + r_(H-1), and the pixel written the cycle before (a pixel is read two edges after its write); it reads one
+    per cycle, the virtual columns of the last line hold the input of isp_replace only after its last pixel, and a
+    read in the cycle of the first write of the next image counts: F >= D_(H-2) + r_(H-1) + 1."""
+    g, rd_lat = c["rpl"]["g"], c["rpl"]["lat"] + c["rpl"]["ecc"]
+    d, last = 0, 0
+    for y in range(c["h"]):
+        r = rd_lat + 1 if y == 0 else g
+        last = d + r
+        d = max(0, d + r - FIFO_L)
+    return last + 1
+
+
+def fifo_depth(c):
+    """The depth of the user guide (section 5, step 3): the largest number of pixels the waits leave in the FIFO plus
+    4, the 3 of In_Level in a continuous flow and one more, because the FIFO holds the source when In_Level equals
+    Depth_g before a write."""
+    return fifo_level(c) + 1
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -714,7 +740,17 @@ def configure(lib, out_dir):
             if test == "test_rate":
                 generics.update(rate_values(c))
             if test == "test_fifo":
-                generics.update({"FifoDepth_g": FIFO_DEPTH, "FifoLevel_g": fifo_level(c)})
+                generics.update({"FifoDepth_g": fifo_depth(c), "FifoLevel_g": fifo_level(c)})
+            if test == "neg_fifo_drain":
+                # One cycle of image blanking less than the rule: every further image finds a pixel of the image
+                # before in the FIFO (one error of the count); the depth and the largest level as in test_fifo
+                generics.update({"FifoDepth_g": fifo_depth(c), "FifoLevel_g": fifo_level(c), "ExpErrors_g": 1,
+                                 "GapPct_g": 0, "StallPct_g": 0})
+            if test == "neg_fifo_depth":
+                # One entry less than the rule: the FIFO holds the source (one error of the held cycles); In_Level
+                # reaches the depth, the largest level of the rule
+                generics.update({"FifoDepth_g": fifo_depth(c) - 1, "FifoLevel_g": fifo_level(c), "ExpErrors_g": 1,
+                                 "GapPct_g": 0, "StallPct_g": 0})
             if test == "neg_seam_dimension":
                 p = ch.pos("crop")
                 images = 2

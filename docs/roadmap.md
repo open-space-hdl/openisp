@@ -24,7 +24,8 @@ The [TRL page](https://openspacehdl.org/trl/) explains what the levels mean for 
 | `isp_replace` | Replacement of non-operational pixels by 1D interpolation, with a defect map configurable at run time | Verified (GHDL, mutations); timing run open |
 
 All modules share the pixel stream of the [requirements specification](requirements.md), so they connect in any
-order.
+order. The chain test `isp_chain` (phase G) connects them in three chains, against the composition of their reference
+models: verified (GHDL).
 
 ## Open items
 
