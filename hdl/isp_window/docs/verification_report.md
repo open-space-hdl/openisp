@@ -35,7 +35,7 @@ five benches are unchanged (1673 files).
 | `test_rate` (TC-WIN-06) | 4 | 4 |
 | TC-WIN-07 (review) | Section 6 | Passed |
 | TC-WIN-08 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 19 generics out of range stop the elaboration with a message naming the generic | 27 |
-| TC-WIN-09 (`lint/vivado_ooc.py`) | Section 5 | Not run |
+| TC-WIN-09 (`lint/libero_synth.py`) | 3 configurations (section 5) | 3 of 3 synthesised |
 
 ## 2. Summary
 
@@ -151,8 +151,19 @@ again).
 
 ## 5. Synthesis and timing
 
-Not run yet: TC-WIN-09 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready.
+TC-WIN-09 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
+STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
+a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
+reference systems is open (ISP-GEN-04, roadmap).
+
+| Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `win_default`: 3 x 3 replicate, 12 bits, 4096 pixels per line (the default) | 146.9 | 1.194 | 1139 | 720 | 8 | 0 | the state of the event control -> the line buffer RAM (4) |
+| `win_mirror5`: 5 x 5 mirror, 16 bits, 4096 pixels per line | 139.5 | 0.833 | 2329 | 1688 | 20 | 0 | the state -> the row select register (8) |
+| `win_max`: 16 x 16 zero, 32 bits, 4096 pixels per line | 106.7 | -1.370 | 10798 | 14987 | 120 | 0 | the state -> the decision of the left border -> the synchronous clear of 7680 window register bits (5; one net of 7680 loads) |
+
+The default configuration and 5 x 5 mirror meet 125 MHz in the estimate (section 5.1). `win_max`, the largest window and
+not a default, reaches 106.7 MHz (user guide, section 8).
 
 The GHDL synthesis of TC-WIN-08 shows that the module is synthesisable at the bounds of its generics, with every
 border mode and every line buffer resource, without latches; it gives no timing.

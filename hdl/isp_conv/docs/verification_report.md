@@ -40,7 +40,7 @@ register keeps a mismatch; architecture, section 6) came with the partial writes
 | `test_reset` (TC-CNV-09) | 6 | 6 |
 | `test_rate` (TC-CNV-10) | 3 | 3 |
 | TC-CNV-11 (`lint/synth_check.py`) | 8 configurations synthesise without latches; 10 generics out of range stop the elaboration with a message naming the generic | 18 |
-| TC-CNV-12 (`lint/vivado_ooc.py`) | Section 5 | Not run |
+| TC-CNV-12 (`lint/libero_synth.py`) | 4 configurations (section 5) | 4 of 4 synthesised |
 
 ## 2. Summary
 
@@ -70,7 +70,7 @@ test with well-formed window streams.
   Partial writes (PKG-08): after an injection, a write that keeps a byte with bits of the register and a write of
   only bytes without bits keep the mismatch (the next images use the generic with `Err_Config`), a write of every
   byte with bits clears it, and a partial write without a mismatch is taken (one random coefficient per
-  configuration; both kinds of write where `CoefBits_g` is above 8 and below 25).
+  configuration; both kinds of write where `CoefBits_g` is above 8).
 - Registers: identification, the window and the widths, the reset values of all coefficients (the generic,
   sign-extended), every single byte strobe on the first, the middle and the last coefficient, read-only registers,
   the gaps, the address above the last coefficient and the end of the address space, the sticky flag. Every access
@@ -156,10 +156,20 @@ fails at least one test; the three mutants of PKG-08 are killed by test_parity.
 
 ## 5. Synthesis and timing
 
-Not run yet: TC-CNV-12 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
-configurations `cnv_mtf3`, `cnv_mtf5` (12-bit pixels, 16-bit run-time coefficients), `cnv_max` (16 x 16 at run time) and
-`cnv_bin4` (four ones).
+TC-CNV-12 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
+STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
+a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
+reference systems is open (ISP-GEN-04, roadmap).
+
+| Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `cnv_mtf3`: 3 x 3, 12-bit pixels, 16-bit run-time coefficients (the MTF filter) | 177.1 | 2.354 | 1094 | 1043 | 0 | 9 | the image-start load of the working set (4) |
+| `cnv_mtf5`: 5 x 5, 12-bit pixels, 16-bit run-time coefficients (the MTF filter) | 149.8 | 1.327 | 2835 | 2457 | 0 | 25 | a coefficient -> the parity check of the set -> the enable of the working set (8) |
+| `cnv_max`: 16 x 16, 12-bit pixels, 16-bit run-time coefficients (the largest) | 112.1 | -0.919 | 25660 | 33174 | 0 | 256 | the register address -> the read multiplexer of 256 coefficients -> the read data (17) |
+| `cnv_bin4`: 1 x 4 ones, 12-bit pixels (the binning) | 274.9 | 4.362 | 106 | 215 | 0 | 0 | the flags of the adder pipeline (2) |
+
+The MTF filters and the binning meet 125 MHz in the estimate (sections 5.1 to 5.3). `cnv_max`, the largest window at run
+time and not a default, reaches 112.1 MHz (section 5.1, user guide, section 8).
 
 The GHDL synthesis of TC-CNV-11 shows that the module is synthesisable at the bounds of its generics with both values
 of `RuntimeCoef_g`, without latches; it gives no timing.
@@ -254,4 +264,4 @@ read multiplexer (section 5.1).
 | `test_static` sent one image as a single packet with the flags "11", which `isp_window` never delivers; the contract checker of the sink rejected it. `test_reset` resumed the interrupted image after the reset, which a window stream does not do either, since `isp_window` is reset with the module and restarts at an image start | `test_static` sends window streams of one packet per line (the other packet shapes stay in `test_packets`, with the checker off); `test_reset` stops the window stream at the reset and sends the next image; the plan states it. No change of the RTL |
 | `lint/vivado_ooc.py` read one declaration per line and wrote generic values as plain text: the port `Out_Data` of `isp_conv` continues on a second line, and `Coef_g` is a vector | The script joins continued declarations and writes lists as named aggregates; the top levels of the earlier configurations are unchanged, byte for byte |
 | The preliminary synthesis at 125 MHz on PolarFire MPF100T found the write of a coefficient register on the worst path of every configuration with run-time coefficients (`cnv_mtf5` 124.4 MHz, `cnv_max` 79.4 MHz, in `isp_filter2d` 108.0 MHz): the register selected by an index computed from the address for the merge of the written bytes and the parity | One address compare per coefficient and the parity of a write from the parities of its bytes (architecture, section 6; section 5.1): `cnv_mtf3` 178.8 MHz, `cnv_mtf5` 156.2 MHz, with fewer LUT than before; no cycle changes (section 1); four mutants of the write decode (plan, section 6) |
-| A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example while `CTRL.HOLD` is 1 and the registers are not checked, therefore became a valid word with the next partial write: masked, not detected (a review of the lead) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; CNV-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
+| A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example while `CTRL.HOLD` is 1 and the registers are not checked, therefore became a valid word with the next partial write: masked, not detected (found in review) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; CNV-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |

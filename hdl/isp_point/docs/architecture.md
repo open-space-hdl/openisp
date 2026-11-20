@@ -45,7 +45,7 @@ stages hold no state between pixels.
 | Stage | Registers | Operation | Width |
 | --- | --- | --- | --- |
 | 1 | Sum | p + Offset | `InBits_g` + 2, signed |
-| 2 to 1 + `MultStages_g` | Product | Sum x Gain; the register stages are placed by the retiming of the synthesis tool | `InBits_g` + `GainBits_g` + 2, signed |
+| 2 to 1 + `MultStages_g` | Product | Sum x Gain in the first of these stages; the further stages delay the product, so that a synthesis tool can take them into the pipeline of the multiplier. In the preliminary synthesis on PolarFire (Synplify) they stay behind the product, with and without retiming, and the Math blocks use none of their internal registers (verification report, section 5) | `InBits_g` + `GainBits_g` + 2, signed |
 | 2 + `MultStages_g` | Shifted value | Arithmetic shift right by Shift, 0 to `MaxShift_g`: a barrel shifter | as the product |
 | 3 + `MultStages_g` | Output register | min(max(v, Low), High): two comparisons of the shifted value with the thresholds | `OutBits_g` |
 
@@ -76,7 +76,7 @@ register block answers a read in the following cycle and every access with OKAY.
 | Register | Implementation |
 | --- | --- |
 | `ID`, `IMAGE`, `PARAM` | Constants from the generics |
-| `CTRL.HOLD` | One flip-flop with a parity flip-flop that the reset and every write of `CTRL` set; a mismatch at the image start counts as `HOLD` 0 and pulses `Err_Config` (`Runtime_g` true) |
+| `CTRL.HOLD` | One flip-flop with a parity flip-flop that the reset and every write of `CTRL` with byte 0 set; a mismatch at the image start counts as `HOLD` 0 and pulses `Err_Config` (`Runtime_g` true) |
 | `OFFSET_LO`, `OFFSET_HI`, `GAIN`, `SHIFT`, `LOW`, `HIGH` | Flip-flops for the bits in use, with the reset values of the generics, written byte by byte with the write strobes; one parity flip-flop per register that the reset sets, and a write by `ispWriteParity` of `isp_pkg` (PKG-08): a write of every byte that holds bits of the register sets it for the written value, a write that keeps one of these bytes keeps a mismatch; a write of only bytes without bits leaves it unchanged (`Runtime_g` true); constants otherwise |
 | `STATUS` | `Stat_ImageOpen`; sticky flags set by `Err_Framing` and `Err_Config`, cleared by a write of one, the pulse wins |
 | `INJECT.PARITY` | Command: bit n inverts the parity flip-flop of parameter register n (0 to 5) or of `CTRL` (6) |
@@ -89,9 +89,11 @@ register block answers a read in the following cycle and every access with OKAY.
 | Latency | 2 clock cycles in PT-1 and 3 + `MultStages_g` stages: `MultStages_g` + 5 clock cycles | PNT-PF-02 |
 
 Paths: `Out_Ready` reaches the enable of all stages and the ready input of PT-1 through one logic level; the fanout
-grows with the widths and is replicated by the synthesis tool. The longest paths are the multiplier (up to 66 x 18
-bits, spread over `MultStages_g` stages) and the barrel shifter (up to seven multiplexer levels for 84 bits); a
-configuration at the upper bounds of the widths uses `MultStages_g` 3 or 4.
+grows with the widths and is replicated by the synthesis tool. The longest paths are the multiplier (up to 66 x 18 bits,
+spread over `MultStages_g` stages where the synthesis tool takes them into the multiplier) and the barrel shifter (up to
+seven multiplexer levels for 84 bits); a configuration at the upper bounds of the widths is meant to use `MultStages_g`
+3 or 4. On PolarFire this does not shorten the product path: the widest configuration reaches 80.6 MHz (user guide,
+section 8). The run on the Versal device of the reference systems is open (ISP-GEN-04, roadmap).
 
 ## 8. Fault tolerance
 

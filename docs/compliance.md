@@ -45,9 +45,10 @@ implements it, and with the test cases that verify these module requirements.
 | ISP-FT-05 | Parity of long-lived registers | `isp_crop` | CNV-ER-01, CNV-ER-02, CNV-FT-02, CNV-IF-04, CNV-RG-03, CNV-RG-04, CRP-ER-04, CRP-FT-03, CRP-RG-03, CRP-RG-04, FLT-FT-01, FLT-IF-04, PKG-08, PNT-ER-03, PNT-ER-04, PNT-FT-02, PNT-IF-04, PNT-RG-03, PNT-RG-04 | TC-CNV-02, TC-CNV-04, TC-CNV-05, TC-CRP-03, TC-CRP-05, TC-FLT-02, TC-FLT-04, TC-FLT-05, TC-PKG-04, TC-PNT-02, TC-PNT-03, TC-PNT-05, TC-PNT-06 | Verified |
 | ISP-GEN-01 | VHDL-2008, GHDL synthesis, Open Logic | `isp_frame_sync` | BIN-CF-02, BIN-IF-04, CHN-CF-01, CNV-CF-02, CNV-IF-05, CRP-CF-02, CRP-IF-04, FLT-CF-02, FLT-IF-05, FSY-CF-02, FSY-IF-06, PKG-04, PNT-CF-02, PNT-IF-05, RPL-CF-02, RPL-IF-06, WIN-CF-03, WIN-FT-01, WIN-IF-06 | TC-BIN-04, TC-BIN-07, TC-CHN-08, TC-CNV-09, TC-CNV-11, TC-CRP-08, TC-CRP-10, TC-FLT-05, TC-FLT-07, TC-FSY-05, TC-FSY-09, TC-PKG-02, TC-PNT-09, TC-PNT-11, TC-RPL-10, TC-RPL-12, TC-WIN-04, TC-WIN-05, TC-WIN-08 | Verified |
 | ISP-GEN-02 | Specific functions as configurations | `isp_filter2d` | BIN-FN-04, CHN-FN-01, CHN-FN-04, FLT-FN-03, RPL-FN-07 | TC-BIN-01, TC-BIN-05, TC-BIN-06, TC-CHN-01, TC-CHN-04, TC-FLT-01, TC-FLT-02, TC-FLT-03, TC-RPL-14 | Verified |
-| ISP-GEN-03 | 150 MHz | `isp_frame_sync` | BIN-CF-03, CNV-CF-03, CRP-CF-03, FLT-CF-03, FSY-CF-03, PNT-CF-03, RPL-CF-03, WIN-CF-04 | TC-BIN-08, TC-CNV-12, TC-CRP-11, TC-FLT-08, TC-FSY-10, TC-PNT-12, TC-RPL-13, TC-WIN-09 | Verified |
+| ISP-GEN-03 | 125 MHz on PolarFire | `isp_frame_sync` | BIN-CF-03, CNV-CF-03, CRP-CF-03, FLT-CF-03, FSY-CF-03, PNT-CF-03, RPL-CF-03, WIN-CF-04 | TC-BIN-08, TC-CNV-12, TC-CRP-11, TC-FLT-08, TC-FSY-10, TC-PNT-12, TC-RPL-13, TC-WIN-09 | Verified |
+| ISP-GEN-04 | 150 MHz on Versal | Planned | - | - | Planned |
 
-Core requirements: 33; verified: 33.
+Core requirements: 34; planned: 1; verified: 33.
 
 ## 2. Module requirements
 

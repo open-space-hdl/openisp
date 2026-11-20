@@ -277,11 +277,44 @@ requirements of a mission is shown by a radiation test with the modules in opera
 
 ## 8. Resources and performance
 
-Every module accepts one pixel per clock cycle within a line; the default configurations are designed for 150 MHz.
-The timing is shown by an out-of-context synthesis and timing run of the default configuration of every module on
-the AMD Versal device of the reference systems, not by the simulation; runs on Microchip PolarFire are a later
-option. The architecture document of every module estimates its resources; the verification reports record the synthesis
-results.
+Every module accepts one pixel per clock cycle within a line; the default configurations are designed for 125 MHz on
+Microchip PolarFire (ISP-GEN-03); the target of 150 MHz on the AMD Versal device of the reference systems (ISP-GEN-04)
+is open. The timing is estimated by a preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade STD,
+`lint/libero_synth.py`), not by the simulation; the estimate is pre-layout, not a timing closure. The out-of-context run
+on the Versal device is a later step. The architecture document of every module estimates its resources; the
+verification reports record the synthesis results and the worst paths (section 5), and
+`lint/results/libero_mpf100t_125mhz.md` lists every configuration.
+
+| Module | Configuration | Estimate (MHz) | 4LUT | DFF | LSRAM | Math |
+| --- | --- | --- | --- | --- | --- | --- |
+| `isp_frame_sync` | 65536 x 65536 pixels of 64 bits | 171.6 | 204 | 276 | 0 | 0 |
+| `isp_crop` | 4096 x 4096 pixels of 12 bits, a region of 1024 x 1024 at a run-time position | 184.3 | 422 | 367 | 0 | 0 |
+| `isp_point` | 16 / 12 / 16 bits (input, output, gain), run-time registers, two multiplier stages | 172.6 | 917 | 597 | 0 | 1 |
+| `isp_window` | 3 x 3 replicate, 12 bits, 4096 pixels per line | 146.9 | 1139 | 720 | 8 | 0 |
+| `isp_window` | 5 x 5 mirror, 16 bits, 4096 pixels per line | 139.5 | 2329 | 1688 | 20 | 0 |
+| `isp_conv` | 3 x 3, 12-bit pixels, 16-bit run-time coefficients | 177.1 | 1094 | 1043 | 0 | 9 |
+| `isp_conv` | 5 x 5, 12-bit pixels, 16-bit run-time coefficients | 149.8 | 2835 | 2457 | 0 | 25 |
+| `isp_conv` | 1 x 4 ones, 12-bit pixels (the binning) | 274.9 | 106 | 215 | 0 | 0 |
+| `isp_filter2d` | 5 x 5 mirror, 12-bit pixels, 16-bit run-time coefficients, 4096 pixels per line | 145.6 | 4738 | 3836 | 16 | 25 |
+| `isp_bin` | 2 x 2 valid, 12-bit pixels, 4096 pixels per line | 176.8 | 585 | 612 | 2 | 0 |
+| `isp_bin` | 4 x 4 replicate, 12-bit pixels, 4096 pixels per line | 174.1 | 1399 | 1124 | 3 | 0 |
+| `isp_replace` | 2048 x 1024 pixels of 12 bits, G = 2, a map of 65536 words | 133.7 | 7190 | 6643 | 156 | 2 |
+| `isp_replace` | 2048 x 1024 pixels of 24 bits, G = 7 | 128.4 | 9526 | 7434 | 156 | 9 |
+
+The largest configurations of three modules, none of them a default, stay below 125 MHz in the estimate and need a
+lower clock on PolarFire:
+
+- `isp_point` with 64-bit input pixels, an 18-bit gain and 32-bit output pixels: 80.6 MHz, also with register retiming
+  in the synthesis. The product of up to 66 x 18 bits is computed in one cycle over a cascade of four Math blocks, and
+  `MultStages_g` does not change that on PolarFire.
+- `isp_window` with 16 x 16 windows of 32-bit pixels: 106.7 MHz. The decision of the left border clears 7680 window
+  register bits in one cycle, one net of 7680 loads.
+- `isp_conv` with 16 x 16 windows of run-time coefficients: 112.1 MHz. The read multiplexer of the 256 coefficient
+  registers answers a register read in the cycle after it.
+
+The `In_Ready` of every module is a register (the input stage of its frame sync): the ready path never spans two
+modules, and a chain needs no register stage between modules for its timing. The longest ready path lies inside
+`isp_filter2d` and `isp_bin` (from `Out_Ready` through the kernel to the window).
 
 ## 9. Conformance
 

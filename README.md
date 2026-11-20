@@ -66,12 +66,16 @@ python run.py --questa <test>   # QuestaSim
 all OpenISP sources into the library `openisp`. `ISP_GHDL_SIM_FLAGS` passes extra flags to the GHDL simulation, for
 example `--vcd=wave.vcd` for a waveform.
 
+A change of the RTL that must keep every cycle is shown with port traces: `python run.py --port-trace` writes a VCD of
+the signals at the top level of the testbench for every test, in two worktrees of the commits before and after the
+change, and `python tools/trace_compare.py <tree A> <tree B>` compares them test by test.
+
 Checks besides the regression:
 
 ```shell
 python lint/lint.py                 # VSG, no errors and no warnings
 python lint/synth_check.py          # synthesizability of the module top levels with GHDL
-python lint/vivado_ooc.py --out ooc fsy_max   # timing at 150 MHz (Vivado)
+python lint/libero_synth.py --out syn fsy_max # resources and estimated timing at 125 MHz on PolarFire (Libero)
 python tools/compliance.py --check  # every core requirement and module requirement traced to a test case
 python run.py --compile-order       # regenerates compile_order.txt (the CI fails when it is not current)
 python tools/ci_subset.py --check   # the rules of the pull-request test list pr_tests.txt

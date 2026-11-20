@@ -94,7 +94,7 @@ bits plus check bits.
 | --- | --- | --- |
 | BIN-CF-01 | A generic outside its range of section 4 (also the border mode mirror) shall stop the elaboration with a message naming the generic. | ISP-CFG-01 |
 | BIN-CF-02 | The module shall be synthesizable with GHDL for the bounds of every numeric generic and every border mode. | ISP-GEN-01 |
-| BIN-CF-03 | The default configuration shall be designed for 150 MHz on the FPGA families of the reference systems; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| BIN-CF-03 | The default configuration shall be designed for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. The target of 150 MHz on the AMD Versal device of the reference systems (ISP-GEN-04) is open. | ISP-GEN-03 |
 
 ## 6. Interpretation
 

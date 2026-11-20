@@ -87,7 +87,7 @@ The errors E1 to E4 of `isp_frame_sync` apply to the input stream; `Err_Framing`
 | ID | Condition | Detection | Response | Status |
 | --- | --- | --- | --- | --- |
 | E5 | `Runtime_g` true: the parity bit of a parameter register does not match its value at an image start with `CTRL.HOLD` 0 (upset of the register) | Parity check with the image start | The image is processed with the parameter set of the generics, and so is every further image until the register is written in full (every byte that holds bits of the register); a write that keeps a byte with bits of the register keeps the mismatch (PNT-RG-03) | `Err_Config`, `STATUS.ERR_CONFIG` |
-| E6 | `Runtime_g` true: the parity bit of `CTRL` does not match its value at an image start (upset of `CTRL.HOLD`) | Parity check with the image start | `CTRL.HOLD` counts as 0: the image takes the parameter registers (with their own parity check), and so does every further image until `CTRL` is written | `Err_Config`, `STATUS.ERR_CONFIG` |
+| E6 | `Runtime_g` true: the parity bit of `CTRL` does not match its value at an image start (upset of `CTRL.HOLD`) | Parity check with the image start | `CTRL.HOLD` counts as 0: the image takes the parameter registers (with their own parity check), and so does every further image until `CTRL` is written (byte 0) | `Err_Config`, `STATUS.ERR_CONFIG` |
 
 ## 4. Configuration parameters
 
@@ -105,7 +105,7 @@ The errors E1 to E4 of `isp_frame_sync` apply to the input stream; `Err_Framing`
 | `Low_g` | 0 | 0 to 2^`OutBits_g` - 1, within 0 to 2^31 - 1 | Lower threshold; with `Runtime_g` the reset value of `LOW` |
 | `High_g` | -1 | -1, or 0 to 2^`OutBits_g` - 1 within 0 to 2^31 - 1 | Upper threshold; with `Runtime_g` the reset value of `HIGH`. The value -1 is a sentinel for full scale, 2^`OutBits_g` - 1, which an integer generic cannot hold for `OutBits_g` = 32 |
 | `Runtime_g` | false | false, true | Parameter set from the generics (false: the parameter registers are read only) or from the registers (true) |
-| `MultStages_g` | 2 | 1 to 4 | Register stages of the multiplier |
+| `MultStages_g` | 2 | 1 to 4 | Register stages behind the multiplier (latency, PNT-PF-02), for the synthesis tool to take into the multiplier pipeline |
 
 Output image: `ImageWidth_g` x `ImageHeight_g` pixels of `OutBits_g` bits. With the defaults the module passes the
 pixels and limits them to the output width.
@@ -120,7 +120,7 @@ log2(n) for a power of two, otherwise `Gain_g` = round(2^k / n) with `Shift_g` =
 | --- | --- | --- |
 | PNT-CF-01 | A generic outside its range of section 4 shall stop the elaboration with a message naming the generic. | ISP-CFG-01 |
 | PNT-CF-02 | The module shall be synthesizable with GHDL for the bounds of every numeric generic and both values of `Runtime_g`. | ISP-GEN-01 |
-| PNT-CF-03 | The default configuration shall be designed for 150 MHz on the FPGA families of the reference systems; synthesis results are recorded in the verification report. | ISP-GEN-03 |
+| PNT-CF-03 | The default configuration shall be designed for 125 MHz on Microchip PolarFire; synthesis results are recorded in the verification report. The target of 150 MHz on the AMD Versal device of the reference systems (ISP-GEN-04) is open. | ISP-GEN-03 |
 
 ## 6. Interpretation
 

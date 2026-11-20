@@ -23,7 +23,7 @@ passed.
 | `test_reset` (TC-FLT-05) | 5 | 5 |
 | `test_rate` (TC-FLT-06) | 2 | 2 |
 | TC-FLT-07 (`lint/synth_check.py`) | 6 configurations synthesise without latches; 6 generics out of range stop the elaboration with the message of the part that checks them | 12 |
-| TC-FLT-08 (`lint/vivado_ooc.py`) | Section 5 | Not run |
+| TC-FLT-08 (`lint/libero_synth.py`) | 1 configuration (section 5) | 1 of 1 synthesised |
 
 ## 2. Summary
 
@@ -116,9 +116,17 @@ stream generator (section 7), with the same 11 tests: every result is the same.
 
 ## 5. Synthesis and timing
 
-Not run yet: TC-FLT-08 runs out-of-context synthesis and implementation at 150 MHz on the device of the Timing level
-(architecture of the suite, section 10); the run is open (roadmap). The script `lint/vivado_ooc.py` is ready with the
-configuration `flt_mtf5` (5 x 5 mirror, 12-bit pixels, 16-bit run-time coefficients, 4096 pixels per line).
+TC-FLT-08 (`lint/libero_synth.py`), the preliminary synthesis on PolarFire MPF100T (Libero, Synplify Pro, speed grade
+STD) with a clock of 125 MHz, on commit 4c1744f (the RTL of develop 06a41e5). The results are pre-layout estimates, not
+a timing closure and not on the reference device. The out-of-context run at 150 MHz on the Versal device of the
+reference systems is open (ISP-GEN-04, roadmap).
+
+| Configuration | Estimate (MHz) | Slack (ns) | 4LUT | DFF | LSRAM | Math | Worst path (logic levels) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `flt_mtf5`: 5 x 5 mirror, 12-bit pixels, 16-bit run-time coefficients, 4096 pixels per line (the MTF compensation) | 145.6 | 1.133 | 4738 | 3836 | 16 | 25 | the state of the window -> its row select register (7) |
+
+The MTF compensation meets 125 MHz in the estimate. It reached 146.0 MHz with 4741 4LUT before the parity of the partial
+writes of `isp_conv` (report of `isp_conv`, section 5.2); the worst path is the same.
 
 The GHDL synthesis of TC-FLT-07 shows that the module is synthesisable in the configurations of the suite with both
 values of `RuntimeCoef_g` and every border mode, without latches; it gives no timing.

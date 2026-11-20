@@ -32,9 +32,9 @@ covers:
 
 ### Target technology
 
-Technology-independent VHDL-2008, synthesisable by GHDL, built on the fault-tolerant entities of Open Logic. The
-default configuration of every module is designed for 150 MHz on the FPGA families of the reference systems of the
-family (AMD Versal, Microchip PolarFire).
+Technology-independent VHDL-2008, synthesisable by GHDL, built on the fault-tolerant entities of Open Logic. The default
+configuration of every module is designed for 125 MHz on Microchip PolarFire (ISP-GEN-03). The target of 150 MHz on the
+AMD Versal device of the reference systems of the family (ISP-GEN-04) is open.
 
 ### References
 
@@ -78,7 +78,7 @@ as functions of its generics.
 | Packets get lost on a link; registers and counters suffer upsets | The pixel count from the image start decides where an image ends; every module completes or discards and realigns with the next image start |
 | A mission changes some parameters in orbit | Region position, offset, gain, shift, thresholds, filter coefficients and the defect map are registers; image dimensions and structure are generics |
 | Radiation | Every memory is an ECC-protected Open Logic entity; long-lived registers carry a parity bit; the rest relies on the TMR of the synthesis tool |
-| One pixel per clock cycle at 150 MHz | Pipelined datapaths, no multi-cycle operation per pixel; waits only at the image borders |
+| One pixel per clock cycle at 125 MHz on PolarFire; 150 MHz on Versal (ISP-GEN-04, open) | Pipelined datapaths, no multi-cycle operation per pixel; waits only at the image borders |
 | Reuse | A specific function is a configuration of a general module (the MTF filter of `isp_filter2d`, the binning of two filters) |
 
 ## 4 Design goals
@@ -241,8 +241,9 @@ passes in both.
   order at the low bounds of the generics and another order, and compares them with the composition of the
   reference models; a contract monitor on every connection, so that every connection between modules is crossed by
   a test.
-- Phase F of every module ends with an out-of-context synthesis and timing run of its default configuration at
-  150 MHz (Vivado, Versal device of the reference systems).
+- Phase F of every module ends with a preliminary synthesis of its default configuration on PolarFire MPF100T
+  (Libero, Synplify Pro): the resources and the estimated timing at 125 MHz. The out-of-context synthesis and
+  implementation at 150 MHz on the Versal device of the reference systems (ISP-GEN-04) follows (roadmap).
 
 ## 10 Requirement traceability matrix
 
@@ -253,9 +254,10 @@ checked:
 - "Unit": in the testbench of the owner and of every involved module;
 - "Chain": in the integration test of section 9, after the unit tests of every module;
 - "Synthesis": by the GHDL synthesis of `lint/synth_check.py` at the bounds of the generics;
-- "Timing": by an out-of-context synthesis and timing run of the default configuration of every module at
-  150 MHz with Vivado on the Versal device of the reference systems, recorded in the verification report of the
-  module. A simulation does not show timing.
+- "Timing": by a preliminary synthesis of the default configuration of every module on PolarFire MPF100T (Libero,
+  Synplify Pro, `lint/libero_synth.py`), with the estimated timing at 125 MHz recorded in the verification report of
+  the module: a pre-layout estimate, not a timing closure, and not on the reference device. A simulation does not
+  show timing.
 
 The [compliance matrix](compliance.md), generated from this table, the module specifications and the verification
 plans, lists the module requirements and test cases of every core requirement.
@@ -294,7 +296,8 @@ plans, lists the module requirements and test cases of every core requirement.
 | ISP-FT-05 | Parity of long-lived registers | `isp_crop` | `isp_point`, `isp_conv`, `isp_filter2d` | Unit |
 | ISP-GEN-01 | VHDL-2008, GHDL synthesis, Open Logic | `isp_frame_sync` | every module | Synthesis |
 | ISP-GEN-02 | Specific functions as configurations | `isp_filter2d` | `isp_bin`, `isp_replace` | Unit |
-| ISP-GEN-03 | 150 MHz | `isp_frame_sync` | every module | Timing |
+| ISP-GEN-03 | 125 MHz on PolarFire | `isp_frame_sync` | every module | Timing |
+| ISP-GEN-04 | 150 MHz on Versal | Planned | | Timing |
 
 ## 11 Development plan
 
@@ -309,6 +312,6 @@ the order of their dependencies:
 | 3 | `isp_window`, `isp_conv`, `isp_filter2d` | Line buffers, borders, kernels |
 | 4 | `isp_bin`, `isp_replace` | Configurations of the filter, defect map |
 | 5 | Chain | Integration test of section 2 |
-| 6 | Release 0.1.0 | QuestaSim regression with code coverage; the suite at TRL 3 (fully verified by simulation; the 150 MHz target shown by the timing runs, not by the simulation) |
+| 6 | Release 0.1.0 | QuestaSim regression with code coverage; the suite at TRL 3 (fully verified by simulation; the clock target estimated by the preliminary synthesis on PolarFire, not shown by the simulation) |
 
 The [roadmap](roadmap.md) tracks the state of every module.
