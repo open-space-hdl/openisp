@@ -12,8 +12,10 @@ specification; the development follows ECSS-E-ST-20-40C.
 
 ## Status
 
-**In development.** No module is verified yet. All eight modules have their requirements and architecture; the
-[roadmap](docs/roadmap.md) lists the modules and their state.
+**Version 0.1.0.** All eight modules and the shared package went through requirements, architecture, verification plan,
+RTL, testbenches, verification and the chain test. The regression passes in GHDL and in QuestaSim (669 of 669 tests),
+with the code coverage in [docs/coverage.md](docs/coverage.md). The [roadmap](docs/roadmap.md) lists the modules, their
+state and the open items.
 
 ## Documentation
 
