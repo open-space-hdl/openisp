@@ -122,7 +122,7 @@ mutant of the old default of `MaxShift_g` needs (section 7), and the sources of 
 mutants of `ispWriteParity` came with it: the parity of a kept byte from the write data, of a written byte from the
 stored bits, a write that keeps a byte with bits sets the parity bit for the resulting value (the rule before PKG-08), a
 write of every byte with bits keeps the syndrome, and a write of only bytes without bits sets the parity bit. Every one
-of the 24 mutants fails at least one test; the mutants of PKG-08 are killed by test_parity.
+of the 25 mutants fails at least one test; the mutants of PKG-08 are killed by test_parity.
 
 The mutation run was repeated on 2026-11-21 on commit 92a444e, the coverage closure (section 1), with the same 16 tests;
 the table shows that run. Two mutants came with it, one for each access the closure added: `CTRL` written without the
