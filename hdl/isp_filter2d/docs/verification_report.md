@@ -104,6 +104,10 @@ exchange of the two.
 The mutation run was repeated on 2026-11-20 on commit 399d8b9, after the probe of the open image moved into the shared
 stream generator (section 7), with the same 11 tests: every result is the same.
 
+The mutation run was repeated on 2026-11-21 on commit 9ddf49d, the sources and benches of release 0.1.0, with the same
+11 tests, a new reference run and every mutant of the module in one run; the table shows that run. Every one of the 8
+mutants fails at least one test. The failing tests of every mutant are the same as before.
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (11 tests) | - |

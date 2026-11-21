@@ -111,17 +111,22 @@ The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section
 commit 399d8b9 with the same 21 tests; the reference run passed again.
 
 The mutation run was repeated on 2026-11-20 on commit 31cca42, the selections without the selection of the event
-position and the row selection of the next line by compares (architecture, section 7), with the same 21 tests and
-seven mutants of the changed decisions; the table shows that run. 23 of the 24 mutants fail at least one test. The
-column of pixel (0, 0) from the registered row selection survives: it is equivalent at the ports, because every image
-that reaches the event control is complete (the frame sync fills a short image, E1) and the reset loads the selection
-of line 0, so at every pixel (0, 0) the registered selection already is that of line 0; only an upset of the register
-makes the restart act, which the bench cannot cause through the ports. The restart is verified by review (TC-WIN-07,
-WIN-FT-03).
+position and the row selection of the next line by compares (architecture, section 7), with the same 21 tests and seven
+mutants of the changed decisions. 23 of the 24 mutants fail at least one test. The column of pixel (0, 0) from the
+registered row selection survives: it is equivalent at the ports, because every image that reaches the event control is
+complete (the frame sync fills a short image, E1) and the reset loads the selection of line 0, so at every pixel (0, 0)
+the registered selection already is that of line 0; only an upset of the register makes the restart act, which the bench
+cannot cause through the ports. The restart is verified by review (TC-WIN-07, WIN-FT-03).
 
 The output dimensions moved into `isp_pkg` (`ispWinOut`, section 7); the mutant that computes them in the border mode
 valid for every border mode ran alone on 2026-11-20 on commit 2d4b4c8 with the same 21 tests (the reference run passed
 again).
+
+The mutation run was repeated on 2026-11-21 on commit 9ddf49d, the sources and benches of release 0.1.0, with the same
+21 tests, a new reference run and every mutant of the module in one run, also `Stat_ImageOpen` tied to 0 and the mutant
+of the output dimensions on the call of `ispWinOut`, which ran alone before; the table shows that run. 23 of the 24
+mutants fail at least one test. The column of pixel (0, 0) from the registered row selection survives again; it is
+equivalent at the ports (above). The failing tests of every other mutant are the same as before.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
