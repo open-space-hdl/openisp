@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-20 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4` on 2e4971c, 542 of 542 tests passed (32 of them `isp_filter2d`), 0 skipped.
-QuestaSim runs with the release regression (with and without code coverage).
+`python run.py -p 4` on 2e4971c, 542 of 542 tests passed (32 of them `isp_filter2d`), 0 skipped. QuestaSim Pro Microchip
+Edition 2024.3 ran the release regression with code coverage on 2026-11-21 on commit b50efd1:
+`python run.py --questa --coverage -p 1`, 669 of 669 tests passed (32 of them `isp_filter2d`), 0 skipped; the code
+coverage is in [docs/coverage.md](../../../docs/coverage.md).
 
 The status-output audit moved the probe of the open image of test_input_stream into the malformed streams of
 `tools/isp_tbgen.py`, which every module uses: `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests

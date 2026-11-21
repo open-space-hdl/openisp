@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4`, 425 of 425 tests passed (122 of them `isp_conv`), 0 skipped.
-QuestaSim runs with the release regression (with and without code coverage).
+`python run.py -p 4`, 425 of 425 tests passed (122 of them `isp_conv`), 0 skipped. QuestaSim Pro Microchip Edition
+2024.3 ran the release regression with code coverage on 2026-11-21 on commit b50efd1:
+`python run.py --questa --coverage -p 1`, 669 of 669 tests passed (122 of them `isp_conv`), 0 skipped; the code coverage
+is in [docs/coverage.md](../../../docs/coverage.md).
 
 The write decode with one address compare per coefficient and the parity of a write from the parities of its bytes
 (architecture, section 6) keep every cycle: in all 122 tests of the module, the 29 signals at the ports of the module
@@ -26,6 +28,16 @@ The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`: a write t
 register keeps a mismatch; architecture, section 6) came with the partial writes of test_parity: `python run.py -p 4` on
 2026-11-20 on commit e9116a7 (with develop fbc18fd), 669 of 669 tests passed (122 of them `isp_conv`), 0 skipped;
 `lint/synth_check.py` (TC-CNV-11) passed.
+
+The code coverage of the release run ([docs/coverage.md](../../../docs/coverage.md)) found register accesses that no
+test made: a write of `CTRL` without the strobe of byte 0, an injection without the strobe of byte 1, a write above the
+last coefficient and a read between two coefficient registers. The tests test_parity and test_registers make them now,
+and test_registers also writes at an address that is not a multiple of 4 (section 2):
+`python run.py -p 2 "*isp_conv_tb*" "*isp_crop_tb*" "*isp_point_tb*" "*isp_replace_tb*"` on 2026-11-21 on commit
+92a444e, 313 of 313 tests passed (122 of them `isp_conv`), 0 skipped. QuestaSim ran the 76 changed tests of the four
+modules with code coverage on the same commit: 76 of 76 passed (48 of them `isp_conv`), 0 skipped. The generated test
+files of every other test of the release run are identical to those of b50efd1, so their QuestaSim results apply to
+92a444e.
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
@@ -64,17 +76,20 @@ test with well-formed window streams.
   register of bad parity is neither taken nor reported while `HOLD` is 1.
 - Parity: the injection into each coefficient register in turn (for more than 16 coefficients the first, the last and
   eight random ones) makes every image use the generic with one `Err_Config` until the register is written; the
-  injection into `CTRL` with `CTRL.HOLD` 1 makes every image start take the held set with one `Err_Config` until
-  `CTRL` is written; two injections in one set, a second injection that restores the parity, an index of T or above,
-  an injection without the strobe of byte 0 and injections with `RuntimeCoef_g` false have no effect beyond the model.
-  Partial writes (PKG-08): after an injection, a write that keeps a byte with bits of the register and a write of
-  only bytes without bits keep the mismatch (the next images use the generic with `Err_Config`), a write of every
-  byte with bits clears it, and a partial write without a mismatch is taken (one random coefficient per
-  configuration; both kinds of write where `CoefBits_g` is above 8).
+  injection into `CTRL` with `CTRL.HOLD` 1 makes every image start take the held set with one `Err_Config` until `CTRL`
+  is written; two injections in one set, a second injection that restores the parity, an index of T or above, an
+  injection without the strobe of byte 0 and injections with `RuntimeCoef_g` false have no effect beyond the model; an
+  injection without the strobe of byte 1 has the index 0 (coefficient 0 loses its parity until it is written). Partial
+  writes (PKG-08): after an injection, a write that keeps a byte with bits of the register and a write of only bytes
+  without bits keep the mismatch (the next images use the generic with `Err_Config`), a write of every byte with bits
+  clears it, and a partial write without a mismatch is taken (one random coefficient per configuration; both kinds of
+  write where `CoefBits_g` is above 8).
 - Registers: identification, the window and the widths, the reset values of all coefficients (the generic,
-  sign-extended), every single byte strobe on the first, the middle and the last coefficient, read-only registers,
-  the gaps, the address above the last coefficient and the end of the address space, the sticky flag. Every access
-  was answered with OKAY.
+  sign-extended), every single byte strobe on the first, the middle and the last coefficient, read-only registers, the
+  gaps, the address above the last coefficient and the end of the address space, writes there without effect, a write of
+  `CTRL` without the strobe of byte 0 without effect, reads at addresses that are not a multiple of 4 between two
+  coefficient registers (0) and a write at such an address (it acts on the coefficient at the aligned address), the
+  sticky flag. Every access was answered with OKAY.
 - Packets: a "01" packet after "00" packets, single-window packets, `In_Last` on every beat, other flags on the later
   beats of a packet, images back to back: the set changes only at an image start.
 - Resets idle, held and running, of one and two cycles, in the middle of an image and between the image start and the
@@ -120,11 +135,21 @@ least one test. The two mutants of the copy are killed by every test with stalls
 first named TC-CNV-10 for them as well, which runs without stalls and cannot see the ready path, and was corrected.
 
 The mutation run was repeated on 2026-11-20 on commit 2189d17, the parity bit of a write from `ispWriteParity` of
-`isp_pkg` (PKG-08), with the same 24 tests; the table shows that run, and the sources of the module are the same at
-e9116a7. The two mutants of the byte parities now change the function, and three mutants of PKG-08 came with it: a write
-that keeps a byte with bits sets the parity bit for the resulting value (the rule before PKG-08), a write of every byte
-with bits keeps the syndrome, and a write of only bytes without bits sets the parity bit. Every one of the 24 mutants
-fails at least one test; the three mutants of PKG-08 are killed by test_parity.
+`isp_pkg` (PKG-08), with the same 24 tests, and the sources of the module are the same at e9116a7. The two mutants of
+the byte parities now change the function, and three mutants of PKG-08 came with it: a write that keeps a byte with bits
+sets the parity bit for the resulting value (the rule before PKG-08), a write of every byte with bits keeps the
+syndrome, and a write of only bytes without bits sets the parity bit. Every one of the 24 mutants fails at least one
+test; the three mutants of PKG-08 are killed by test_parity.
+
+The mutation run was repeated on 2026-11-21 on commit 92a444e, the coverage closure (section 1), with the same 24 tests;
+the table shows that run. Three mutants came with it, one for each access of the closure that a change of the RTL can
+fail: a write of `CTRL` without the strobe of byte 0 and a read between two coefficient registers, killed by
+test_registers, and an injection without the strobe of byte 1, killed by test_parity. Every one of the 27 mutants fails
+at least one test. The AXI4-Lite slave ignores the address bits 1:0 of a write, so the write at an address that is not a
+multiple of 4 reaches the register decode at the aligned address; no mutant of the decode can tell it from an aligned
+write. A write at the address above the last coefficient closes the code coverage of the upper bound of the write decode
+(`isp_conv.vhd:379`); no mutant of that bound can fail at the ports, because the compare of the address with each
+coefficient register decides the write. In the read path (line 430) the bound is needed for the index range.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -148,6 +173,9 @@ fails at least one test; the three mutants of PKG-08 are killed by test_parity.
 | In_Ready from a copy of the output valid flag stuck at 0 (always ready) | killed by 20 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
 | The copy of the output valid flag one advance late | killed by 17 of 24 tests | test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime, test_static |
 | INJECT.PARITY flips the parity bit of every coefficient | killed by 1 of 24 tests | test_parity |
+| CTRL written without the strobe of byte 0 | killed by 4 of 24 tests | test_registers |
+| INJECT.INDEX taken without the strobe of byte 1 | killed by 1 of 24 tests | test_parity |
+| A read between two coefficient registers returns the coefficient below | killed by 4 of 24 tests | test_registers |
 | The parity of a kept byte taken from the write data | killed by 2 of 24 tests | test_parity, test_registers |
 | The parity of a written byte taken from the stored bits | killed by 8 of 24 tests | test_exhaustive, test_hold, test_packets, test_parity, test_registers, test_reset, test_runtime |
 | A write that keeps a byte with bits sets the parity for the resulting value (the re-seal before PKG-08) | killed by 1 of 24 tests | test_parity |
@@ -265,3 +293,4 @@ read multiplexer (section 5.1).
 | `lint/vivado_ooc.py` read one declaration per line and wrote generic values as plain text: the port `Out_Data` of `isp_conv` continues on a second line, and `Coef_g` is a vector | The script joins continued declarations and writes lists as named aggregates; the top levels of the earlier configurations are unchanged, byte for byte |
 | The preliminary synthesis at 125 MHz on PolarFire MPF100T found the write of a coefficient register on the worst path of every configuration with run-time coefficients (`cnv_mtf5` 124.4 MHz, `cnv_max` 79.4 MHz, in `isp_filter2d` 108.0 MHz): the register selected by an index computed from the address for the merge of the written bytes and the parity | One address compare per coefficient and the parity of a write from the parities of its bytes (architecture, section 6; section 5.1): `cnv_mtf3` 178.8 MHz, `cnv_mtf5` 156.2 MHz, with fewer LUT than before; no cycle changes (section 1); four mutants of the write decode (plan, section 6) |
 | A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example while `CTRL.HOLD` is 1 and the registers are not checked, therefore became a valid word with the next partial write: masked, not detected (found in review) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; CNV-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
+| The code coverage of the release run showed register accesses that no test made: a write of `CTRL` without the strobe of byte 0, an injection without the strobe of byte 1, a write above the last coefficient, a read at an address that is not a multiple of 4 between two coefficient registers | test_registers and test_parity make them; the three new mutants are killed (section 4). No change of the RTL |

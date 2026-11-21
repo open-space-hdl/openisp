@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4`, 303 of 303 tests passed (128 of them `isp_window`), 0 skipped. QuestaSim runs with the release
-regression (with and without code coverage).
+`python run.py -p 4`, 303 of 303 tests passed (128 of them `isp_window`), 0 skipped. QuestaSim Pro Microchip Edition
+2024.3 ran the release regression with code coverage on 2026-11-21 on commit b50efd1:
+`python run.py --questa --coverage -p 1`, 669 of 669 tests passed (128 of them `isp_window`), 0 skipped; the code
+coverage is in [docs/coverage.md](../../../docs/coverage.md).
 
 The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
 `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (128 of them `isp_window`), 0 skipped.

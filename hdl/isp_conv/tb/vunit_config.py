@@ -192,6 +192,10 @@ def build_parity(rng, x):
     items += x.regs.access(write(CNV_INJECT, 2)) + x.image(rng) + x.image(rng)
     items += x.regs.access(write(CNV_CTRL, 1), *x.set_writes(later)) + x.image(rng)
     items += x.regs.access(write(CNV_CTRL, 0), check(CNV_INJECT), check(CNV_STATUS)) + x.image(rng)
+    # An injection without the strobe of byte 1 has the index 0 (the index 1 in the data is not written): the parity
+    # of coefficient 0 flips, and its write restores it
+    items += x.regs.access(write(CNV_INJECT, (1 << 8) | 1, 0x1)) + x.image(rng)
+    items += x.regs.access(*x.set_writes(later)[:1]) + x.image(rng)
     return items + status()
 
 
@@ -230,9 +234,22 @@ def build_registers(rng, x):
             items += x.regs.access(write(CNV_COEF + 4 * k, rng.getrandbits(32), 1 << b), check(CNV_COEF + 4 * k))
     items += x.image(rng)
     items += x.regs.access(write(CNV_CTRL, 1), check(CNV_CTRL), write(CNV_CTRL, 0), check(CNV_CTRL))
-    # Unused addresses read 0: the gaps, above the last coefficient, the end of the address space
+    # A write of CTRL without the strobe of byte 0 has no effect
+    items += x.regs.access(write(CNV_CTRL, 1, 0xE), check(CNV_CTRL))
+    # Unused addresses read 0: the gaps, above the last coefficient, the end of the address space. Writes of a gap and
+    # of the address above the last coefficient change no register.
     unused = [0x014, 0x0FC, CNV_COEF + 4 * t, 0xFFC]
-    items += x.regs.access(*[check(a) for a in unused if a < 0x1000], write(0x014, 0xFFFFFFFF), check(0x014))
+    items += x.regs.access(*[check(a) for a in unused if a < 0x1000], write(0x014, 0xFFFFFFFF), check(0x014),
+                           write(CNV_COEF + 4 * t, 0xFFFFFFFF), check(CNV_COEF + 4 * t), *x.reads())
+    # Address bits 1:0: a read at an address that is not a multiple of 4 returns 0, also between two coefficient
+    # registers; a write there acts on the register at the aligned address. Coefficient k is not 0 at the reads: the
+    # unaligned write sets it to 1 (RuntimeCoef_g true), or k is a coefficient of Coef_g that is not 0.
+    if x.c["runtime"]:
+        k = t // 2
+        items += x.regs.access(write(CNV_COEF + 4 * k + 2, 1), check(CNV_COEF + 4 * k))
+    else:
+        k = next(i for i, v in enumerate(x.c["coef"]) if v != 0)
+    items += x.regs.access(*[check(CNV_COEF + 4 * k + b) for b in (1, 2, 3)])
     if x.c["runtime"]:
         # STATUS.ERR_CONFIG: set, kept by a write of 0 and without the strobe of byte 1, cleared by a write of 1
         items += x.regs.access(write(CNV_INJECT, 1)) + x.image(rng)

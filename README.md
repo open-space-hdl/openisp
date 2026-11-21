@@ -28,6 +28,7 @@ The documents are also published as a website: [openspacehdl.org/openisp](https:
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Technology readiness, module status and open items |
 | [docs/compliance.md](docs/compliance.md) | Compliance matrix: module requirements and test cases of every core requirement (generated) |
+| [docs/coverage.md](docs/coverage.md) | Code coverage of the QuestaSim regression: the results per module and the reason for every miss |
 | `hdl/<module>/docs/` | Specification, architecture, verification plan and verification report of each module |
 
 ## Repository structure
