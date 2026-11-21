@@ -100,8 +100,9 @@ change the defect map of `isp_replace`; the command `CTRL.CLEAR` does.
 `isp_crop`, `isp_point`, `isp_conv` (and `isp_filter2d` through it) and `isp_replace` have an AXI4-Lite slave
 (`S_AxiLite_*`, 32 data bits, the port names of Open Logic `olo_axi_lite_slave`) in the clock domain of the module.
 A register bus in another clock domain needs a clock crossing in the system. Every access is answered with OKAY;
-reads of unused addresses return 0. A module whose registers are not needed leaves the slave unconnected: its inputs
-default to inactive.
+reads of unused addresses return 0. The slave ignores the address bits 1:0 of a write, so a write acts on the
+register at the aligned address; a read at an address that is not a multiple of 4 returns 0. A module whose
+registers are not needed leaves the slave unconnected: its inputs default to inactive.
 
 The register map of a module is generated from its register description (`hdl/<module>/regs/<module>_regs.yml`) by
 `tools/regmap.py`: the page "Register map" of the module, the VHDL package `<module>_regs_pkg` and the C header

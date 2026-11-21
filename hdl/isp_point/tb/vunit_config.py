@@ -219,8 +219,11 @@ def build_registers(rng, c):
             items += c.regs.access(write(addr, rng.getrandbits(32), 1 << b), check(addr))
     items += c.image(rng, "lines")
     items += c.regs.access(write(PNT_CTRL, 1), check(PNT_CTRL), write(PNT_CTRL, 0), check(PNT_CTRL))
-    # Unused addresses read 0
-    items += c.regs.access(*[check(a) for a in (0x30, 0x34, 0x40, 0x80, 0xFC)], write(0x30, 0xFFFFFFFF), check(0x30))
+    # A write of CTRL without the strobe of byte 0 has no effect
+    items += c.regs.access(write(PNT_CTRL, 1, 0xE), check(PNT_CTRL))
+    # Unused addresses read 0, also ID + 2 (a read at an address that is not a multiple of 4)
+    items += c.regs.access(*[check(a) for a in (PNT_ID + 2, 0x30, 0x34, 0x40, 0x80, 0xFC)],
+                           write(0x30, 0xFFFFFFFF), check(0x30))
     # STATUS.IMAGE_OPEN during an image
     if n >= 2:
         pix = random_image(rng, c.w, c.h, c.inb)

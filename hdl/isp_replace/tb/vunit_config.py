@@ -216,6 +216,14 @@ def build_clear(rng, x):
     items += x.image(rng)
     # A map written before a reset of the module still applies after it
     items += x.write_map(rng) + x.image(rng) + [("W",), ("T", 4), ("R", 0, 0, 1)] + x.image(rng)
+    # A write of CTRL with CLEAR 0, and one without the strobe of byte 0, start no clear: STATUS.BUSY stays low, and
+    # pixel (1, 0), the mark of the map, is replaced in the next image (0 between two neighbours of 0, the pixel itself
+    # at the maximum)
+    items += x.clear() + x.regs.access(*x.write_words(0, [0b10]))
+    items += x.regs.access(write(RPL_CTRL, 0), check(RPL_STATUS), write(RPL_CTRL, 1, 0xE), check(RPL_STATUS))
+    pix = random_image(rng, x.w, x.h, x.bits)
+    pix[0:3] = [0, (1 << x.bits) - 1, 0]
+    items += [("T", x.words + 16)] + packets(pix, [x.w] * x.h)
     return items + status()
 
 
@@ -313,8 +321,9 @@ def build_registers(rng, x):
     # STATUS.IMAGE_OPEN read while an image is open (an image cut after half of its pixels); the next image start
     # completes it (E1)
     items += open_image(x.w, x.h, x.bits) + x.regs.access(check(RPL_STATUS)) + x.image(rng)
-    # Unused addresses read 0
-    items += x.regs.access(check(0x24), check(0x40), check(0xFC), write(0x24, 0xFFFFFFFF), check(0x24))
+    # Unused addresses read 0, also ID + 2 (a read at an address that is not a multiple of 4)
+    items += x.regs.access(check(RPL_ID + 2), check(0x24), check(0x40), check(0xFC), write(0x24, 0xFFFFFFFF),
+                           check(0x24))
     # Every STATUS flag: set by its event, kept by a write of 0 and by a write without the strobe of its byte,
     # cleared by a write of 1
     def flag(bit, strobe_byte):
