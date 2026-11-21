@@ -5,9 +5,11 @@
 Run on 2026-11-20 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
 `python run.py -p 4` on commit 2f4d91d, 625 of 625 tests passed (21 of them `isp_chain`), 0 skipped;
 `python lint/synth_check.py` passed (62 configurations synthesise without latches, among them the two chains of
-TC-CHN-08; 86 configurations out of range stop with their message). The chain test replaced the contract checker of
-the shared sink by the entity `tb/isp_tb_monitor.vhd`, so every module bench ran through it. QuestaSim runs with the
-release regression (with and without code coverage).
+TC-CHN-08; 86 configurations out of range stop with their message). The chain test replaced the contract checker of the
+shared sink by the entity `tb/isp_tb_monitor.vhd`, so every module bench ran through it. QuestaSim Pro Microchip Edition
+2024.3 ran the release regression with code coverage on 2026-11-21 on commit b50efd1:
+`python run.py --questa --coverage -p 1`, 669 of 669 tests passed (21 of them `isp_chain`), 0 skipped; the code coverage
+is in [docs/coverage.md](../../../docs/coverage.md).
 
 | Test | Chains | Passed |
 | --- | --- | --- |

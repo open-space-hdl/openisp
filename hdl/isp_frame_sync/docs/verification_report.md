@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4 "*isp_frame_sync*"`, 75 of 75 tests passed, 0 skipped. QuestaSim runs with the release
-regression (with and without code coverage).
+`python run.py -p 4 "*isp_frame_sync*"`, 75 of 75 tests passed, 0 skipped. QuestaSim Pro Microchip Edition 2024.3 ran
+the release regression with code coverage on 2026-11-21 on commit b50efd1: `python run.py --questa --coverage -p 1`, 669
+of 669 tests passed (75 of them `isp_frame_sync`), 0 skipped; the code coverage is in
+[docs/coverage.md](../../../docs/coverage.md).
 
 | Test | Configurations | Passed |
 | --- | --- | --- |

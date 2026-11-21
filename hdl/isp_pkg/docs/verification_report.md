@@ -3,7 +3,9 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py "*isp_pkg*"`. QuestaSim runs with the release regression.
+`python run.py "*isp_pkg*"`. QuestaSim Pro Microchip Edition 2024.3 ran the release regression with code coverage on
+2026-11-21 on commit b50efd1: `python run.py --questa --coverage -p 1`, 669 of 669 tests passed (3 of them `isp_pkg`), 0
+skipped; the code coverage is in [docs/coverage.md](../../../docs/coverage.md).
 
 The output dimensions of a window filter and of a bin (PKG-06, PKG-07) came later, with their use in `isp_window` and
 `isp_bin`: `python run.py -p 4` on 2026-11-20 on commit 2d4b4c8, 602 of 602 tests passed (2 of them `isp_pkg`), 0

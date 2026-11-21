@@ -151,6 +151,8 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | A write of only bytes without bits sets the parity for the stored value | TC-PNT-05 (an injection, then a write of only bytes without bits) |
 | The parity of a kept byte taken from the write data | TC-PNT-05 (a partial write) |
 | The parity of a written byte taken from the stored bits | TC-PNT-05 (a partial write, and every write that changes a byte) |
+| `CTRL` written without the strobe of byte 0 | TC-PNT-06 (a write of `CTRL` with the strobes of bytes 1 to 3) |
+| A read at an address that is not a multiple of 4 decoded as the register at the aligned address | TC-PNT-06 (the read at `ID` + 2) |
 
 ## 7. Expected coverage exclusions
 

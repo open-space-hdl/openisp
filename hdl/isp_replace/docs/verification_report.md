@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4`, 509 of 509 tests passed (84 of them `isp_replace`), 0 skipped.
-QuestaSim runs with the release regression (with and without code coverage).
+`python run.py -p 4`, 509 of 509 tests passed (84 of them `isp_replace`), 0 skipped. QuestaSim Pro Microchip Edition
+2024.3 ran the release regression with code coverage on 2026-11-21 on commit b50efd1:
+`python run.py --questa --coverage -p 1`, 669 of 669 tests passed (89 of them `isp_replace`), 0 skipped; the code
+coverage is in [docs/coverage.md](../../../docs/coverage.md).
 
 The status-output audit added a probe of `Stat_ImageOpen` and a read of `STATUS` while an image is open
 (test_input_stream, test_registers) and the exact count of `Scrub_EccDed` (test_scrub): `python run.py -p 4` on
@@ -17,6 +19,15 @@ The registered read request and the defaults `RamRdLatency_g` 2 and `EccPipeline
 configurations `defaults` and `defaults_rate` and the reset sweep at the read request in test_ecc: `python run.py -p 4`
 on 2026-11-20 on commit f9fad71, 668 of 668 tests passed (89 of them `isp_replace`), 0 skipped;
 `lint/synth_check.py` (TC-RPL-12) passed.
+
+The code coverage of the release run ([docs/coverage.md](../../../docs/coverage.md)) found register accesses that no
+test made, a write of `CTRL` with `CLEAR` 0 and a write of `CLEAR` without the strobe of byte 0; test_clear makes them
+now, and test_registers also reads `ID` + 2 (section 2):
+`python run.py -p 2 "*isp_conv_tb*" "*isp_crop_tb*" "*isp_point_tb*" "*isp_replace_tb*"` on 2026-11-21 on commit
+92a444e, 313 of 313 tests passed (89 of them `isp_replace`), 0 skipped. QuestaSim ran the 76 changed tests of the four
+modules with code coverage on the same commit: 76 of 76 passed (10 of them `isp_replace`), 0 skipped. The generated test
+files of every other test of the release run are identical to those of b50efd1, so their QuestaSim results apply to
+92a444e.
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
@@ -56,9 +67,10 @@ first. The simulation model of the RAM of Open Logic starts with zeros, which ar
   the third after the word of the last accepted pixel on, written during an image, apply in that image; `MAP_ADDR`
   outside the map (the number of words, 0xFFFFFFFF): a write of `MAP_DATA` changes neither the map nor `MAP_ADDR`,
   which reads back all 32 bits.
-- `CTRL.CLEAR`: `STATUS.BUSY` high during the clear; `MAP_DATA` without effect during the clear; a second
-  `CTRL.CLEAR` does not restart it (`STATUS.BUSY` low after the end of the first clear and before the end of a
-  restarted one); the next image unchanged; a map written before a reset applies after it.
+- `CTRL.CLEAR`: `STATUS.BUSY` high during the clear; `MAP_DATA` without effect during the clear; a second `CTRL.CLEAR`
+  does not restart it (`STATUS.BUSY` low after the end of the first clear and before the end of a restarted one); the
+  next image unchanged; a map written before a reset applies after it; a write of `CTRL` with `CLEAR` 0 and a write of
+  `CLEAR` without the strobe of byte 0 start no clear (`STATUS.BUSY` low, the marked pixel of the next image replaced).
 - ECC: single errors on a data bit, a Hamming parity bit and the overall parity bit (corrected, one `Stat_EccSec` per
   image that uses the word), a double error on two data bits, one of them the mark of a pixel (the word used as read,
   one `Stat_EccDed` per image), the sticky flags, a new write that ends the reports; a single error on a word that
@@ -71,9 +83,9 @@ first. The simulation model of the RAM of Open Logic starts with zeros, which ar
 - `Stat_ImageOpen` is 1 while an image is open (an image cut after half of its pixels) and 0 after complete images.
 - Registers: identification, dimensions, parameters, the words of the map, `STATUS.IMAGE_OPEN` during an image, the
   reset values, every single byte strobe on `MAP_ADDR`, a write of `MAP_DATA` with the strobe of byte 0 only (all 32
-  bits written), read-only and write-only registers, unused addresses, every flag of `STATUS` set by its event, kept by
-  a write of 0 and by a write without the strobe of its byte, cleared by a write of 1. Every access was answered with
-  OKAY.
+  bits written), read-only and write-only registers, unused addresses (also `ID` + 2, an address that is not a multiple
+  of 4), every flag of `STATUS` set by its event, kept by a write of 0 and by a write without the strobe of its byte,
+  cleared by a write of 1. Every access was answered with OKAY.
 - Resets idle, held and running, of one and two cycles, during a line, while the window outputs the virtual columns
   of a line, and between two images: the registers return to their reset values, the map stays, the next images are
   correct. A reset of one cycle swept over the cycles of the map reads of pixel (0, 0), with the next image right
@@ -122,13 +134,19 @@ test. The read-ahead across the image start is no longer killed by test_scrub: t
 random word, in `g2` word 0, which the mutant reads before the injection; the double error is now in the last word of
 the map (plan, section 5). test_map_update, the test the plan names, kills it as before.
 
-The mutation run was repeated on 2026-11-20 on commit f9fad71 for the registered read request and the defaults
-(section 5.1), with 21 tests: the 14 before, the configuration `defaults` (test_static, test_registers, test_ecc,
-test_reset), and test_rate of `defaults_rate`, `rate_w33` and `rate_g2`; three mutants concern the registered request.
-The table shows that run. Every one of the 22 mutants fails at least one test. The registered request kept through a
-reset is killed only at the defaults (`RamRdLatency_g` 2, `EccPipeline_g` 1), by the reset sweep of test_ecc and by
-test_reset. The read-ahead one word shorter is killed by test_rate of `rate_w33`, whose last word of a line holds a
-single pixel (architecture, section 5).
+The mutation run was repeated on 2026-11-20 on commit f9fad71 for the registered read request and the defaults (section
+5.1), with 21 tests: the 14 before, the configuration `defaults` (test_static, test_registers, test_ecc, test_reset),
+and test_rate of `defaults_rate`, `rate_w33` and `rate_g2`; three mutants concern the registered request. Every one of
+the 22 mutants fails at least one test. The registered request kept through a reset is killed only at the defaults
+(`RamRdLatency_g` 2, `EccPipeline_g` 1), by the reset sweep of test_ecc and by test_reset. The read-ahead one word
+shorter is killed by test_rate of `rate_w33`, whose last word of a line holds a single pixel (architecture, section 5).
+
+The mutation run was repeated on 2026-11-21 on commit 92a444e, the coverage closure (section 1), with the same 21 tests;
+the table shows that run. Three mutants came with it, one for each access the closure added: `CTRL.CLEAR` without the
+strobe of byte 0 and a clear started by any write of `CTRL`, both killed by test_clear, and a read at an address that is
+not a multiple of 4 decoded as the register at the aligned address, killed by test_registers (`ID` + 2). The read-decode
+mutant ran alone on the same commit with the same 21 tests; the reference run passed again. Every one of the 25 mutants
+fails at least one test.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -145,6 +163,9 @@ single pixel (architecture, section 5).
 | MAP_ADDR cut to the width of the map address | killed by 4 of 21 tests | test_map_update, test_registers |
 | MAP_ADDR counted up by a write without effect | killed by 3 of 21 tests | test_clear, test_map_update |
 | A CTRL.CLEAR during a clear restarts it | killed by 1 of 21 tests | test_clear |
+| CTRL.CLEAR without the strobe of byte 0 | killed by 1 of 21 tests | test_clear |
+| A clear started by any write of CTRL | killed by 1 of 21 tests | test_clear |
+| A read at an address that is not a multiple of 4 decoded as the register at the aligned address | killed by 2 of 21 tests | test_registers |
 | A word with a double error replaced by zeros instead of used as read | killed by 5 of 21 tests | test_ecc, test_registers, test_scrub |
 | Stat_Unreplaced pulsed when the pixel enters the output register (not when it leaves the module) | killed by 2 of 21 tests | test_reset |
 | No Stat_EccSec pulse with a read | killed by 4 of 21 tests | test_ecc, test_registers |
@@ -270,3 +291,4 @@ stays 8.7 MHz and `rpl_g7` 3.4 MHz above 125 MHz.
 | The first mutation run also kept the division constant one bit shorter alive: with 4-bit pixels it gives the right quotient for every reachable numerator. A model of the division over every width from 1 to 24 bits shows that K = P + 8 is exact and that K = P + 7 fails only at 5, 6, 9, 17, 18 and 21 bits (for d = 13, values near the top) | The configuration `exhaustive_p6` runs every pair of 6-bit values with every pair of distances |
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found three gaps in this bench: `Stat_ImageOpen` probed only after complete images, where it is 0; `STATUS.IMAGE_OPEN` never read as 1; `Scrub_EccDed` checked only as at least one pulse, not against the count of the design | test_input_stream probes `Stat_ImageOpen` while an image is open; test_registers reads `STATUS` while an image is open; test_scrub checks `Scrub_EccDed` exactly, one pulse per pass for the word with the double error, which is now the last word of the map, and the bench switches the scrubber off only at the end of a pass (derivation in the plan, section 5). The mutants `Stat_ImageOpen` tied to 0, `STATUS.IMAGE_OPEN` tied to 0 and the exchange of `Scrub_EccSec` and `Scrub_EccDed` are killed (section 4). No change of the RTL |
 | The audit of the configuration checks found the ranges of `ClkFreqHz_g` and `ScrubPeriod_g` stated as "range of Open Logic" and unchecked in the module: the scrubber of Open Logic checks 1000.0 Hz and 1 ms with messages that name its own generics, treats a negative period as free running, and the divider of the period fails above 2^30 - 1 ms with an integer overflow in `log2ceil` (Open Logic states 2^31 - 1 ms) | The specification states the ranges (the period rounded to whole milliseconds), the module checks both and passes the scrubber in-range values only; negatives for a negative, a too short and a too long period and a too low and a too high clock, and the bounds synthesised (TC-RPL-12). The bench is unchanged |
+| The code coverage of the release run showed that no test wrote `CTRL` with `CLEAR` 0 or `CLEAR` without the strobe of byte 0 | test_clear writes both and observes a marked pixel of the next image, test_registers also reads `ID` + 2; the three new mutants are killed (section 4). No change of the RTL |

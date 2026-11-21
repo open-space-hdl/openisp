@@ -150,6 +150,9 @@ The arithmetic is exact: the model computes in unbounded integers, and every out
 | A write of only bytes without bits sets the parity for the stored value | TC-CNV-04 (an injection, then a write of only bytes without bits) |
 | The parity of a kept byte taken from the write data | TC-CNV-04, 05 (writes with random strobes) |
 | The parity of a written byte taken from the stored bits | TC-CNV-04 (a partial write, and every write that changes a byte) |
+| `CTRL` written without the strobe of byte 0 | TC-CNV-05 (a write of `CTRL` with the strobes of bytes 1 to 3) |
+| `INJECT.INDEX` taken without the strobe of byte 1 | TC-CNV-04 (an injection with the strobe of byte 0 only) |
+| A read between two coefficient registers returns the coefficient below | TC-CNV-05 (the reads at the three addresses above a coefficient that is not 0) |
 
 ## 7. Expected coverage exclusions
 

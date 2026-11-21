@@ -148,6 +148,8 @@ registers, malformed input streams, resets. The pulse counts are compared exactl
 | A write of only bytes without bits sets the parity for the stored value | TC-CRP-05 (the write without a strobe, without and with a mismatch: the mutant sets the parity bit to 0, which differs from the parity bit before the write in one of the two states, whatever the parity of the position) |
 | The parity of a kept byte taken from the write data | TC-CRP-05 (a partial write) |
 | The parity of a written byte taken from the stored bits | TC-CRP-05 (a partial write, and every write that changes a byte) |
+| `INJECT` flips the parity without its bit 0 | TC-CRP-05 (a write of `INJECT` with bit 0 clear) |
+| A read at an address that is not a multiple of 4 decoded as the register at the aligned address | TC-CRP-06 (the read at `ID` + 2) |
 
 ## 7. Expected coverage exclusions
 

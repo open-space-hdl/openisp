@@ -185,6 +185,9 @@ derivation is never adjusted to fit a measurement.
 | The RAM reads the word after the registered read request (the address from the read counter, not from the register) | TC-RPL-01, 03, 09 |
 | The registered read request kept through a reset | TC-RPL-05 (the reset sweep at the read requests of an image start, `defaults`), TC-RPL-10 |
 | The read-ahead one word shorter (two words in the queue and in flight) | TC-RPL-11 (`rate_w33`: the last word of a line holds a single pixel) |
+| `CTRL.CLEAR` without the strobe of byte 0 | TC-RPL-04 (a write of `CTRL.CLEAR` with the strobes of bytes 1 to 3, then a marked pixel) |
+| A clear started by any write of `CTRL` | TC-RPL-04 (a write of `CTRL` with `CLEAR` 0, then a marked pixel) |
+| A read at an address that is not a multiple of 4 decoded as the register at the aligned address | TC-RPL-07 (the read at `ID` + 2) |
 
 ## 7. Expected coverage exclusions
 

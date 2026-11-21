@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 3`, 175 of 175 tests passed (51 of them `isp_point`), 0 skipped. QuestaSim runs with the release
-regression (with and without code coverage).
+`python run.py -p 3`, 175 of 175 tests passed (51 of them `isp_point`), 0 skipped. QuestaSim Pro Microchip Edition
+2024.3 ran the release regression with code coverage on 2026-11-21 on commit b50efd1:
+`python run.py --questa --coverage -p 1`, 669 of 669 tests passed (54 of them `isp_point`), 0 skipped; the code coverage
+is in [docs/coverage.md](../../../docs/coverage.md).
 
 The configuration `w1_h4` (`ImageWidth_g` 1 in a small image, test_static) came later, with the pull-request tests of
 the CI, which run the low bound of every generic: `python run.py -p 4` on 2026-11-19 on commit 30a4acc, 510 of 510
@@ -18,6 +20,14 @@ register keeps a mismatch, a write of only bytes without bits leaves the parity 
 writes of test_parity; the configuration `defaults` (2 tests) came before with the default of `MaxShift_g` (section 7):
 `python run.py -p 4` on 2026-11-20 on commit e9116a7 (with develop fbc18fd), 669 of 669 tests passed (54 of them
 `isp_point`), 0 skipped; `lint/synth_check.py` (TC-PNT-11) passed.
+
+The code coverage of the release run ([docs/coverage.md](../../../docs/coverage.md)) found a register access that no
+test made, a write of `CTRL` without the strobe of byte 0; test_registers makes it now and also reads `ID` + 2 (section
+2): `python run.py -p 2 "*isp_conv_tb*" "*isp_crop_tb*" "*isp_point_tb*" "*isp_replace_tb*"` on 2026-11-21 on commit
+92a444e, 313 of 313 tests passed (54 of them `isp_point`), 0 skipped. QuestaSim ran the 76 changed tests of the four
+modules with code coverage on the same commit: 76 of 76 passed (9 of them `isp_point`), 0 skipped. The generated test
+files of every other test of the release run are identical to those of b50efd1, so their QuestaSim results apply to
+92a444e.
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
@@ -62,10 +72,11 @@ every test.
   the register allows (`SHIFT` and the registers of up to 8 bits only the write of bytes without bits, for `SHIFT`
   the write without byte 0; `OFFSET_HI` without bits, an offset of up to 32 bits: every write is full and clears
   the mismatch). A partial write of `GAIN` without a mismatch is taken.
-- Registers: identification, dimensions and widths, the reset values (also `HIGH` from the sentinel -1 and
-  `OFFSET_HI` as the sign of the offset), every single byte strobe on every parameter register with random data and
-  its read-back (the offset sign-extended, the other registers zero-extended), read-only registers and unused
-  addresses, the sticky flags. Every access was answered with OKAY.
+- Registers: identification, dimensions and widths, the reset values (also `HIGH` from the sentinel -1 and `OFFSET_HI`
+  as the sign of the offset), every single byte strobe on every parameter register with random data and its read-back
+  (the offset sign-extended, the other registers zero-extended), read-only registers and unused addresses (also `ID` +
+  2, an address that is not a multiple of 4), a write of `CTRL` without the strobe of byte 0 without effect, the sticky
+  flags. Every access was answered with OKAY.
 - `Stat_ImageOpen` is 1 while an image is open (an image cut after half of its pixels) and 0 after complete images.
 - Resets idle, held and running in the middle of an image, of one and of two cycles: the registers hold the generics
   again and the next images are correct.
@@ -107,11 +118,17 @@ commit 399d8b9 with the same 14 tests; the reference run passed again.
 
 The mutation run was repeated on 2026-11-20 on commit 2189d17, the parity bit of a write from `ispWriteParity` of
 `isp_pkg` (PKG-08), with the 14 tests and test_static and test_registers of the configuration `defaults`, which the
-mutant of the old default of `MaxShift_g` needs (section 7); the table shows that run, and the sources of the module are
-the same at e9116a7. Five mutants of `ispWriteParity` came with it: the parity of a kept byte from the write data, of a
-written byte from the stored bits, a write that keeps a byte with bits sets the parity bit for the resulting value (the
-rule before PKG-08), a write of every byte with bits keeps the syndrome, and a write of only bytes without bits sets the
-parity bit. Every one of the 24 mutants fails at least one test; the mutants of PKG-08 are killed by test_parity.
+mutant of the old default of `MaxShift_g` needs (section 7), and the sources of the module are the same at e9116a7. Five
+mutants of `ispWriteParity` came with it: the parity of a kept byte from the write data, of a written byte from the
+stored bits, a write that keeps a byte with bits sets the parity bit for the resulting value (the rule before PKG-08), a
+write of every byte with bits keeps the syndrome, and a write of only bytes without bits sets the parity bit. Every one
+of the 24 mutants fails at least one test; the mutants of PKG-08 are killed by test_parity.
+
+The mutation run was repeated on 2026-11-21 on commit 92a444e, the coverage closure (section 1), with the same 16 tests;
+the table shows that run. Two mutants came with it, one for each access the closure added: `CTRL` written without the
+strobe of byte 0 and a read at an address that is not a multiple of 4 decoded as the register at the aligned address
+(`ID` + 2), both killed by test_registers. The read-decode mutant ran alone on the same commit with the same 16 tests;
+the reference run passed again. Every one of the 27 mutants fails at least one test.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -134,6 +151,8 @@ parity bit. Every one of the 24 mutants fails at least one test; the mutants of 
 | The parity bit of GAIN not set by a write | killed by 5 of 16 tests | test_exhaustive, test_hold, test_parity, test_runtime |
 | The offset stored with the sign of the 64-bit value (resize) instead of its lower bits | killed by 5 of 16 tests | test_exhaustive, test_hold, test_parity, test_runtime |
 | The clear of ERR_CONFIG wins over the event | killed by 1 of 16 tests | test_flag_coincidence |
+| CTRL written without the strobe of byte 0 | killed by 2 of 16 tests | test_registers |
+| A read at an address that is not a multiple of 4 decoded as the register at the aligned address | killed by 2 of 16 tests | test_registers |
 | Stat_ImageOpen tied to 0 | killed by 1 of 16 tests | test_input_stream |
 | MaxShift_g default 82 | killed by 2 of 16 tests | test_registers, test_static |
 | The parity of a kept byte taken from the write data | killed by 1 of 16 tests | test_parity |
@@ -226,3 +245,4 @@ The register map of the specification and the register description agree (`tools
 | A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example while `CTRL.HOLD` is 1 and the registers are not checked, therefore became a valid word with the next partial write: masked, not detected (found in review) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; PNT-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
 | A write of `SHIFT` without the strobe of byte 0 stores none of its 7 bits but set the parity bit again, the same masking for a write of only bytes without bits | Such a write leaves the parity bit unchanged (PKG-08); test_parity writes `SHIFT` without byte 0 after an injection |
 | The architecture said that the register stages of the multiplier are placed by the retiming of the synthesis tool. The preliminary synthesis on PolarFire keeps them behind the product, with and without retiming, so that the product of the widest configuration is computed in one cycle (80.6 MHz) | The architecture (sections 4 and 7) and the specification (generics) state the intent of the stages and the result on PolarFire (section 5.1); the user guide gives the limit of the widest configuration; a product pipelined in the RTL is an open item of the roadmap. No change of the RTL |
+| The code coverage of the release run showed that no test wrote `CTRL` without the strobe of byte 0 | test_registers writes it and also reads `ID` + 2; the two new mutants are killed (section 4). No change of the RTL |
