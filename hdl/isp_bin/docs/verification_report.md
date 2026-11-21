@@ -136,6 +136,11 @@ first run on 2eb6d50, before the change of the probe wait, gave the same results
 into `isp_pkg` (`ispBinOut`); its mutant, now on the call of the function, ran alone on 2026-11-20 on commit 2d4b4c8
 with the same 14 tests and failed the same 4 tests.
 
+The mutation run was repeated on 2026-11-21 on commit 9ddf49d, the sources and benches of release 0.1.0, with the same
+14 tests, a new reference run and every mutant of the module in one run, also the mutant on the call of `ispBinOut`,
+which ran alone before; the table shows that run. Every one of the 13 mutants fails at least one test. The failing tests
+of every mutant are the same as before.
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (14 tests) | - |
