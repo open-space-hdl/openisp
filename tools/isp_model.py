@@ -676,6 +676,8 @@ class ConvKernel:
         return 0
 
     def write(self, addr, data, strobes):
+        # The AXI4-Lite slave ignores the address bits 1:0 of a write
+        addr &= ~0x3
         if addr == CNV_CTRL and strobes & 0x1:
             self.hold = bool(data & 1)
             self.ctrl_parity = True

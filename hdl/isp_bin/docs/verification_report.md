@@ -5,7 +5,9 @@
 Run on 2026-11-20 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
 `python run.py -p 4` on 2eb6d50, 601 of 601 tests passed (59 of them `isp_bin`), 0 skipped. The tests of `isp_bin` ran
 again on 4ba63f8, which changes only the wait of the probes after complete images (section 7): 59 of 59 passed, 0
-skipped. QuestaSim runs with the release regression (with and without code coverage).
+skipped. QuestaSim Pro Microchip Edition 2024.3 ran the release regression with code coverage on 2026-11-21 on commit
+b50efd1: `python run.py --questa --coverage -p 1`, 669 of 669 tests passed (97 of them `isp_bin`), 0 skipped; the code
+coverage is in [docs/coverage.md](../../../docs/coverage.md).
 
 The configuration checks of the audit of every module (section 7) came later: `python run.py -p 4` on 2026-11-20 on
 commit 4cef90a, 601 of 601 tests passed (59 of them `isp_bin`), 0 skipped; `lint/synth_check.py` (TC-BIN-07) passed.
@@ -133,6 +135,11 @@ mutants with the same 14 tests. A mutant that changes several places of the sour
 first run on 2eb6d50, before the change of the probe wait, gave the same results. The width of the narrowed image moved
 into `isp_pkg` (`ispBinOut`); its mutant, now on the call of the function, ran alone on 2026-11-20 on commit 2d4b4c8
 with the same 14 tests and failed the same 4 tests.
+
+The mutation run was repeated on 2026-11-21 on commit 9ddf49d, the sources and benches of release 0.1.0, with the same
+14 tests, a new reference run and every mutant of the module in one run, also the mutant on the call of `ispBinOut`,
+which ran alone before; the table shows that run. Every one of the 13 mutants fails at least one test. The failing tests
+of every mutant are the same as before.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |

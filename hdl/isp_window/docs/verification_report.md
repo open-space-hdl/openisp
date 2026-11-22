@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4`, 303 of 303 tests passed (128 of them `isp_window`), 0 skipped. QuestaSim runs with the release
-regression (with and without code coverage).
+`python run.py -p 4`, 303 of 303 tests passed (128 of them `isp_window`), 0 skipped. QuestaSim Pro Microchip Edition
+2024.3 ran the release regression with code coverage on 2026-11-21 on commit b50efd1:
+`python run.py --questa --coverage -p 1`, 669 of 669 tests passed (128 of them `isp_window`), 0 skipped; the code
+coverage is in [docs/coverage.md](../../../docs/coverage.md).
 
 The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
 `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (128 of them `isp_window`), 0 skipped.
@@ -109,17 +111,22 @@ The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section
 commit 399d8b9 with the same 21 tests; the reference run passed again.
 
 The mutation run was repeated on 2026-11-20 on commit 31cca42, the selections without the selection of the event
-position and the row selection of the next line by compares (architecture, section 7), with the same 21 tests and
-seven mutants of the changed decisions; the table shows that run. 23 of the 24 mutants fail at least one test. The
-column of pixel (0, 0) from the registered row selection survives: it is equivalent at the ports, because every image
-that reaches the event control is complete (the frame sync fills a short image, E1) and the reset loads the selection
-of line 0, so at every pixel (0, 0) the registered selection already is that of line 0; only an upset of the register
-makes the restart act, which the bench cannot cause through the ports. The restart is verified by review (TC-WIN-07,
-WIN-FT-03).
+position and the row selection of the next line by compares (architecture, section 7), with the same 21 tests and seven
+mutants of the changed decisions. 23 of the 24 mutants fail at least one test. The column of pixel (0, 0) from the
+registered row selection survives: it is equivalent at the ports, because every image that reaches the event control is
+complete (the frame sync fills a short image, E1) and the reset loads the selection of line 0, so at every pixel (0, 0)
+the registered selection already is that of line 0; only an upset of the register makes the restart act, which the bench
+cannot cause through the ports. The restart is verified by review (TC-WIN-07, WIN-FT-03).
 
 The output dimensions moved into `isp_pkg` (`ispWinOut`, section 7); the mutant that computes them in the border mode
 valid for every border mode ran alone on 2026-11-20 on commit 2d4b4c8 with the same 21 tests (the reference run passed
 again).
+
+The mutation run was repeated on 2026-11-21 on commit 9ddf49d, the sources and benches of release 0.1.0, with the same
+21 tests, a new reference run and every mutant of the module in one run, also `Stat_ImageOpen` tied to 0 and the mutant
+of the output dimensions on the call of `ispWinOut`, which ran alone before; the table shows that run. 23 of the 24
+mutants fail at least one test. The column of pixel (0, 0) from the registered row selection survives again; it is
+equivalent at the ports (above). The failing tests of every other mutant are the same as before.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |

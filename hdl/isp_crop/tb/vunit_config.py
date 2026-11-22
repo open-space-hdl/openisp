@@ -225,6 +225,9 @@ def build_parity(rng, c):
     items += c.image(rng, "random")
     items += c.regs(write(CRP_ROI_POS, pos(c.x, c.y)))
     items += c.image(rng, "lines")
+    # An injection with bit 0 clear has no effect: the image uses the written position
+    items += c.regs(write(CRP_ROI_POS, pos(*other)), write(CRP_INJECT, 0))
+    items += c.image(rng, "lines")
     items += c.regs(check(CRP_STATUS))
     return items + status()
 
@@ -238,8 +241,9 @@ def build_registers(rng, c):
                     check(CRP_ID), check(CRP_IMAGE), check(CRP_ROI_SIZE))
     if not c.runtime:
         items += c.regs(write(CRP_ROI_POS, pos(0, 0)), check(CRP_ROI_POS))
-    # Unused addresses read 0
-    items += c.regs(*[check(a) for a in (0x18, 0x1C, 0x40, 0x80, 0xFC)], write(0x18, 0xFFFFFFFF), check(0x18))
+    # Unused addresses read 0, also ID + 2 (a read at an address that is not a multiple of 4)
+    items += c.regs(*[check(a) for a in (CRP_ID + 2, 0x18, 0x1C, 0x40, 0x80, 0xFC)], write(0x18, 0xFFFFFFFF),
+                    check(0x18))
     # STATUS.IMAGE_OPEN during an image
     if n >= 2:
         pix = random_image(rng, c.w, c.h, c.bits)

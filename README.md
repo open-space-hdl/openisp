@@ -1,5 +1,7 @@
 # OpenISP
 
+[![TRL 3](docs/img/trl-3.svg)](https://openspacehdl.org/trl/)
+
 OpenISP is a suite of open image signal processing cores for spacecraft imagers, based on the Open Logic VHDL Library.
 Every function of a processing chain (region of interest, pixel-level operations, 2D window filters, binning,
 replacement of non-operational pixels) is a separate, generics-configured VHDL-2008 entity with valid / ready
@@ -12,8 +14,14 @@ specification; the development follows ECSS-E-ST-20-40C.
 
 ## Status
 
-**In development.** No module is verified yet. All eight modules have their requirements and architecture; the
-[roadmap](docs/roadmap.md) lists the modules and their state.
+**Version 0.1.0. Technology readiness level: TRL 3** (fully verified by simulation). Every module passes its testbench
+against its Python reference model in GHDL and in QuestaSim (669 of 669 tests), with malformed streams, resets during
+images, error injection into every ECC-protected memory and into the parity of the run-time parameters (`isp_crop`,
+`isp_point`, `isp_conv`); the chain test connects the modules in three chains against the composition of their models.
+Every module has a mutation run, and the code coverage is closed or every remaining miss is justified
+([docs/coverage.md](docs/coverage.md)). The modules have not been tested on hardware and have no flight heritage; see
+[what the levels mean](https://openspacehdl.org/trl/) and the steps to the next level in the
+[roadmap](docs/roadmap.md#technology-readiness).
 
 ## Documentation
 
@@ -28,6 +36,7 @@ The documents are also published as a website: [openspacehdl.org/openisp](https:
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Technology readiness, module status and open items |
 | [docs/compliance.md](docs/compliance.md) | Compliance matrix: module requirements and test cases of every core requirement (generated) |
+| [docs/coverage.md](docs/coverage.md) | Code coverage of the QuestaSim regression: the results per module and the reason for every miss |
 | `hdl/<module>/docs/` | Specification, architecture, verification plan and verification report of each module |
 
 ## Repository structure

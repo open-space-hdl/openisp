@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4`, 124 of 124 tests passed (48 of them `isp_crop`), 0 skipped. QuestaSim runs with the release
-regression (with and without code coverage).
+`python run.py -p 4`, 124 of 124 tests passed (48 of them `isp_crop`), 0 skipped. QuestaSim Pro Microchip Edition 2024.3
+ran the release regression with code coverage on 2026-11-21 on commit b50efd1: `python run.py --questa --coverage -p 1`,
+669 of 669 tests passed (48 of them `isp_crop`), 0 skipped; the code coverage is in
+[docs/coverage.md](../../../docs/coverage.md).
 
 The status-output audit added a probe of `Stat_ImageOpen` while an image is open to test_input_stream:
 `python run.py -p 4` on 2026-11-20 on commit 399d8b9, 542 of 542 tests passed (48 of them `isp_crop`), 0 skipped.
@@ -13,6 +15,14 @@ The parity bit of a write after PKG-08 (`ispWriteParity` of `isp_pkg`: a write t
 mismatch, a write without a strobe leaves the parity bit unchanged) came with the partial writes of test_parity:
 `python run.py -p 4` on 2026-11-20 on commit e9116a7 (with develop fbc18fd), 669 of 669 tests passed (48 of them
 `isp_crop`), 0 skipped; `lint/synth_check.py` (TC-CRP-10) passed.
+
+The code coverage of the release run ([docs/coverage.md](../../../docs/coverage.md)) found a register access that no
+test made, a write of `INJECT` with bit 0 clear; test_parity makes it now, and test_registers also reads `ID` + 2
+(section 2): `python run.py -p 2 "*isp_conv_tb*" "*isp_crop_tb*" "*isp_point_tb*" "*isp_replace_tb*"` on 2026-11-21 on
+commit 92a444e, 313 of 313 tests passed (48 of them `isp_crop`), 0 skipped. QuestaSim ran the 76 changed tests of the
+four modules with code coverage on the same commit: 76 of 76 passed (9 of them `isp_crop`), 0 skipped. The generated
+test files of every other test of the release run are identical to those of b50efd1, so their QuestaSim results apply to
+92a444e.
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
@@ -44,13 +54,13 @@ image, as one pixel, a line, a column and the whole image, in images from 1 x 1 
   image, `STATUS.ERR_CONFIG` is set and `ROI_POS` keeps the written value.
 - Parity: after `INJECT` every image uses the generics with one `Err_Config` until `ROI_POS` is written; a second
   injection restores the parity; an injection without the strobe of byte 0 and an injection with `RuntimeRoi_g` false
-  have no effect. Partial writes (PKG-08): after an injection, a write of the bytes of X alone keeps the mismatch
-  (the next images use the generics with `Err_Config`), a write of all four bytes clears it, and a write of the
-  bytes of X without a mismatch is taken; a write without a strobe stores nothing and leaves the parity bit
-  unchanged, without and with a mismatch.
-- Registers: identification, dimensions, reset values, read-only registers and unused addresses, `IMAGE_OPEN` during
-  an image, the sticky flags kept by a write of 0 and by a write without the strobe of their byte, cleared by a write
-  of 1. Every access was answered with OKAY.
+  have no effect. Partial writes (PKG-08): after an injection, a write of the bytes of X alone keeps the mismatch (the
+  next images use the generics with `Err_Config`), a write of all four bytes clears it, and a write of the bytes of X
+  without a mismatch is taken; a write without a strobe stores nothing and leaves the parity bit unchanged, without and
+  with a mismatch. A write of `INJECT` with bit 0 clear has no effect.
+- Registers: identification, dimensions, reset values, read-only registers and unused addresses (also `ID` + 2, an
+  address that is not a multiple of 4), `IMAGE_OPEN` during an image, the sticky flags kept by a write of 0 and by a
+  write without the strobe of their byte, cleared by a write of 1. Every access was answered with OKAY.
 - Resets idle, held and running in the middle of an image, with pixels of the region in the module and with the last
   pixel outside the region, of one and of two cycles: `ROI_POS` holds the generics again, the next images are correct.
 - The control outputs carry no metavalue after the first reset, and `Out_Valid`, `Err_Framing`, `Err_Config` and
@@ -87,9 +97,15 @@ The mutant `Stat_ImageOpen` tied to 0 came with the status-output audit (section
 commit 399d8b9 with the same 15 tests; the reference run passed again.
 
 The mutation run was repeated on 2026-11-20 on commit e9116a7, the parity bit of a write from `ispWriteParity` of
-`isp_pkg` (PKG-08), with the same 15 tests; the table shows that run. Five mutants of `ispWriteParity` came with it
-(section 6 of the plan). Every one of the 19 mutants fails at least one test; the mutants of PKG-08 are killed by
-test_parity. The first run, on 2189d17, kept the mutant of the write of only bytes without bits alive (section 7).
+`isp_pkg` (PKG-08), with the same 15 tests. Five mutants of `ispWriteParity` came with it (section 6 of the plan). Every
+one of the 19 mutants fails at least one test; the mutants of PKG-08 are killed by test_parity. The first run, on
+2189d17, kept the mutant of the write of only bytes without bits alive (section 7).
+
+The mutation run was repeated on 2026-11-21 on commit 92a444e, the coverage closure (section 1), with the same 15 tests;
+the table shows that run. Two mutants came with it, one for each access the closure added: `INJECT` that flips the
+parity without its bit 0, killed by test_parity, and a read at an address that is not a multiple of 4 decoded as the
+register at the aligned address, killed by test_registers (`ID` + 2). The read-decode mutant ran alone on the same
+commit with the same 15 tests; the reference run passed again. Every one of the 21 mutants fails at least one test.
 
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
@@ -107,6 +123,8 @@ test_parity. The first run, on 2189d17, kept the mutant of the write of only byt
 | Pixels outside the region wait for the output | killed by 1 of 15 tests | test_rate |
 | No Err_Config pulse | killed by 4 of 15 tests | test_flag_coincidence, test_invalid_position, test_parity, test_registers |
 | ROI_POS not set to the generics by the reset | killed by 5 of 15 tests | test_input_stream, test_rate, test_registers, test_reset, test_static |
+| INJECT flips the parity without its bit 0 | killed by 1 of 15 tests | test_parity |
+| A read at an address that is not a multiple of 4 decoded as the register at the aligned address | killed by 2 of 15 tests | test_registers |
 | Stat_ImageOpen tied to 0 | killed by 2 of 15 tests | test_input_stream |
 | The parity of a kept byte taken from the write data | killed by 2 of 15 tests | test_parity, test_runtime_position |
 | The parity of a written byte taken from the stored bits | killed by 3 of 15 tests | test_invalid_position, test_parity, test_runtime_position |
@@ -192,3 +210,4 @@ The register map of the specification and the register description agree (`tools
 | The audit of the status outputs of every module (after the mutation run of `isp_filter2d`) found `Stat_ImageOpen` probed only after complete images, where it is 0: a port tied to 0 would have passed every test | test_input_stream begins with an image cut after half of its pixels and probes `Stat_ImageOpen` while it is open (the malformed streams of `tools/isp_tbgen.py`); the mutant of a port tied to 0 is killed (section 4). No change of the RTL |
 | A write with byte strobes set the parity bit for the resulting value. An upset in a byte that the write kept, for example between two images, therefore became a valid word with the next partial write: masked, not detected (found in review) | The parity bit of a write follows PKG-08 (`ispWriteParity` of `isp_pkg`): a write of every byte that holds bits of the register sets it for the written value, a write that keeps such a byte keeps a mismatch, so that the error is reported until the register is written in full; CRP-RG-03, the error table, the user guide (4.3: the software writes every byte with bits after `ERR_CONFIG`); test_parity: an injection, then a partial write and a write of only bytes without bits, then the images with the generics, a full write that clears it, and a partial write without a mismatch |
 | The first mutation run with the mutants of PKG-08, on 2189d17, kept the mutant alive that sets the parity bit for a write of only bytes without bits: every byte of `ROI_POS` holds bits, so such a write is the write without a strobe, which test_parity did not make; the plan expected it from TC-CRP-05 | test_parity writes `ROI_POS` without a strobe, without and with a mismatch (the mutant sets the parity bit to 0, which differs from the parity bit before the write in one of the two, whatever the parity of the position); the plan names the write; the mutant is killed in the run on e9116a7 (section 4). No change of the RTL |
+| The code coverage of the release run showed that no test wrote `INJECT` with bit 0 clear | test_parity writes it, test_registers also reads `ID` + 2; the two new mutants are killed (section 4). No change of the RTL |

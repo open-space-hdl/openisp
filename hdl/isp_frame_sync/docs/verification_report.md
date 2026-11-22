@@ -3,8 +3,10 @@
 ## 1. Test results
 
 Run on 2026-11-19 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM (commit 4f1e13b), Open Logic 4.8.0-ft.2:
-`python run.py -p 4 "*isp_frame_sync*"`, 75 of 75 tests passed, 0 skipped. QuestaSim runs with the release
-regression (with and without code coverage).
+`python run.py -p 4 "*isp_frame_sync*"`, 75 of 75 tests passed, 0 skipped. QuestaSim Pro Microchip Edition 2024.3 ran
+the release regression with code coverage on 2026-11-21 on commit b50efd1: `python run.py --questa --coverage -p 1`, 669
+of 669 tests passed (75 of them `isp_frame_sync`), 0 skipped; the code coverage is in
+[docs/coverage.md](../../../docs/coverage.md).
 
 | Test | Configurations | Passed |
 | --- | --- | --- |
@@ -56,6 +58,12 @@ Run on 2026-11-19 on commit b3c08f5 in a worktree of its own (`git diff --quiet`
 the 16 tests of the configurations `w5_h4_p12`, `w5_h4_p12_bp` and the test_rate of `w7_h1_p16`. Every mutant of the
 plan (section 6) fails at least one test; the tests that fail are those the plan expects.
 
+The mutation run was repeated on 2026-11-21 on commit 9ddf49d, the sources and benches of release 0.1.0, with the same
+16 tests, a new reference run and every mutant of the module in one run; the table shows that run. Every one of the 12
+mutants fails at least one test. The mutant without the E4 check now fails test_reset as well: its held reset inside the
+first packet of an image restarts the image k pixels late, so the last packet of that image ends k pixels before its
+last pixel (E4).
+
 | Mutation | Result | Failing tests |
 | --- | --- | --- |
 | None (reference) | passes (16 tests) | - |
@@ -63,7 +71,7 @@ plan (section 6) fails at least one test; the tests that fail are those the plan
 | Missing pixels with the input pixel instead of 0 | killed by 12 of 16 tests | test_end_flags, test_random_streams, test_rate, test_reset, test_short_images, test_status |
 | One Err_Framing per discarded pixel | killed by 8 of 16 tests | test_excess_pixels, test_random_streams, test_rate, test_reset |
 | No E3 check | killed by 8 of 16 tests | test_end_flags, test_excess_pixels, test_random_streams, test_status |
-| No E4 check | killed by 4 of 16 tests | test_end_flags, test_random_streams |
+| No E4 check | killed by 6 of 16 tests | test_end_flags, test_random_streams, test_reset |
 | The image start taken from any beat | killed by 16 of 16 tests | test_end_flags, test_excess_pixels, test_images, test_random_streams, test_rate, test_reset, test_short_images, test_status |
 | The line counter not advanced | killed by 15 of 16 tests | test_end_flags, test_excess_pixels, test_images, test_random_streams, test_rate, test_reset, test_short_images, test_status |
 | Out_User "00" instead of "10" for the last line | killed by 15 of 16 tests | test_end_flags, test_excess_pixels, test_images, test_random_streams, test_rate, test_reset, test_short_images, test_status |

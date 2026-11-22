@@ -47,6 +47,7 @@ nav:
   - Modules: hdl/*/
   - Verification:
       - Compliance matrix: docs/compliance.md
+      - Code coverage: docs/coverage.md
   - Project:
       - Roadmap: docs/roadmap.md
       - Conventions: docs/conventions.md
