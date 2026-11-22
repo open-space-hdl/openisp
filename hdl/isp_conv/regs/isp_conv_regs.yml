@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 by Julian Schneider
+# Authors: Julian Schneider
+# ---------------------------------------------------------------------------------------------------
+# Register map of isp_conv: the single description from which tools/regmap.py generates the VHDL package
+# hdl/isp_conv/src/isp_conv_regs_pkg.vhd, the documentation hdl/isp_conv/docs/register_map.md and the C header
+# sw/isp_conv_regs.h. tools/regmap.py --check compares it with the register table of the specification.
+#
+# Access per field: RO read only, RW read and write, W write only (the argument of a command), W1 write one (command,
+# reads as zero), W1C sticky flag (write one to clear). A reset value written as text depends on generics.
+
+id: 0x434E5601
+addr_bits: 12
+title: "Registers of the linear kernel: identification, characteristics, control, status, error injection and the
+  coefficients (read only with RuntimeCoef_g false)."
+
+registers:
+  - name: ID
+    offset: 0x000
+    description: Identification
+    fields:
+      - {name: ID, bits: "31:0", access: RO, reset: 0x434E5601, description: "0x434E56 (CNV) and register map version 1"}
+  - name: PARAM
+    offset: 0x004
+    description: Characteristics
+    fields:
+      - {name: WIN_X, bits: "4:0", access: RO, reset: WinX_g, description: "Columns of the window"}
+      - {name: WIN_Y, bits: "12:8", access: RO, reset: WinY_g, description: "Lines of the window"}
+      - {name: COEF_BITS, bits: "20:16", access: RO, reset: CoefBits_g, description: "Bits of a coefficient"}
+      - {name: PIXEL_BITS, bits: "29:24", access: RO, reset: PixelBits_g, description: "Bits per pixel of the window"}
+  - name: CTRL
+    offset: 0x008
+    description: Control
+    fields:
+      - {name: HOLD, bits: "0", access: RW, reset: 0, description: "1: the image starts do not take the coefficient registers; with a wrong parity bit of CTRL it counts as 0"}
+  - name: STATUS
+    offset: 0x00C
+    description: Status
+    fields:
+      - {name: ERR_CONFIG, bits: "9", access: W1C, reset: 0, description: "Set by every pulse of Err_Config"}
+  - name: INJECT
+    offset: 0x010
+    description: Error injection for the test of the error handling
+    fields:
+      - {name: PARITY, bits: "0", access: W1, reset: 0, description: "Write one: inverts the parity bit of COEF[INDEX]"}
+      - {name: CTRL_PARITY, bits: "1", access: W1, reset: 0, description: "Write one: inverts the parity bit of CTRL"}
+      - {name: INDEX, bits: "15:8", access: W, reset: 0, description: "Coefficient whose parity bit a write of PARITY inverts; an index of T or above has no effect"}
+
+arrays:
+  - name: COEF
+    base: 0x100
+    stride: 4
+    index: k
+    count: T
+    description: "COEF[k], k = 0 to T - 1 (T = WinX_g x WinY_g), at 0x100 + 4 x k."
+    registers:
+      - name: COEF
+        offset: 0x000
+        description: Coefficient of element k
+        fields:
+          - {name: COEF, bits: "17:0", access: RW, reset: "Coef_g(k)", description: "Coefficient (two's complement, CoefBits_g bits); reads sign-extended to 32 bits"}

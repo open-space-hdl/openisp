@@ -1,9 +1,9 @@
 # OpenISP
 
 OpenISP is a suite of open image signal processing cores for spacecraft imagers, based on the Open Logic VHDL Library.
-Every stage of a pixel pipeline (border-aware 2D neighbourhoods, defect pixel correction, flat-field correction,
-filters, demosaicing and others) is developed as a separate, generics-configured VHDL-2008 entity with valid / ready
-pixel streams, so that a processing chain is assembled from the stages it needs. All memories and buffers use the
+Every function of a processing chain (region of interest, pixel-level operations, 2D window filters, binning,
+replacement of non-operational pixels) is a separate, generics-configured VHDL-2008 entity with valid / ready
+pixel streams, so that a chain is assembled from the modules it needs, in any order. All memories and buffers use the
 fault-tolerant entities of [Open Logic](https://github.com/open-logic/open-logic) (SECDED ECC, optional scrubbing),
 every state machine recovers from any state, and the cores are vendor-independent.
 
@@ -12,8 +12,10 @@ specification; the development follows ECSS-E-ST-20-40C.
 
 ## Status
 
-**In development.** No module is verified yet. The first module is the 2D window generator, the front end of every
-later 2D stage. The [roadmap](docs/roadmap.md) lists the modules and their state.
+**Version 0.1.0.** All eight modules and the shared package went through requirements, architecture, verification plan,
+RTL, testbenches, verification and the chain test. The regression passes in GHDL and in QuestaSim (669 of 669 tests),
+with the code coverage in [docs/coverage.md](docs/coverage.md). The [roadmap](docs/roadmap.md) lists the modules, their
+state and the open items.
 
 ## Documentation
 
@@ -22,9 +24,13 @@ The documents are also published as a website: [openspacehdl.org/openisp](https:
 
 | Document | Content |
 | --- | --- |
+| [docs/user_guide.md](docs/user_guide.md) | Integration: sources, pixel stream, registers, building a chain, protection scope, integration constraints, conformance |
+| [docs/architecture.md](docs/architecture.md) | Architecture of the suite: principles, decisions, Open Logic usage, verification, traceability matrix |
+| [docs/requirements.md](docs/requirements.md) | Requirements specification: the pixel stream and the functions of the suite |
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Technology readiness, module status and open items |
 | [docs/compliance.md](docs/compliance.md) | Compliance matrix: module requirements and test cases of every core requirement (generated) |
+| [docs/coverage.md](docs/coverage.md) | Code coverage of the QuestaSim regression: the results per module and the reason for every miss |
 | `hdl/<module>/docs/` | Specification, architecture, verification plan and verification report of each module |
 
 ## Repository structure
@@ -41,6 +47,7 @@ openisp/
 |-- uvvm/             Git submodule: UVVM verification framework
 |-- component_list.txt  Modules in dependency order
 |-- compile_order.txt   Synthesis sources in compile order (generated)
+|-- pr_tests.txt      Tests of the pull-request CI (VUnit patterns)
 `-- run.py            VUnit regression runner
 ```
 
@@ -53,7 +60,8 @@ Prerequisites: Python 3, [GHDL](https://github.com/ghdl/ghdl) on the `PATH` and 
 git submodule update --init
 python -m pip install -r requirements.txt
 python run.py -p 4              # full regression with GHDL, 4 parallel simulations
-python run.py "*isp_window*"    # one module
+python run.py -p 4 --subset pr_tests.txt  # the tests of the pull-request CI
+python run.py "*isp_crop*"      # one module
 python run.py --questa <test>   # QuestaSim
 ```
 
@@ -61,14 +69,21 @@ python run.py --questa <test>   # QuestaSim
 all OpenISP sources into the library `openisp`. `ISP_GHDL_SIM_FLAGS` passes extra flags to the GHDL simulation, for
 example `--vcd=wave.vcd` for a waveform.
 
+A change of the RTL that must keep every cycle is shown with port traces: `python run.py --port-trace` writes a VCD of
+the signals at the top level of the testbench for every test, in two worktrees of the commits before and after the
+change, and `python tools/trace_compare.py <tree A> <tree B>` compares them test by test.
+
 Checks besides the regression:
 
 ```shell
 python lint/lint.py                 # VSG, no errors and no warnings
 python lint/synth_check.py          # synthesizability of the module top levels with GHDL
+python lint/libero_synth.py --out syn fsy_max # resources and estimated timing at 125 MHz on PolarFire (Libero)
 python tools/compliance.py --check  # every core requirement and module requirement traced to a test case
 python run.py --compile-order       # regenerates compile_order.txt (the CI fails when it is not current)
+python tools/ci_subset.py --check   # the rules of the pull-request test list pr_tests.txt
 python -m mkdocs build -f tools/docs/mkdocs.yml  # documentation website, fails on broken links
+python -m pytest -q tools/tests       # unit tests of the reference model
 ```
 
 ## Licence

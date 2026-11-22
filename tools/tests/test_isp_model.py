@@ -1,0 +1,542 @@
+# ---------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 by Julian Schneider
+# Authors: Julian Schneider
+# ---------------------------------------------------------------------------------------------------
+"""Directed tests of the reference models against results worked out by hand from the specifications."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from isp_model import (CRP_INJECT, CRP_ROI_POS, CRP_STATUS, PNT_CTRL, PNT_GAIN, PNT_INJECT,  # noqa: E402
+                       PNT_OFFSET_HI, PNT_OFFSET_LO, PNT_SHIFT, crop, ecc_codeword_width, ecc_data_positions,
+                       ecc_decode, frame_sync, point, point_op, window, conv, conv_full_bits, CNV_COEF,
+                       CNV_CTRL, CNV_INJECT, CNV_STATUS)
+from isp_model import RPL_MAP_ADDR, RPL_MAP_DATA, RPL_STATUS, replace, replace_pixel  # noqa: E402
+from isp_model import bin_filters, bin_model, bin_sum, chain, crop, ecc_data_positions, filter2d, point  # noqa: E402
+from isp_tbgen import malformed_streams, packets  # noqa: E402
+
+
+def beats(model_out):
+    return [o for o in model_out if o[0] == "B"]
+
+
+def test_user_guide_example():
+    # Image of 4 x 3 pixels in packets of 7 and 5 pixels (user guide, section 2.2)
+    pix = list(range(1, 13))
+    out, err, _ = frame_sync(packets(pix, [7, 5]), 4, 3)
+    assert err == 0
+    assert [o[1] for o in out] == pix
+    assert [o[2] for o in out] == [0, 0, 0, 1] * 3
+    assert [o[3] for o in out] == [1] * 4 + [0] * 4 + [2] * 4
+    assert [(o[4], o[5]) for o in out][:5] == [(0, 0), (1, 0), (2, 0), (3, 0), (0, 1)]
+
+
+def test_one_line_and_one_pixel():
+    out, err, _ = frame_sync(packets([5, 6, 7], [3]), 3, 1)
+    assert err == 0 and [o[3] for o in out] == [3, 3, 3] and [o[2] for o in out] == [0, 0, 1]
+    out, err, _ = frame_sync(packets([9], [1]), 1, 1)
+    assert err == 0 and out == [("B", 9, 1, 3, 0, 0)]
+
+
+def test_e1_short_image():
+    # 2 x 2 image cut after 3 pixels, then a complete image
+    items = packets([1, 2, 3], [3], last=False) + packets([5, 6, 7, 8], [4])
+    out, err, annot = frame_sync(items, 2, 2)
+    assert err == 1
+    assert [o[1] for o in out] == [1, 2, 3, 0, 5, 6, 7, 8]
+    assert [(o[4], o[5]) for o in out][3] == (1, 1)
+    assert annot[-1] == (8, False)
+
+
+def test_e2_runs():
+    # Pixels before the first image start: one run; after the image: two runs separated by an image
+    items = [("B", 1, 0, 0), ("B", 2, 1, 0)] + packets([3], [1]) + [("B", 4, 1, 2)] + packets([5], [1]) \
+        + [("B", 6, 0, 0), ("B", 7, 1, 0)]
+    out, err, _ = frame_sync(items, 1, 1)
+    assert [o[1] for o in out] == [3, 5]
+    assert err == 3
+
+
+def test_e3_e4():
+    # E3: the last pixel in a "00" packet; the rest of the packet is a run of E2
+    items = [("B", 1, 0, 1), ("B", 2, 0, 1), ("B", 3, 1, 1)]
+    out, err, _ = frame_sync(items, 2, 1)
+    assert [o[1] for o in out] == [1, 2] and err == 2          # E3 and one E2
+    # E4: a "10" packet that ends at pixel 0 of a 2 x 1 image; the image continues
+    items = [("B", 1, 1, 3), ("B", 2, 1, 2)]
+    out, err, _ = frame_sync(items, 2, 1)
+    assert [o[1] for o in out] == [1, 2] and err == 1
+
+
+def test_reset_drops_beats():
+    items = packets([1, 2, 3], [3], last=False) + [("R", 1, 0, 2)] + [("B", 4, 1, 2)] + packets([5, 6, 7, 8], [4])
+    out, err, annot = frame_sync(items, 2, 2)
+    assert [o[1] if o[0] == "B" else "R" for o in out] == [1, 2, "R", 5, 6, 7, 8]
+    assert err == 1                                             # the remainder after the reset is a run of E2
+    assert annot[3] == (2, False)
+
+
+def crop_pixels(out):
+    return [o[1] for o in out if o[0] == "B"]
+
+
+def test_crop_static():
+    # 4 x 3 image, region (1, 1) of 2 x 2: pixels 6, 7 and 10, 11
+    pix = list(range(1, 13))
+    out, ferr, _, ex = crop(packets(pix, [12]), 4, 3, 1, 1, 2, 2, False)
+    cerr = ex["config"]
+    assert ferr == 0 and cerr == 0
+    assert crop_pixels(out) == [6, 7, 10, 11]
+    assert [o[2] for o in out] == [0, 1, 0, 1]                  # Last at the last column of the region
+    assert [o[3] for o in out] == [1, 1, 2, 2]                  # first line "01", last line "10"
+
+
+def test_crop_runtime_position_and_invalid():
+    pix = list(range(1, 13))
+    img = packets(pix, [4, 4, 4])
+    items = img + [("A", 100, [("W", CRP_ROI_POS, (0 << 16) | 2, 0xF)])] + img \
+        + [("A", 101, [("W", CRP_ROI_POS, (2 << 16) | 3, 0xF), ("C", CRP_ROI_POS, None, 0xF)])] + img
+    out, _, _, ex = crop(items, 4, 3, 1, 1, 2, 2, True)
+    cerr, regs = ex["config"], ex["regs"]
+    # Generics, then (2, 0), then (3, 2) is invalid (3 + 2 > 4): generics again with one Err_Config
+    assert crop_pixels(out) == [6, 7, 10, 11, 3, 4, 7, 8, 6, 7, 10, 11]
+    assert cerr == 1
+    assert regs[1][1][1] == ("C", CRP_ROI_POS, (2 << 16) | 3, 0xF)   # the register keeps the written value
+
+
+def test_crop_parity_and_strobes():
+    pix = list(range(1, 13))
+    img = packets(pix, [12])
+    items = [("A", 100, [("W", CRP_ROI_POS, 0x00000002, 0x1)]), ]   # only byte 0: X = 2, Y stays 1
+    items += img + [("A", 101, [("W", CRP_INJECT, 1, 0xF)])] + img + img
+    items += [("A", 102, [("W", CRP_INJECT, 1, 0xF)])] + img        # a second injection restores the parity
+    items += [("A", 103, [("C", CRP_STATUS, None, 0xF)])]
+    out, _, _, ex = crop(items, 4, 3, 1, 1, 2, 2, True)
+    cerr, regs = ex["config"], ex["regs"]
+    assert crop_pixels(out) == [7, 8, 11, 12, 6, 7, 10, 11, 6, 7, 10, 11, 7, 8, 11, 12]
+    assert cerr == 2
+    assert regs[-1][1][0][2] == 0x200                              # STATUS.ERR_CONFIG, image closed
+
+
+def test_crop_reset_restores_generics():
+    pix = list(range(1, 13))
+    img = packets(pix, [12])
+    items = [("A", 100, [("W", CRP_ROI_POS, 0x2, 0xF)])] + img + [("R", 0, 0, 2)] + img
+    out, _, _, _ = crop(items, 4, 3, 1, 1, 2, 2, True)
+    assert crop_pixels([o for o in out]) == [3, 4, 7, 8, 6, 7, 10, 11]
+
+
+def test_crop_timing():
+    # 4 x 3, region (1, 1) of 2 x 2: the output pixels come from the input beats 5, 6, 9 and 10
+    out, _, _, ex = crop(packets(list(range(1, 13)), [4, 4, 4]), 4, 3, 1, 1, 2, 2, False)
+    assert ex["timing"] == [5, 6, 9, 10]
+
+
+def test_point_op():
+    # Dark level 100, gain 1229 / 1024
+    assert point_op(200, -100, 1229, 10, 0, 4095) == 120          # 122900 / 1024 = 120.02
+    assert point_op(50, -100, 1229, 10, 0, 4095) == 0             # floor(-60.01) = -61, clamped to 0
+    assert point_op(50, -100, 1229, 10, -1000, 4095) == -61       # the arithmetic shift rounds toward minus infinity
+    assert point_op(4095, 0, 7, 0, 0, 4095) == 4095               # upper clamp
+    assert point_op(10, 0, 1, 0, 200, 100) == 100                 # Low above High: first Low, then High
+
+
+def run_point(items, **kw):
+    args = dict(width=2, height=1, in_bits=12, out_bits=12, gain_bits=16, max_shift=28, offset_g=0, gain_g=1,
+                shift_g=0, low_g=0, high_g=-1, runtime=True)
+    args.update(kw)
+    return point(items, **args)
+
+
+def test_point_hold_and_parity():
+    img = packets([10, 20], [2])
+    items = [("A", 100, [("W", PNT_GAIN, 2, 0xF)])] + img                       # gain 2
+    items += [("A", 101, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 3, 0xF)])] + img   # held: still 2
+    items += [("A", 102, [("W", PNT_CTRL, 0, 0xF)])] + img                    # gain 3
+    items += [("A", 103, [("W", PNT_INJECT, 4, 0xF)])] + img + img            # parity of GAIN: generics twice
+    items += [("A", 104, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_INJECT, 4, 0xF)])] + img   # held: no check
+    items += [("A", 105, [("W", PNT_INJECT, 4, 0xF), ("W", PNT_CTRL, 0, 0xF)])] + img   # bad again, taken: error
+    items += [("A", 106, [("W", PNT_GAIN, 5, 0xF)])] + img                    # written: gain 5
+    out, _, _, ex = run_point(items)
+    cerr = ex["config"]
+    assert [o[1] for o in out] == [20, 40, 20, 40, 30, 60, 10, 20, 10, 20, 10, 20, 10, 20, 50, 100]
+    assert cerr == 3
+
+
+def test_point_ctrl_parity():
+    img = packets([10, 20], [2])
+    items = [("A", 100, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 3, 0xF)])] + img      # held: gain 1
+    items += [("A", 101, [("W", PNT_INJECT, 1 << 6, 0xF)])] + img + img                # CTRL bad: gain 3, 2 errors
+    items += [("A", 102, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_GAIN, 5, 0xF)])] + img    # restored, held: gain 3
+    items += [("A", 103, [("W", PNT_CTRL, 1, 0xF), ("W", PNT_INJECT, (1 << 6) | (1 << 2), 0xF)])] + img
+    # CTRL and GAIN bad at the same image start: the generics, one Err_Config
+    out, _, _, ex = run_point(items)
+    assert [o[1] for o in out] == [10, 20, 30, 60, 30, 60, 30, 60, 10, 20]
+    assert ex["config"] == 3
+
+
+def test_point_readback():
+    items = [("A", 100, [("W", PNT_OFFSET_LO, 0xFFFFFFF0, 0xF), ("C", PNT_OFFSET_LO, None, 0xF),
+                         ("C", PNT_OFFSET_HI, None, 0xF),
+                         ("W", PNT_OFFSET_LO, 0x00001FFF, 0xF), ("C", PNT_OFFSET_LO, None, 0xF),
+                         ("W", PNT_SHIFT, 0x7F, 0xF), ("C", PNT_SHIFT, None, 0xF),
+                         ("W", PNT_GAIN, 0xFFFFFFFF, 0x1), ("C", PNT_GAIN, None, 0xF)])]
+    regs = run_point(items)[3]["regs"]
+    reads = [e[2] for e in regs[0][1] if e[0] == "C"]
+    # 13-bit offset: -16 sign-extended; 0x1FFF is -1; SHIFT keeps 7 bits; GAIN: only byte 0 written
+    assert reads == [0xFFFFFFF0, 0xFFFFFFFF, 0xFFFFFFFF, 0x7F, 0xFF]
+
+
+def test_point_shift_limited():
+    img = packets([1024, 0], [2])
+    items = [("A", 100, [("W", PNT_SHIFT, 127, 0xF)])] + img
+    out = run_point(items, max_shift=8)[0]
+    assert [o[1] for o in out] == [4, 0]                                       # 1024 >> 8
+
+
+def elements(data, count, bits):
+    """Elements of a window, element k first."""
+    return [data >> (k * bits) & ((1 << bits) - 1) for k in range(count)]
+
+
+def image(w, h):
+    """Pixel value 10 x (y + 1) + x + 1: p(x, y) can be read from the value."""
+    return [10 * (y + 1) + x + 1 for y in range(h) for x in range(w)]
+
+
+def test_ecc_code():
+    # 12 data bits: 5 Hamming parity bits, 18 bits; data bit 0 at position 3, bit 1 at 5, bit 11 at 17
+    assert ecc_codeword_width(12) == 18
+    pos = ecc_data_positions(12)
+    assert pos[:4] == [3, 5, 6, 7] and pos[-1] == 17 and len(pos) == 12
+    assert ecc_decode(1 << 3, 12) == (0, True, False)              # data bit: corrected
+    assert ecc_decode(1 << 0, 12) == (0, True, False)              # overall parity bit
+    assert ecc_decode(1 << 4, 12) == (0, True, False)              # Hamming parity bit
+    assert ecc_decode((1 << 3) | (1 << 5), 12) == (3, False, True)  # two data bits: data as read
+    assert ecc_decode((1 << 3) | (1 << 0), 12) == (1, False, True)  # data and overall parity bit
+    assert ecc_decode((1 << 1) | (1 << 2), 12) == (0, False, True)  # two parity bits
+    assert ecc_codeword_width(1) == 4 and ecc_codeword_width(32) == 39
+
+
+def test_window_replicate_and_mirror_corner():
+    pix = image(3, 3)                                               # p(x, y) = 10 (y + 1) + x + 1
+    out = window(packets(pix, [9]), 3, 3, 8, 3, 3, border="replicate")[0]
+    assert len(out) == 9 and [o[2] for o in out] == [0, 0, 1] * 3
+    assert [o[3] for o in out] == [1, 1, 1, 0, 0, 0, 2, 2, 2]
+    # Window of (0, 0): rows of the lines 0, 0, 1 and columns 0, 0, 1
+    assert elements(out[0][1], 9, 8) == [11, 11, 12, 11, 11, 12, 21, 21, 22]
+    # Window of (2, 2): rows 1, 2, 2 and columns 1, 2, 2
+    assert elements(out[8][1], 9, 8) == [22, 23, 23, 32, 33, 33, 32, 33, 33]
+    out = window(packets(pix, [9]), 3, 3, 8, 3, 3, border="mirror")[0]
+    # Mirror: line -1 is line 1, column -1 is column 1
+    assert elements(out[0][1], 9, 8) == [22, 21, 22, 12, 11, 12, 22, 21, 22]
+    assert elements(out[8][1], 9, 8) == [22, 23, 22, 32, 33, 32, 22, 23, 22]
+
+
+def test_window_valid_and_zero():
+    pix = image(4, 3)
+    out = window(packets(pix, [12]), 4, 3, 8, 3, 3, border="valid")[0]
+    assert [(o[4], o[5], o[2], o[3]) for o in out] == [(1, 1, 0, 3), (2, 1, 1, 3)]   # one line: flags "11"
+    assert elements(out[1][1], 9, 8) == [12, 13, 14, 22, 23, 24, 32, 33, 34]
+    out = window(packets(pix, [12]), 4, 3, 8, 3, 3, border="zero")[0]
+    assert elements(out[0][1], 9, 8) == [0, 0, 0, 0, 11, 12, 0, 21, 22]
+    assert elements(out[11][1], 9, 8) == [23, 24, 0, 33, 34, 0, 0, 0, 0]
+
+
+def test_window_binning():
+    pix = image(5, 3)
+    out = window(packets(pix, [15]), 5, 3, 8, 2, 2, 0, 0, 2, 2, border="valid")[0]
+    assert [(o[4], o[5]) for o in out] == [(0, 0), (2, 0)]          # the incomplete windows are dropped
+    assert elements(out[1][1], 4, 8) == [13, 14, 23, 24]
+    out = window(packets(pix, [15]), 5, 3, 8, 2, 2, 0, 0, 2, 2, border="zero")[0]
+    assert [(o[4], o[5], o[2], o[3]) for o in out] == [(0, 0, 0, 1), (2, 0, 0, 1), (4, 0, 1, 1),
+                                                        (0, 2, 0, 2), (2, 2, 0, 2), (4, 2, 1, 2)]
+    assert elements(out[5][1], 4, 8) == [35, 0, 0, 0]
+
+
+def test_window_timing_and_count():
+    # 3 x 3 replicate on 4 x 3: the window of (x, y) is completed by p(x + 1, y + 1)
+    pix = image(4, 3)
+    items = packets(pix, [4, 4, 4])
+    out, _, annot, ex = window(items, 4, 3, 8, 3, 3, border="replicate")
+    # Pixel index 5 = p(1, 1) completes the window (0, 0); index 7 = p(3, 1) completes (2, 0), then HCOL (3, 0)
+    assert ex["timing"][:4] == [5, 6, 7, -1]
+    assert annot[4][0] == 0 and annot[5][0] == 1 and annot[7][0] == 4
+    assert annot[11][0] == 12 and ex["timing"][4:8] == [9, 10, 11, -1] and ex["timing"][8:] == [-1] * 4
+
+
+def test_window_ecc():
+    # 1 x 3 window (one column, two delays) on a 3 x 4 image of 12-bit pixels, replicate
+    pix = image(3, 4)
+    cw = ecc_codeword_width(12)
+    pos = ecc_data_positions(12)
+    double = (1 << pos[0]) | (1 << pos[1])                          # data bits 0 and 1: mask 3
+    # Inject into delay 1 before p(1, 1): the codeword of p(1, 1) in delay 1 carries the double error
+    items = packets(pix[:4], [4], last=False) + [("J", 100, double)] + packets(pix[4:], [8], first=False)
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    assert ex["ded"] == 1 and ex["sec"] == 0
+    vals = [elements(o[1], 3, 12) for o in out]
+    # Window of (x, y) = rows y - 1, y, y + 1 of column x; p(1, 1) = 22 changes to 22 ^ 3 = 21 from delay 1 on:
+    # in the window of (1, 1) (row 1, read from delay 1) and of (1, 2) (row 0, from delay 2)
+    assert vals[4] == [12, 21, 32] and vals[7] == [21, 32, 42]
+    assert vals[10] == [32, 42, 42]                                 # (1, 3): unchanged
+    # The same into delay 2: the codeword that delay 2 writes in that event is p(1, 0); visible in (1, 1) only
+    items = packets(pix[:4], [4], last=False) + [("J", 100, double << cw)] + packets(pix[4:], [8], first=False)
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    vals = [elements(o[1], 3, 12) for o in out]
+    assert ex["ded"] == 1 and vals[4] == [12 ^ 3, 22, 32] and vals[1] == [12, 12, 22]
+    # Single errors in both delays in one event: corrected, one pulse
+    items = packets(pix[:4], [4], last=False) + [("J", 100, (1 << pos[3]) | (1 << (cw + 0)))] \
+        + packets(pix[4:], [8], first=False)
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    assert ex["sec"] == 1 and ex["ded"] == 0
+    assert [elements(o[1], 3, 12) for o in out] == [elements(o[1], 3, 12) for o in window(
+        packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
+
+
+def win_data(elems, bits):
+    return sum(e << (k * bits) for k, e in enumerate(elems))
+
+
+def test_conv_sum_and_limits():
+    coef = [-1, -2, -1, -2, 28, -2, -1, -2, -1]                    # gain 16
+    assert conv_full_bits(12, 16, 9) == 31
+    flat = win_data([100] * 9, 12)
+    peak = win_data([0, 0, 0, 0, 100, 0, 0, 0, 0], 12)
+    hole = win_data([100, 100, 100, 100, 0, 100, 100, 100, 100], 12)
+    items = packets([flat, peak, hole], [3])
+    out = conv(items, 12, 3, 3, 16, coef, False, 0)[0]
+    assert [o[1] for o in out] == [1600, 2800, 0]                 # the negative sum -1200 becomes 0
+    out = conv(items, 12, 3, 3, 16, coef, False, 11)[0]
+    assert [o[1] for o in out] == [1600, 2047, 0]                 # saturated to 11 bits
+    assert [(o[2], o[3]) for o in out] == [(0, 3), (0, 3), (1, 3)]
+
+
+def test_conv_image_start_hold_and_inject():
+    w = win_data([1, 2], 3)                                         # e = 1, 2
+    img = packets([w, w], [2])                                      # one image of one line
+    items = [("A", 100, [("W", CNV_COEF + 4, 3, 0xF)])] + img       # c = 1, 3: 7
+    items += [("B", w, 1, 0)]                                       # a packet "00": no image start, keeps 1, 3
+    items += [("A", 101, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 0xFFFFFFFE, 0xF)])] + img   # held: 7
+    items += [("A", 102, [("W", CNV_CTRL, 0, 0xF)])] + img          # c = -2, 3: 4
+    items += [("A", 103, [("W", CNV_INJECT, (1 << 8) | 1, 0xF)])] + img   # parity of COEF[1]: generic 1, 1: 3
+    items += [("A", 104, [("W", CNV_INJECT, (2 << 8) | 1, 0xF), ("C", CNV_COEF, None, 0xF),
+                          ("C", CNV_STATUS, None, 0xF)])] + img     # index 2 >= T: no effect, still 3
+    out, _, _, ex = conv(items, 3, 2, 1, 3, [1, 1], True, 0)
+    assert [o[1] for o in out] == [7, 7, 7, 7, 7, 4, 4, 3, 3, 3, 3]
+    assert ex["config"] == 2
+    reads = [e[2] for e in ex["regs"][-1][1] if e[0] == "C"]
+    assert reads == [0xFFFFFFFE, 0x200]                             # -2 sign-extended, ERR_CONFIG
+
+
+def test_conv_ctrl_parity():
+    w = win_data([1, 2], 3)
+    img = packets([w, w], [2])
+    items = [("A", 100, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 3, 0xF)])] + img     # held: 1 x 1 + 1 x 2 = 3
+    items += [("A", 101, [("W", CNV_INJECT, 2, 0xF)])] + img + img                     # CTRL bad: 3 x 1 + 2 = 5
+    items += [("A", 102, [("W", CNV_CTRL, 1, 0xF), ("W", CNV_COEF, 0, 0xF)])] + img    # restored, held: 5
+    out, _, _, ex = conv(items, 3, 2, 1, 3, [1, 1], True, 0)
+    assert [o[1] for o in out] == [3, 3, 5, 5, 5, 5, 5, 5]
+    assert ex["config"] == 2 and ex["timing"] == list(range(8))
+
+
+def test_window_ecc_unused_delay():
+    # 1 x 3 replicate on 3 x 4: a double error written into delay 2 in line 0 is read in line 1, where the rows above
+    # the image replicate line 0 and delay 2 is not used: no pulse, no change (WIN-FT-02)
+    pix = image(3, 4)
+    cw = ecc_codeword_width(12)
+    pos = ecc_data_positions(12)
+    items = [("J", 100, ((1 << pos[0]) | (1 << pos[1])) << cw)] + packets(pix, [12])
+    out, _, _, ex = window(items, 3, 4, 12, 1, 3, border="replicate")
+    assert ex["ded"] == 0 and ex["sec"] == 0
+    assert [o[1] for o in out] == [o[1] for o in window(packets(pix, [12]), 3, 4, 12, 1, 3, border="replicate")[0]]
+
+
+def test_replace_pixel():
+    assert replace_pixel([10, 20, 30, 40, 50], [1, 1, 0, 1, 1], 2, 2) == (30, False)
+    line, flags = [10, 99, 99, 40, 50], [1, 0, 0, 1, 1]
+    assert replace_pixel(line, flags, 1, 2) == (20, False)        # (10 x 2 + 40 x 1 + 1) / 3
+    assert replace_pixel(line, flags, 2, 2) == (30, False)        # (10 x 1 + 40 x 2 + 1) / 3
+    assert replace_pixel([99, 20, 30], [0, 1, 1], 0, 1) == (20, False)   # left border: from the right
+    line, flags = [10, 98, 99, 97, 50], [1, 0, 0, 0, 1]
+    assert [replace_pixel(line, flags, x, 1) for x in (1, 2, 3)] == [(10, False), (99, True), (50, False)]
+
+
+def test_replace_map_and_timing():
+    w, h = 40, 2                                                    # two words per line
+    pix = list(range(1, 81))
+    img = packets(pix, [40, 40])
+    # Word 1 (pixels 32 to 39 of line 0), bit 3: pixel (35, 0) = 36, between 35 and 37
+    items = [("A", 100, [("W", RPL_MAP_ADDR, 1, 0xF), ("W", RPL_MAP_DATA, 1 << 3, 0xF),
+                         ("C", RPL_MAP_ADDR, None, 0xF)])] + img
+    out, _, annot, ex = replace(items, w, h, 12, 2)
+    assert [o[1] for o in out] == pix                               # linear: the interpolation gives the pixel
+    assert ex["regs"][0][1][2][2] == 2
+    # q(x) follows p(x + 2): after pixel 5 of line 0 (item 6) the outputs 0 to 3; q(x) comes from beat x + 2 of
+    # its line, the last two pixels of a line from none
+    assert annot[6][0] == 4 and annot[40][0] == 40
+    assert ex["timing"][:3] == [2, 3, 4] and ex["timing"][38:42] == [-1, -1, 42, 43]
+    # A double error on map word 0 (data bits 0 and 1) marks pixels 0 and 1: replaced from pixel 2
+    pos = ecc_data_positions(32)
+    items = [("J", 100, (1 << pos[0]) | (1 << pos[1])), ("A", 101, [("W", RPL_MAP_DATA, 0, 0xF),
+                                                                     ("C", RPL_STATUS, None, 0xF)])] + img
+    out, _, _, ex = replace(items, w, h, 12, 2)
+    assert [o[1] for o in out][:3] == [3, 3, 3] and ex["ded"] == 1 and ex["sec"] == 0
+    # A write during the image to a word three words ahead applies in the image; the word in use was read before
+    # the write and applies from the next image. Pixels (7, 0) and (33, 1) differ from their neighbours.
+    pix2 = list(pix)
+    pix2[7] = pix2[73] = 999
+    img2 = packets(pix2, [40, 40])
+    items = img2[:5] + [("A", 100, [("W", RPL_MAP_DATA, 1 << 7, 0xF), ("W", RPL_MAP_ADDR, 3, 0xF),
+                                    ("W", RPL_MAP_DATA, 1 << 1, 0xF)])] + img2[5:] + img2
+    vals = [o[1] for o in replace(items, w, h, 12, 2)[0]]
+    assert vals[7] == 999 and vals[73] == (73 + 75 + 1) // 2
+    assert vals[80 + 7] == (7 + 9 + 1) // 2 and vals[80 + 73] == 74
+
+
+def test_replace_ecc_only_used_words():
+    # 40 x 3: words 0 to 5. A single error on word 2 (line 1) is read ahead with pixel (0, 0); a reset during word 0
+    # drops it before it comes in use: no report. In the next image word 2 comes in use: one report (RPL-IF-04).
+    w, h = 40, 3
+    pix = list(range(1, 121))
+    pos = ecc_data_positions(32)
+    items = [("A", 100, [("W", RPL_MAP_ADDR, 2, 0xF)]), ("J", 101, 1 << pos[5]),
+             ("A", 102, [("W", RPL_MAP_DATA, 0, 0xF)])]
+    items += packets(pix[:10], [10], last=False) + [("R", 0, 0, 1)]
+    out, _, _, ex = replace(items, w, h, 12, 2)
+    assert ex["sec"] == 0
+    out, _, _, ex = replace(items + packets(pix, [40, 40, 40]), w, h, 12, 2)
+    assert ex["sec"] == 1 and [o[1] for o in out if o[0] == "B"][-120:] == pix
+
+
+def test_filter2d_composition():
+    pix = image(3, 3)
+    ones = [1] * 9
+    out = filter2d(packets(pix, [9]), 3, 3, 8, 3, 3, coef_bits=2, coef=ones)[0]
+    assert out[0][1] == 11 + 11 + 12 + 11 + 11 + 12 + 21 + 21 + 22
+    centre = [0, 0, 0, 0, 1, 0, 0, 0, 0]
+    out = filter2d(packets(pix, [9]), 3, 3, 8, 3, 3, coef_bits=2, coef=centre)[0]
+    assert [o[1] for o in out] == pix
+
+
+def test_bin_definition():
+    pix = image(5, 3)
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "valid")[0]
+    assert [(o[1], o[2], o[3]) for o in out] == [(66, 0, 3), (74, 1, 3)]
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "zero")[0]
+    assert [o[1] for o in out] == [66, 74, 40, 63, 67, 35]
+    out = bin_sum(packets(pix, [15]), 5, 3, 8, 2, 2, "replicate")[0]
+    assert out[5][1] == 35 * 4 and out[3][1] == 31 + 32 + 31 + 32
+
+
+def test_bin_equals_two_filters():
+    # The definition of a bin and the two filters in series give the same images (model consistency)
+    import random
+    rng = random.Random(7)
+    for w, h, bx, by, border in [(13, 9, 2, 2, "valid"), (13, 9, 3, 5, "zero"), (14, 12, 3, 5, "replicate"),
+                                 (8, 6, 4, 1, "zero"), (5, 12, 1, 4, "replicate")]:
+        pix = [rng.getrandbits(8) for _ in range(w * h)]
+        items = packets(pix, [w] * h)
+        ref = [o[1] for o in bin_sum(items, w, h, 8, bx, by, border)[0]]
+        wo = w // bx if border == "valid" else -(-w // bx)
+        mid = filter2d(items, w, h, 8, bx, 1, 0, 0, bx, 1, border, 2, [1] * bx)[0]
+        mid_bits = 8 + (bx - 1).bit_length()
+        ho_items = packets([o[1] for o in mid], [wo] * h)
+        out = filter2d(ho_items, wo, h, mid_bits, 1, by, 0, 0, 1, by, border, 2, [1] * by)[0]
+        assert [o[1] for o in out] == ref, (w, h, bx, by, border)
+
+
+def test_bin_filters_equal_definition():
+    # The composition of the two sum filters equals the definition of a bin for every shape (both filters, one of
+    # them, the frame sync alone) and border mode, also for malformed streams and resets; it never sees a framing
+    # error between the two filters
+    import random
+    rng = random.Random(11)
+    for w, h, bx, by, border in [(13, 9, 2, 2, "valid"), (13, 9, 2, 2, "zero"), (14, 12, 3, 5, "replicate"),
+                                 (12, 5, 4, 1, "zero"), (5, 12, 1, 4, "replicate"), (6, 4, 1, 1, "valid"),
+                                 (4, 4, 4, 4, "valid")]:
+        items = malformed_streams(rng, w, h, 8, packets_count=20)
+        pix = [rng.getrandbits(8) for _ in range(w * h)]
+        k = w * h // 2
+        items += packets(pix[:k], [k], last=False) + [("R", 0, 0, 1)] + packets(pix, [w] * h)
+        out, errors, annot = bin_model(items, w, h, 8, bx, by, border)[:3]
+        assert errors > 0 and out and annot[-1] == (len([o for o in out if o[0] == "B"]), False)
+
+
+def test_bin_filters_open_and_injection():
+    pix = image(4, 4)
+    # One pixel of an image: only the horizontal sum is open (BinX 2 needs two pixels for its first output)
+    annot = bin_filters(packets(pix[:1], [1], last=False), 4, 4, 8, 2, 2, "valid")[2]
+    assert annot[-1] == (0, True)
+    # A double error on two data bits of narrowed pixel (0, 0) in the line buffer of the vertical sum: the bin (0, 0)
+    # uses the word as read, the other bins are unchanged
+    clean = bin_filters(packets(pix, [16]), 4, 4, 8, 2, 2, "valid")
+    pos = ecc_data_positions(9)
+    hit = bin_filters([("J", 100, (1 << pos[0]) | (1 << pos[1]))] + packets(pix, [16]), 4, 4, 8, 2, 2, "valid")
+    assert hit[3]["ded"] == 1 and hit[3]["sec"] == 0
+    assert hit[0][0][1] != clean[0][0][1] and [o[1] for o in hit[0][1:]] == [o[1] for o in clean[0][1:]]
+    # The timing: every output pixel of a valid 2 x 2 bin is completed by the input beat of its lower right pixel
+    assert clean[3]["timing"] == [5, 7, 13, 15]
+
+
+def _crop_stage(items):
+    return crop(items, 40, 20, 4, 2, 32, 16, True)
+
+
+def _point_stage(items):
+    # 12 -> 12 bits, run-time registers, the generics the identity
+    return point(items, 32, 16, 12, 12, 16, 16, 0, 1, 0, 0, -1, True)
+
+
+def test_chain_composition():
+    # A crop and an identity point in series: the output and the timing of the chain are those of the crop
+    import random
+    rng = random.Random(3)
+    pix = [rng.getrandbits(12) for _ in range(40 * 20)]
+    items = packets(pix, [40] * 20) + packets(pix, [800])
+    ref = _crop_stage(items)
+    out, errors, annot, extra = chain(items, [_crop_stage, _point_stage])
+    assert [o[1:4] for o in out] == [o[1:4] for o in ref[0]] and errors == 0
+    assert extra["timing"] == ref[3]["timing"]
+    assert annot[-1] == (2 * 32 * 16, False)
+
+
+def test_chain_registers():
+    # Accesses of two modules in one marker: the read values of each model in the order of the accesses
+    items = [("A", 100, [(1, ("W", PNT_GAIN, 3, 0xF)), (0, ("C", CRP_ROI_POS, None, 0xF)),
+                         (1, ("C", PNT_GAIN, None, 0xF))])]
+    _out, _errors, _annot, extra = chain(items, [_crop_stage, _point_stage])
+    (marker, entries), = extra["regs"]
+    assert marker == 100 and [e[0] for e in entries] == [1, 0, 1]
+    assert entries[1][1][2] == (2 << 16) | 4 and entries[2][1][2] == 3
+
+
+def test_chain_module_reset():
+    # A reset of the middle module alone in image 0, the chain settled. The middle module receives the rest of the
+    # image without an image start and reports it once (E2). The last module holds what the middle one delivered:
+    # - paused after the region of the crop in a line, that ends with a whole line: the image start of image 1
+    #   completes image 0 with pixels of value 0 (E1), image 1 passes;
+    # - paused inside the region, the packet is cut: the last module continues it with image 1, ends image 0 at its
+    #   pixel count (E3) and discards the rest of image 1 (E2); image 1 is lost behind the reset module.
+    import random
+    rng = random.Random(4)
+    pix = [rng.getrandbits(12) for _ in range(40 * 20)]
+    image1 = [rng.getrandbits(12) for _ in range(40 * 20)]
+    expect1 = [o[1] for o in _crop_stage(packets(image1, [800]))[0]]
+    for k, errors_last, image1_out in ((40 * 6 + 38, 1, True), (40 * 6 + 10, 2, False)):
+        items = packets(pix[:k], [k], last=False) + [("RM", 100, 1)] + packets(pix[k:], [800 - k], first=False)
+        items += packets(image1, [800])
+        out, errors, _annot, extra = chain(items, [_crop_stage, _point_stage, _point_stage])
+        assert errors == 0 and [s["errors"] for s in extra["stages"]] == [0, 1, errors_last]
+        beats = [o[1] for o in out if o[0] == "B"]
+        assert len(beats) == (2 if image1_out else 1) * 32 * 16
+        assert (beats[-32 * 16:] == expect1) == image1_out
+    # A reset of the last module is refused: it would drop beats of the chain output
+    try:
+        chain([("RM", 100, 2)], [_crop_stage, _point_stage, _point_stage])
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("a reset of the last module was accepted")

@@ -1,0 +1,128 @@
+# Tests of the pull-request CI: one VUnit pattern per line, '#' starts a comment.
+#
+# Pull requests into develop run these tests (python run.py -p 4 --subset pr_tests.txt). The full regression runs on
+# every push to develop, main and release/*, on pull requests into main and on a manual start of the workflow. The
+# subset is a smoke test: the merge evidence of a module is the full local regression and the mutation run.
+#
+# Rules (python tools/ci_subset.py --check):
+# - every test of every testbench runs in at least one configuration (checked);
+# - every pattern matches at least one test (checked);
+# - no configuration of the full tier: images of 65536 pixels per line or of 65536 lines, exhaustive_p6 (checked);
+# - at least one configuration at the low bound of every generic of the module, every value of a boolean or an
+#   enumeration (review).
+
+openisp.isp_pkg_tb.*
+
+# isp_frame_sync: every test (w5_h4_p12); 1 x 1 with 1 bit; 64 bits; back pressure
+openisp.isp_frame_sync_tb.w5_h4_p12.*
+openisp.isp_frame_sync_tb.w1_h1_p1.*
+openisp.isp_frame_sync_tb.w2_h2_p64.*
+openisp.isp_frame_sync_tb.w5_h4_p12_bp.*
+
+# isp_crop: every test (w8_h6_runtime and its rate configuration); 1 x 1; 1 bit with a static ROI
+openisp.isp_crop_tb.w8_h6_runtime.*
+openisp.isp_crop_tb.w8_h6_runtime_rate.*
+openisp.isp_crop_tb.w1_h1.*
+openisp.isp_crop_tb.w8_h6_line.*
+
+# isp_point: every test (runtime, runtime_rate, exhaustive, shift_limit); width 1 (w1_h4); height 1 (exhaustive);
+# 1 bit and one multiplier stage (narrow); the widest generics and the values of the generics at their bounds;
+# the defaults of the entity (defaults)
+openisp.isp_point_tb.runtime.*
+openisp.isp_point_tb.runtime_rate.*
+openisp.isp_point_tb.exhaustive.*
+openisp.isp_point_tb.shift_limit.*
+openisp.isp_point_tb.w1_h4.*
+openisp.isp_point_tb.narrow.*
+openisp.isp_point_tb.wide.*
+openisp.isp_point_tb.generic_bounds.*
+openisp.isp_point_tb.defaults.*
+
+# isp_window: every test (row9, the rate configurations, ecc_bram_1, ecc_srl_1); 1 bit; 32 bits; windows 1 x 16 and
+# 16 x 1; the image as large as the window, with border mode valid and EccPipeline_g 0 (an output of 1 x 1); the
+# largest window
+openisp.isp_window_tb.row9.*
+openisp.isp_window_tb.rate_*
+openisp.isp_window_tb.ecc_bram_1.*
+openisp.isp_window_tb.ecc_srl_1.*
+openisp.isp_window_tb.bits1.*
+openisp.isp_window_tb.bits_32.*
+openisp.isp_window_tb.size_1x16.*
+openisp.isp_window_tb.size_16x1.*
+openisp.isp_window_tb.image_equals_window.*
+openisp.isp_window_tb.image_equals_window_valid.*
+openisp.isp_window_tb.max.test_static
+
+# isp_conv: every test (min, rate_3, exhaustive, exhaustive_sat); min also holds every low bound (1 bit, window 1 x 1,
+# 2-bit coefficients, 1 output bit); 1 and 256 constant coefficients; the narrowest and the widest data paths; windows
+# 1 x 16 and 16 x 1; the largest window with run-time coefficients (max)
+openisp.isp_conv_tb.min.*
+openisp.isp_conv_tb.rate_3.*
+openisp.isp_conv_tb.exhaustive.*
+openisp.isp_conv_tb.exhaustive_sat.*
+openisp.isp_conv_tb.taps_1.*
+openisp.isp_conv_tb.taps_256.test_static
+openisp.isp_conv_tb.widths_1_2_1.*
+openisp.isp_conv_tb.widths_32_18_64.*
+openisp.isp_conv_tb.size_1x16.*
+openisp.isp_conv_tb.size_16x1.*
+openisp.isp_conv_tb.max.test_static
+
+# isp_filter2d: every test (mtf3, ecc, rate_3); the low bounds in min (1 x 1 image and window, 1 bit, 2-bit
+# coefficients, 1 output bit, border mode valid) and small (the image as large as the window, EccPipeline_g 0, SRL);
+# BRAM and the border mode mirror (mtf5_mirror); zero, saturation and constant coefficients (mtf5_const); a stride
+# and an anchor at 0 (strided); two filters in series (separable)
+openisp.isp_filter2d_tb.mtf3.*
+openisp.isp_filter2d_tb.ecc.*
+openisp.isp_filter2d_tb.rate_3.*
+openisp.isp_filter2d_tb.min.*
+openisp.isp_filter2d_tb.small.*
+openisp.isp_filter2d_tb.mtf5_mirror.test_static
+openisp.isp_filter2d_tb.mtf5_const.test_static
+openisp.isp_filter2d_tb.strided.test_static
+openisp.isp_filter2d_tb.separable.test_static
+
+# isp_bin: every test (bin2_zero, ecc, rate_tall); the factors 1 with test_rate (rate_x_only, rate_y_only, rate_none);
+# the low bounds of the image size and the pixel width (min: 1 x 1 of 1 bit; image_equals_bin: the image of one bin;
+# bits1: 1 bit with both filters and EccPipeline_g 0); the border mode valid (bin2_valid); SRL and EccPipeline_g 0
+# (bin4); BRAM and the widest pixels (max); W not a multiple of BinX_g with the low bound W = BinX_g + 1 (rate_odd_w3)
+# and the exact wait (rate_odd_w33)
+openisp.isp_bin_tb.bin2_zero.*
+openisp.isp_bin_tb.ecc.*
+openisp.isp_bin_tb.rate_tall.*
+openisp.isp_bin_tb.rate_x_only.*
+openisp.isp_bin_tb.rate_y_only.*
+openisp.isp_bin_tb.rate_none.*
+openisp.isp_bin_tb.rate_odd_w3.*
+openisp.isp_bin_tb.rate_odd_w33.*
+openisp.isp_bin_tb.min.*
+openisp.isp_bin_tb.image_equals_bin.*
+openisp.isp_bin_tb.bits1.*
+openisp.isp_bin_tb.bin2_valid.*
+openisp.isp_bin_tb.bin4.*
+openisp.isp_bin_tb.max.*
+
+# isp_replace: every test (g2, flags, rate_g2, exhaustive, clear); G = 1 with the narrowest image; G = 7; 1 bit; a
+# map of one word; the longest read latency; the scrubber overrun; the defaults of the entity (defaults,
+# defaults_rate)
+openisp.isp_replace_tb.g2.*
+openisp.isp_replace_tb.flags.*
+openisp.isp_replace_tb.rate_g2.*
+openisp.isp_replace_tb.defaults.*
+openisp.isp_replace_tb.defaults_rate.*
+openisp.isp_replace_tb.exhaustive.*
+openisp.isp_replace_tb.clear.*
+openisp.isp_replace_tb.g1_min.*
+openisp.isp_replace_tb.g7.*
+openisp.isp_replace_tb.bits1.*
+openisp.isp_replace_tb.one_word.*
+openisp.isp_replace_tb.lat_3_2.*
+openisp.isp_replace_tb.scrub_overrun.*
+
+# isp_chain: every test of the chain small (the low bounds: 1-bit pixels, 1 x 1 output); the timing, the FIFO and the
+# negative tests of the chain typical; the timing of the chain reordered
+openisp.isp_chain_tb.small.*
+openisp.isp_chain_tb.typical.test_rate
+openisp.isp_chain_tb.typical.test_fifo
+openisp.isp_chain_tb.typical.neg_*
+openisp.isp_chain_tb.reordered.test_rate

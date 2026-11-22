@@ -16,10 +16,20 @@ coverage/coverage.ucdb with the text report coverage/coverage_report.txt. Questa
 
 `--compile-order` writes compile_order.txt (the synthesis sources of the library `openisp` in compile order) and
 exits without simulating.
+
+`--subset FILE` runs the tests that match the VUnit patterns of FILE (one per line, '#' starts a comment), for example
+`--subset pr_tests.txt`, the tests of the pull-request CI.
+
+`--port-trace` (GHDL) writes for every test a VCD of the signals at the top level of its testbench (the scalar and
+vector signals of the testbench architecture: the reset, the streams, the status and error signals, the injection
+inputs; not the records of the register bus) to vunit_out/test_output/<test>/ghdl/port.vcd. Two trees that ran the same
+tests compare with `python tools/trace_compare.py <tree A> <tree B>`: identical traces show that a change of the RTL
+keeps every cycle at those signals.
 """
 
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -38,6 +48,16 @@ if COVERAGE:
 COMPILE_ORDER = "--compile-order" in sys.argv
 if COMPILE_ORDER:
     sys.argv.remove("--compile-order")
+PORT_TRACE = "--port-trace" in sys.argv
+if PORT_TRACE:
+    sys.argv.remove("--port-trace")
+PORT_TRACE_DIR = ROOT / "vunit_out" / "port_trace"
+if "--subset" in sys.argv:
+    # The patterns of the file become the test patterns of VUnit, placed before the options
+    _i = sys.argv.index("--subset")
+    _lines = Path(sys.argv[_i + 1]).read_text(encoding="utf-8").splitlines()
+    del sys.argv[_i:_i + 2]
+    sys.argv[1:1] = [p for p in (ln.split("#", 1)[0].strip() for ln in _lines) if p]
 if "--questa" in sys.argv:
     sys.argv.remove("--questa")
     os.environ["VUNIT_SIMULATOR"] = "modelsim"
@@ -58,6 +78,12 @@ def own_sim_flags(get_command):
     def wrapper(self, config, *args, **kwargs):
         config.sim_options = {**config.sim_options,
                               "ghdl.sim_flags": list(config.sim_options.get("ghdl.sim_flags", []))}
+        if PORT_TRACE:
+            # args[0] is <test output>/ghdl; the wave option file is named after the testbench entity (the name of the
+            # test output can be shortened by VUnit on Windows)
+            out = Path(args[0])
+            opt = PORT_TRACE_DIR / (config.entity_name + ".opt")
+            config.sim_options["ghdl.sim_flags"] += [f"--vcd={out / 'port.vcd'}", f"--read-wave-opt={opt}"]
         cmd = get_command(self, config, *args, **kwargs)
         generics = [arg for arg in cmd if arg.startswith("-g")]
         expected = [f"-g{name}={value}" for name, value in config.generics.items()]
@@ -70,6 +96,20 @@ def own_sim_flags(get_command):
 
 GHDLInterface._get_command = own_sim_flags(GHDLInterface._get_command)
 
+
+def write_port_trace_options():
+    """A wave option file per testbench (--port-trace): the signals declared at the level of the testbench
+    architecture with the types std_logic, std_logic_vector, unsigned and signed."""
+    PORT_TRACE_DIR.mkdir(parents=True, exist_ok=True)
+    decl = re.compile(r"^    signal ([\w, ]+?)\s*:\s*(std_logic_vector|std_logic|unsigned|signed)\b", re.M)
+    for src in sorted(ROOT.glob("hdl/*/tb/*_tb.vhd")):
+        text = src.read_text(encoding="utf-8")
+        arch = text[text.index("architecture"):]
+        arch = arch[:arch.index("\nbegin")]
+        names = [n.strip() for m in decl.finditer(arch) for n in m.group(1).split(",")]
+        lines = ["$ version 1.1"] + [f"/{src.stem}/{n}" for n in names]
+        (PORT_TRACE_DIR / f"{src.stem}.opt").write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
+
 # Open Logic areas compiled into the library olo (the areas fix and intf are not used)
 OLO_AREAS = ("base", "axi", "ft")
 
@@ -79,6 +119,7 @@ UVVM_COMPONENTS = (
     "uvvm_vvc_framework",
     "bitvis_vip_scoreboard",
     "bitvis_vip_axistream",
+    "bitvis_vip_axilite",
 )
 
 
@@ -191,6 +232,8 @@ def main():
         return
     apply_module_configs(lib, modules)
     set_simulator_options(vu)
+    if PORT_TRACE:
+        write_port_trace_options()
     if COVERAGE:
         vu.set_sim_option("enable_coverage", True, allow_empty=True)
     vu.main(post_run=merge_coverage)

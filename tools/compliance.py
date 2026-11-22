@@ -15,9 +15,11 @@ The script reads the matrix, the module requirements and the test cases of every
 requirement IDs) and writes docs/compliance.md: for every core requirement of the matrix the module requirements that
 trace to it and the test cases that verify them. With --check the file is not written; the exit code is 1 when a core
 requirement in the scope of the core has no test case, when a module requirement has no test case, when a module
-requirement names a core requirement that the matrix does not contain, when a test case of a plan is not run or when
-docs/compliance.md is not current. Before the matrix exists (docs/architecture.md without section 10), every table is
-empty.
+requirement names a core requirement that the matrix does not contain, when a core requirement in scope has no module
+requirement, when a test case of a plan is not run or when docs/compliance.md is not current. A module without a
+verification plan is in development: its requirements are listed, but not counted as gaps, and a core requirement
+whose module requirements all belong to such modules has the status "In development". Before the matrix exists
+(docs/architecture.md without section 10), the references to core requirements are not checked.
 """
 
 import re
@@ -86,6 +88,10 @@ def load_tests():
                 tid = m.group(1) if m else row[0]
                 tests.setdefault(tid, set()).update(expand_ids(row[-1]))
                 names.add(row[0].split("`")[1])
+            elif len(row) >= 3 and re.match(r"^TC-[A-Z]+-\d+", row[0]):
+                # Test cases outside a testbench, for example "TC-FSY-09 (`lint/synth_check.py`)"
+                for tid in re.findall(r"TC-[A-Z]+-\d+", row[0]):
+                    tests.setdefault(tid, set()).update(expand_ids(row[-1]))
     run_names = set()
     for tb in ROOT.glob("hdl/*/tb/*.vhd"):
         run_names.update(re.findall(r'run\("(test_\w+)"\)', tb.read_text(encoding="utf-8")))
@@ -118,6 +124,7 @@ def main():
     reqs = load_requirements()
     tests, not_run = load_tests()
     matrix = load_matrix()
+    planned = {p.parent.parent.name for p in ROOT.glob("hdl/*/docs/verification_plan.md")}
     lines = [
         "# OpenISP: Compliance Matrix",
         "",
@@ -147,6 +154,8 @@ def main():
             status = "User obligation"
         elif test_ids:
             status = "Verified"
+        elif req_ids and all(reqs[r][0] not in planned for r in req_ids):
+            status = "In development"
         else:
             status = "Not traced"
             missing.append(core_id)
@@ -167,12 +176,15 @@ def main():
         "| --- | --- | --- | --- |",
     ]
     covered = set().union(*tests.values()) if tests else set()
-    untested = sorted(r for r in reqs if r not in covered)
-    unknown = sorted({(r, c) for r, (_, refs) in reqs.items() for c in refs if c not in known})
+    untested = sorted(r for r, (m, _) in reqs.items() if r not in covered and m in planned)
+    unknown = sorted({(r, c) for r, (_, refs) in reqs.items() for c in refs if c not in known}) if matrix else []
     for module in sorted({m for m, _ in reqs.values()}):
         ids = [r for r, (m, _) in reqs.items() if m == module]
-        gaps = [r for r in ids if r not in covered]
-        lines.append(f"| `{module}` | {len(ids)} | {len(ids) - len(gaps)} | {', '.join(gaps) or '-'} |")
+        if module in planned:
+            gaps = [r for r in ids if r not in covered]
+            lines.append(f"| `{module}` | {len(ids)} | {len(ids) - len(gaps)} | {', '.join(gaps) or '-'} |")
+        else:
+            lines.append(f"| `{module}` | {len(ids)} | - | In development: no verification plan yet |")
     lines += [
         "",
         f"Requirements: {len(reqs)}; without a test case: {len(untested)}; test cases of the plans not run by a "
