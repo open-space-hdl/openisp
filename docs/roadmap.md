@@ -5,10 +5,15 @@ regression is green.
 
 ## Technology readiness
 
-The regression passes in GHDL and in QuestaSim (669 of 669 tests); the [code coverage](coverage.md) lists every miss
-with its reason. A module reaches TRL 3 when it is fully verified by simulation (GHDL and QuestaSim, code coverage
-closed or justified); TRL 4 needs the hardware test of a reference system of the family that contains it.
-The [TRL page](https://openspacehdl.org/trl/) explains what the levels mean for an IP core.
+The suite is at **TRL 3**: every module is fully verified by simulation. The regression passes in GHDL and in QuestaSim
+(669 of 669 tests); the [code coverage](coverage.md) lists every miss with its reason; every module has a mutation run.
+The modules have not been tested on hardware and have no flight heritage. The [TRL page](https://openspacehdl.org/trl/)
+explains what the levels mean for an IP core.
+
+| Next level | What is needed | State |
+| --- | --- | --- |
+| TRL 4 | Hardware test of a reference system of the family that contains the modules: synthesis with timing closure of the system; images processed by the modules on the FPGA equal to the outputs of the reference models (`tools/isp_model.py`); hardware test plan and report of the system | Open: no reference system contains OpenISP yet; the out-of-context synthesis at 150 MHz on the Versal device of the reference systems (ISP-GEN-04) is open |
+| TRL 5 | Single-event effects test (beam test) on a radiation-tolerant FPGA with the modules in operation | Open |
 
 ## Modules
 
